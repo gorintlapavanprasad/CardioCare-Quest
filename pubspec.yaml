@@ -44,24 +44,26 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
+    - assets/branding/ccq.png
+    - assets/branding/icon.png
     - assets/branding/app_icon.png
     - assets/game/dog_quest.html
 
 flutter_icons:
   android: true
   ios: true
-  image_path: "assets/branding/app_icon.png"
-  adaptive_icon_background: "assets/branding/icon_background.png"
-  adaptive_icon_foreground: "assets/branding/icon_foreground.png"
+  image_path: "assets/branding/launcher.png"
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/branding/launcher.png"
 
 flutter_native_splash:
   # ─── CHANGE THIS COLOR ───
   color: "#ffffff" # Replace with your preferred Hex code (e.g., a green to match the logo)
   
   # Your logo in the center
-  image: "assets/branding/app_icon.png" 
+  image: "assets/branding/loader.png" 
   
   # Ensure Android 12+ (which uses a different splash API) also gets the color
   android_12:
    color: "#ffffff" # Same color as above for consistency
-   image: "assets/branding/app_icon.png"
+   image: "assets/branding/loader.png"
