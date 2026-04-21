@@ -15,19 +15,17 @@ class _CreatePinScreenState extends State<CreatePinScreen> {
   String _pin = "";
   bool _isSaving = false;
 
-  Future<void> _savePin() async {
+Future<void> _savePin() async {
     if (_pin.length < 4) return;
-    
     setState(() => _isSaving = true);
     
     try {
-      // Add the PIN to their existing Firestore document
+      // ─── CHANGED 'userData' TO 'users' ───
       await FirebaseFirestore.instance.collection('users').doc(widget.participantId).update({
         'transferPin': _pin,
       });
 
       if (mounted) {
-        // Navigate to the final Success Screen to show them their ID
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (context) => QuestCompleteScreen(participantId: widget.participantId)),
         );
@@ -37,7 +35,7 @@ class _CreatePinScreenState extends State<CreatePinScreen> {
       if (mounted) setState(() => _isSaving = false);
     }
   }
-
+  
   @override
   Widget build(BuildContext context) {
     return Scaffold(

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
 import 'home_tab.dart';
-// We will create these two tabs next!
-// import 'quests_tab.dart';
-// import 'profile_tab.dart';
+
+// ─── ADDED: Import your custom Coming Soon component ───
+import '../widgets/coming_soon_screen.dart'; 
 
 class MainLayout extends StatefulWidget {
   const MainLayout({super.key});
@@ -15,11 +15,11 @@ class MainLayout extends StatefulWidget {
 class _MainLayoutState extends State<MainLayout> {
   int _currentIndex = 0;
 
-  // The screens for each tab
+  // ─── UPDATED: Replaced basic text with your polished layout ───
   final List<Widget> _tabs = [
     const HomeTab(),
-    const Center(child: Text("Quests Tab Coming Soon", style: TextStyle(fontSize: 20))), // Placeholder
-    const Center(child: Text("Profile Tab Coming Soon", style: TextStyle(fontSize: 20))), // Placeholder
+    const ComingSoonScreen(featureName: "Quests Hub"),
+    const ComingSoonScreen(featureName: "Profile & History"),
   ];
 
   @override

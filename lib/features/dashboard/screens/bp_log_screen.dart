@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:shared_preferences/shared_preferences.dart'; // ─── UPDATED IMPORT ───
+import 'package:firebase_auth/firebase_auth.dart'; // ─── NEW: Official Auth
+import 'package:provider/provider.dart'; // ─── NEW: State Management
 import '../../../core/theme/app_colors.dart';
+import 'package:cardio_care_quest/user_data_manager.dart';
 
 class BPLogScreen extends StatefulWidget {
   const BPLogScreen({super.key});
@@ -15,53 +17,62 @@ class _BPLogScreenState extends State<BPLogScreen> {
   final TextEditingController _diastolicController = TextEditingController();
   bool _isSaving = false;
 
-  Future<void> _saveBPReading() async {
-    if (_systolicController.text.isEmpty || _diastolicController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please enter both numbers")),
-      );
-      return;
-    }
+Future<void> _saveBPReading() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    if (_systolicController.text.isEmpty || _diastolicController.text.isEmpty) return;
 
     setState(() => _isSaving = true);
 
     try {
-      // ─── UPDATED: USE SHARED PREFERENCES TO PREVENT HANGING ON WEB ───
-      final prefs = await SharedPreferences.getInstance();
-      String? participantId = prefs.getString('participant_id');
-      
-      if (participantId == null) {
-        throw Exception("User ID not found. Please log in again.");
-      }
-      // ────────────────────────────────────────────────────────────────
-
+      final int sys = int.parse(_systolicController.text);
+      final int dia = int.parse(_diastolicController.text);
       String today = DateTime.now().toIso8601String().split('T')[0];
       
-      await FirebaseFirestore.instance
-          .collection('users').doc(participantId)
-          .collection('dailyLogs').doc(today)
-          .set({
-        'systolic': int.parse(_systolicController.text),
-        'diastolic': int.parse(_diastolicController.text),
+      final firestore = FirebaseFirestore.instance;
+      final batch = firestore.batch(); // Use batch to update Profile and Leaderboard together
+
+      // ─── CHANGED: Point to 'users' collection ───
+      final userRef = firestore.collection('users').doc(user.uid);
+
+      // 1. Save detailed log for history (Nested under the user)
+      final logRef = userRef.collection('dailyLogs').doc(today);
+      batch.set(logRef, {
+        'systolic': sys,
+        'diastolic': dia,
         'timestamp': FieldValue.serverTimestamp(),
-        'taskCompleted': true,
       }, SetOptions(merge: true));
 
+      // 2. ⚡ DASHBOARD SYNC: Update root fields (Using new Netgauge schema names)
+      batch.update(userRef, {
+        'totalXP': FieldValue.increment(50),          // Changed from 'xp'
+        'totalSessions': FieldValue.increment(1),     // Changed from 'measurementsTaken'
+        'lastSystolic': sys,       
+        'lastDiastolic': dia,      
+        'lastLogDate': today,      
+      });
+
+      // 3. 🏆 LEADERBOARD SYNC: Ensure researchers see the new XP
+      final leaderboardRef = firestore.collection('leaderboard').doc(user.uid);
+      batch.update(leaderboardRef, {
+        'score': FieldValue.increment(50),
+        'lastUpdated': FieldValue.serverTimestamp(),
+      });
+
+      // Commit all writes at once
+      await batch.commit();
+
       if (mounted) {
-        // Returning true triggers the celebration modal on the HomeTab
+        // Refresh the provider "Brain"
+        await Provider.of<UserDataProvider>(context, listen: false).fetchUserData();
         Navigator.of(context).pop(true);
       }
     } catch (e) {
       debugPrint("❌ SAVE ERROR: $e");
-      if (mounted) {
-        setState(() => _isSaving = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString())),
-        );
-      }
+      if (mounted) setState(() => _isSaving = false);
     }
   }
-
+  
   @override
   Widget build(BuildContext context) {
     return Scaffold(

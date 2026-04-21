@@ -1,13 +1,13 @@
 {
   "project_info": {
-    "project_number": "74239338720",
-    "project_id": "cardiocare-quest",
-    "storage_bucket": "cardiocare-quest.firebasestorage.app"
+    "project_number": "759389210814",
+    "project_id": "cardiocarequest",
+    "storage_bucket": "cardiocarequest.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:74239338720:android:580315f73834ec3bce8885",
+        "mobilesdk_app_id": "1:759389210814:android:bcb72438d62ef8863976ef",
         "android_client_info": {
           "package_name": "com.nau.cardiocarequest"
         }
@@ -15,7 +15,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyAjmpj2artJFzabpoCqvxYtkk8oGAR8G4U"
+          "current_key": "AIzaSyCu_6GnUiMTDrwixaO_h159a5Zc0Uq3XqM"
         }
       ],
       "services": {

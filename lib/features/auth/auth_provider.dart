@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-// For debugPrint
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // ─── NEW: Official Auth
 import '../../core/theme/app_colors.dart';
 
 class AuthProvider extends ChangeNotifier {
   int _currentStep = 0;
-  final int totalSteps = 14; // ─── CHANGE THIS TO 14 ───
+  final int totalSteps = 14; 
   final Map<String, dynamic> _formData = {};
   final bool _isSubmitting = false;
 
@@ -25,14 +25,13 @@ class AuthProvider extends ChangeNotifier {
 
   void updateField(String key, dynamic value) {
     _formData[key] = value;
-    debugPrint("🛠️ DEBUG: Form Field Updated -> $key: $value");
+    debugPrint("🛠️ Form Field Updated -> $key: $value");
     notifyListeners();
   }
 
   void nextStep() {
     if (_currentStep < totalSteps - 1) {
       _currentStep++;
-      debugPrint("🛠️ DEBUG: Moved to Step ${_currentStep + 1}");
       notifyListeners();
     }
   }
@@ -40,107 +39,100 @@ class AuthProvider extends ChangeNotifier {
   void prevStep() {
     if (_currentStep > 0) {
       _currentStep--;
-      debugPrint("🛠️ DEBUG: Moved back to Step ${_currentStep + 1}");
       notifyListeners();
     }
   }
 
-  // ─── FINAL SUBMISSION LOGIC ───
-// ─── FINAL SUBMISSION LOGIC ───
- Future<String?> submitQuest() async {
+
+// ─── PROFESSIONAL NETGAUGE HYBRID ONBOARDING SUBMISSION ───
+  Future<String?> submitQuest() async {
     try {
-      // 1. Generate a new Participant ID (e.g., CCQ-1234)
-      String newId = "CCQ-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}";
+      // 1. Authenticate to get a true Firebase UID
+      UserCredential userCredential = await FirebaseAuth.instance.signInAnonymously();
+      String uid = userCredential.user!.uid;
 
-      // 2. Define the known non-survey keys to separate them from the 35 questions
-     List<String> basicKeys = [
-        'firstName', 'lastName', 'zipCode', 'state', 'city', 
-        'gender', 'genderSpecify', 'raceSpecify', 
-        // ─── ADD THE NEW FIELDS HERE ───
-        'ethnicity', 'race', 'education', 
-        'foodTracking', 'takingMedication', 'medicationName',
-        // ───────────────────────────────
-        'playerMode', 'playerCount', 'bpAppUsage', 'bpAppType',
-        'additionalNotes', 'consentAgreement', 'digitalSignature'
-      ];
+      // Generate a friendly display ID for the UI
+      String displayId = "CCQ-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}";
 
-      // 3. Create the clean, grouped database schema
-      // 3. Create the clean, grouped database schema
-      Map<String, dynamic> structuredData = {
-        'participantId': newId,
-        'createdAt': FieldValue.serverTimestamp(),
+      final firestore = FirebaseFirestore.instance;
+      final batch = firestore.batch(); // ─── NEW: Batch write for multiple top-level collections
+
+      // ─── 1. ROOT DOCUMENT (users/{uid}) ───
+      final userRef = firestore.collection('users').doc(uid);
+      batch.set(userRef, {
+        'uid': uid,
+        'participantId': displayId,
         'status': 'active',
-        
+        'createdAt': FieldValue.serverTimestamp(),
         'basicInfo': {
-          'firstName': formData['firstName'],
-          'lastName': formData['lastName'],
-          'zipCode': formData['zipCode'],
-          'state': formData['state'],
-          'city': formData['city'],
+          'firstName': formData['firstName'] ?? 'Explorer',
+          'lastName': formData['lastName'] ?? '',
+          'zipCode': formData['zipCode'] ?? '',
+          'state': formData['state'] ?? '',
+          'city': formData['city'] ?? '',
         },
-
-        // ─── ADDED: PhenX Demographics Group ───
+        // Flattening Demographics directly into the root profile for easier reading
         'demographics': {
           'gender': formData['gender'],
-          'genderSpecify': formData['genderSpecify'],
           'ethnicity': formData['ethnicity'],
           'race': formData['race'],
           'education': formData['education'],
-          'raceSpecify': formData['raceSpecify'],
-        },
-
-        // ─── ADDED: Health Habits Group ───
-        'healthHabits': {
           'foodTracking': formData['foodTracking'],
           'takingMedication': formData['takingMedication'],
-          'medicationName': formData['medicationName'],
         },
+        // Initialize Dashboard/Game Stats to match Netgauge
+        'totalXP': 0,
+        'totalDistance': 0,
+        'totalSessions': 0,
+        'totalSteps': 0,
+      });
 
-        'appExperience': {
-          'bpAppUsage': formData['bpAppUsage'],
-          'bpAppType': formData['bpAppType'],
-        },
+      // ─── 2. THE GLOBAL LEADERBOARD (leaderboard/{uid}) ───
+      final leaderboardRef = firestore.collection('leaderboard').doc(uid);
+      batch.set(leaderboardRef, {
+        'userId': uid,
+        'score': 0,
+        'totalDistance': 0,
+        'rank': 0,
+        'lastUpdated': FieldValue.serverTimestamp(),
+      });
 
-        'surveyResponses': {}, 
-
-        'consent': {
-          'additionalNotes': formData['additionalNotes'],
-          'consentAgreement': formData['consentAgreement'],
-          'digitalSignature': formData['digitalSignature'], 
-        }
-      };
-
-      // 4. Automatically filter survey questions
-      // Everything NOT in basicKeys goes into surveyResponses
+      // ─── 3. TOP-LEVEL RESEARCH SURVEYS (survey_responses/baseline_survey/submissions/{uid}) ───
+      Map<String, dynamic> surveyResponses = {};
+      List<String> excludedKeys = [
+        'firstName', 'lastName', 'zipCode', 'state', 'city', 
+        'gender', 'genderSpecify', 'ethnicity', 'race', 'education', 'raceSpecify',
+        'foodTracking', 'takingMedication', 'medicationName',
+        'bpAppUsage', 'bpAppType', 'additionalNotes', 'consentAgreement', 'digitalSignature'
+      ];
+      
+      // Auto-filter: Only push actual survey answers that aren't null
       formData.forEach((key, value) {
-        if (!basicKeys.contains(key)) {
-          structuredData['surveyResponses'][key] = value;
+        if (!excludedKeys.contains(key) && value != null) {
+          surveyResponses[key] = value;
         }
       });
 
-      // 5. Clean up any nulls (in case they skipped optional fields like 'bpAppType')
-      _removeNulls(structuredData);
+      final surveyRef = firestore
+          .collection('survey_responses')
+          .doc('baseline_survey')
+          .collection('submissions')
+          .doc(uid);
 
-      // 6. Save to Firebase!
-      await FirebaseFirestore.instance.collection('users').doc(newId).set(structuredData);
+      batch.set(surveyRef, {
+        'userId': uid,
+        'responses': surveyResponses,
+        'completedAt': FieldValue.serverTimestamp(),
+      });
 
-      return newId;
+      // Commit the batch to Firestore
+      await batch.commit();
+
+      return uid; // Return the actual Firebase UID for downstream screens!
+      
     } catch (e) {
-      debugPrint("Error saving to Firebase: $e");
+      debugPrint("💥 Professional Onboarding Sync Error: $e");
       return null;
     }
   }
-
-  // Helper function to keep the database pristine by removing empty fields
-  void _removeNulls(Map<String, dynamic> map) {
-    map.removeWhere((key, value) {
-      if (value == null) return true;
-      if (value is Map<String, dynamic>) {
-        _removeNulls(value);
-        return value.isEmpty;
-      }
-      return false;
-    });
-  }
-  
-  }
+}

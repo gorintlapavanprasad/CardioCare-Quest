@@ -7,7 +7,9 @@ import 'auth_provider.dart';
 import 'create_pin_screen.dart';
 import 'widgets/custom_option_button.dart';
 import 'widgets/signature_pad.dart';
-import 'package:shared_preferences/shared_preferences.dart'; // Add this import
+import 'package:cardio_care_quest/user_data_manager.dart'; // ─── ADD THIS
+
+
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
 
@@ -468,23 +470,26 @@ Widget _buildNavButtons(AuthProvider provider) {
                 
                 String? newId = await provider.submitQuest();
                 
-                if (newId != null && mounted) {
+             if (newId != null && mounted) {
+                  // ─── 1. REMOVED SharedPreferences ───
+                  // Firebase Auth handles session memory natively now!
 
-                  final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('participant_id', newId);
-                  // ─── THE DEMO TOGGLE ───
+                  // ─── 2. THE CRITICAL FIX: Fetch the newly created profile! ───
+                  // This tells the "Brain" to load the data so the HomeTab doesn't spin forever.
+                  await Provider.of<UserDataProvider>(context, listen: false).fetchUserData();
+
+                  // ─── 3. THE DEMO TOGGLE ───
                   if (isDemoMode) {
                     // Send directly to Dashboard for the conference
                     Navigator.of(context).pushReplacement(
                       MaterialPageRoute(builder: (context) => const MainLayout()),
                     );
                   } else {
-                    // Original Authentication Flow (Revertable)
+                    // Original Authentication Flow
                     Navigator.of(context).pushReplacement(
                       MaterialPageRoute(builder: (context) => CreatePinScreen(participantId: newId)),
                     );
                   }
-                  // ───────────────────────
                 } else if (mounted) {
                   setState(() => _isSubmitting = false);
                   ScaffoldMessenger.of(context).showSnackBar(

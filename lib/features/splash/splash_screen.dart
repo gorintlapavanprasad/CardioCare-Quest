@@ -1,4 +1,4 @@
-import 'package:cardio_care_quest/features/dashboard/screens/home_tab.dart';
+import 'package:cardio_care_quest/features/dashboard/screens/main_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart'; // Add this line
 import 'dart:math' as math;
@@ -115,7 +115,7 @@ Future<void> _initializeApp() async {
       if (didAuthenticate && mounted) {
         _showDebugAlert("Biometrics Success -> Navigating to Dashboard");
         Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => const HomeTab()), // Dashboard goes here
+          MaterialPageRoute(builder: (context) => const MainLayout()), // Dashboard goes here
         );
       } else {
         _showDebugAlert("Biometrics Failed/Canceled");

@@ -47,28 +47,28 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyAjmpj2artJFzabpoCqvxYtkk8oGAR8G4U',
-    appId: '1:74239338720:android:580315f73834ec3bce8885',
-    messagingSenderId: '74239338720',
-    projectId: 'cardiocare-quest',
-    storageBucket: 'cardiocare-quest.firebasestorage.app',
+    apiKey: 'AIzaSyCu_6GnUiMTDrwixaO_h159a5Zc0Uq3XqM',
+    appId: '1:759389210814:android:bcb72438d62ef8863976ef',
+    messagingSenderId: '759389210814',
+    projectId: 'cardiocarequest',
+    storageBucket: 'cardiocarequest.firebasestorage.app',
   );
 
   static const FirebaseOptions macos = FirebaseOptions(
-    apiKey: 'AIzaSyCi6r-0kmRe1RYPtkvEb6COU_0yN0jBt7E',
-    appId: '1:74239338720:ios:990464b48bef9a56ce8885',
-    messagingSenderId: '74239338720',
-    projectId: 'cardiocare-quest',
-    storageBucket: 'cardiocare-quest.firebasestorage.app',
+    apiKey: 'AIzaSyCkLHrKp1ET1UW0Xb9_eDxaIRmCP8oauCE',
+    appId: '1:759389210814:ios:780a030c236bd49a3976ef',
+    messagingSenderId: '759389210814',
+    projectId: 'cardiocarequest',
+    storageBucket: 'cardiocarequest.firebasestorage.app',
     iosBundleId: 'com.nau.cardiocarequest',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyCi6r-0kmRe1RYPtkvEb6COU_0yN0jBt7E',
-    appId: '1:74239338720:ios:990464b48bef9a56ce8885',
-    messagingSenderId: '74239338720',
-    projectId: 'cardiocare-quest',
-    storageBucket: 'cardiocare-quest.firebasestorage.app',
+    apiKey: 'AIzaSyCkLHrKp1ET1UW0Xb9_eDxaIRmCP8oauCE',
+    appId: '1:759389210814:ios:780a030c236bd49a3976ef',
+    messagingSenderId: '759389210814',
+    projectId: 'cardiocarequest',
+    storageBucket: 'cardiocarequest.firebasestorage.app',
     iosBundleId: 'com.nau.cardiocarequest',
   );
 
