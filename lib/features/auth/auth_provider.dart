@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart'; // ─── NEW: Official Auth
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/constants/firestore_paths.dart';
 
 class AuthProvider extends ChangeNotifier {
   int _currentStep = 0;
-  final int totalSteps = 14; 
+  final int totalSteps = 14;
   final Map<String, dynamic> _formData = {};
   final bool _isSubmitting = false;
 
   int get currentStep => _currentStep;
-  
   Map<String, dynamic> get formData => _formData;
   bool get isSubmitting => _isSubmitting;
 
@@ -25,7 +25,7 @@ class AuthProvider extends ChangeNotifier {
 
   void updateField(String key, dynamic value) {
     _formData[key] = value;
-    debugPrint("🛠️ Form Field Updated -> $key: $value");
+    debugPrint('Form Field Updated -> $key: $value');
     notifyListeners();
   }
 
@@ -43,26 +43,25 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-
-// ─── PROFESSIONAL NETGAUGE HYBRID ONBOARDING SUBMISSION ───
   Future<String?> submitQuest() async {
     try {
-      // 1. Authenticate to get a true Firebase UID
       UserCredential userCredential = await FirebaseAuth.instance.signInAnonymously();
       String uid = userCredential.user!.uid;
-
-      // Generate a friendly display ID for the UI
-      String displayId = "CCQ-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}";
+      String displayId = 'CCQ-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}';
 
       final firestore = FirebaseFirestore.instance;
-      final batch = firestore.batch(); // ─── NEW: Batch write for multiple top-level collections
+      final batch = firestore.batch();
 
-      // ─── 1. ROOT DOCUMENT (users/{uid}) ───
-      final userRef = firestore.collection('users').doc(uid);
+      final userRef = firestore.collection(FirestorePaths.userData).doc(uid);
       batch.set(userRef, {
         'uid': uid,
+        'email': userCredential.user!.email ?? 'guest_${uid.substring(0, 5)}@demo.com',
         'participantId': displayId,
         'status': 'active',
+        'measurementsTaken': 0,
+        'distanceTraveled': 0,
+        'dataPoints': [],
+        'radGyration': 0,
         'createdAt': FieldValue.serverTimestamp(),
         'basicInfo': {
           'firstName': formData['firstName'] ?? 'Explorer',
@@ -71,7 +70,6 @@ class AuthProvider extends ChangeNotifier {
           'state': formData['state'] ?? '',
           'city': formData['city'] ?? '',
         },
-        // Flattening Demographics directly into the root profile for easier reading
         'demographics': {
           'gender': formData['gender'],
           'ethnicity': formData['ethnicity'],
@@ -80,59 +78,74 @@ class AuthProvider extends ChangeNotifier {
           'foodTracking': formData['foodTracking'],
           'takingMedication': formData['takingMedication'],
         },
-        // Initialize Dashboard/Game Stats to match Netgauge
-        'totalXP': 0,
+        'points': 0,
         'totalDistance': 0,
         'totalSessions': 0,
         'totalSteps': 0,
       });
 
-      // ─── 2. THE GLOBAL LEADERBOARD (leaderboard/{uid}) ───
-      final leaderboardRef = firestore.collection('leaderboard').doc(uid);
-      batch.set(leaderboardRef, {
-        'userId': uid,
-        'score': 0,
-        'totalDistance': 0,
-        'rank': 0,
-        'lastUpdated': FieldValue.serverTimestamp(),
-      });
-
-      // ─── 3. TOP-LEVEL RESEARCH SURVEYS (survey_responses/baseline_survey/submissions/{uid}) ───
-      Map<String, dynamic> surveyResponses = {};
-      List<String> excludedKeys = [
-        'firstName', 'lastName', 'zipCode', 'state', 'city', 
-        'gender', 'genderSpecify', 'ethnicity', 'race', 'education', 'raceSpecify',
-        'foodTracking', 'takingMedication', 'medicationName',
-        'bpAppUsage', 'bpAppType', 'additionalNotes', 'consentAgreement', 'digitalSignature'
+      final excludedKeys = [
+        'firstName',
+        'lastName',
+        'zipCode',
+        'state',
+        'city',
+        'gender',
+        'genderSpecify',
+        'ethnicity',
+        'race',
+        'education',
+        'raceSpecify',
+        'foodTracking',
+        'takingMedication',
+        'medicationName',
+        'bpAppUsage',
+        'bpAppType',
+        'additionalNotes',
+        'consentAgreement',
+        'digitalSignature',
       ];
-      
-      // Auto-filter: Only push actual survey answers that aren't null
+
+      final surveyQuestions = <Map<String, dynamic>>[];
+      final surveyResponses = <Map<String, dynamic>>[];
       formData.forEach((key, value) {
         if (!excludedKeys.contains(key) && value != null) {
-          surveyResponses[key] = value;
+          surveyQuestions.add({
+            'text': key,
+            'mandatory': false,
+            'choices': [],
+          });
+          surveyResponses.add({
+            'question': key,
+            'answer': value,
+          });
         }
       });
 
-      final surveyRef = firestore
-          .collection('survey_responses')
-          .doc('baseline_survey')
-          .collection('submissions')
-          .doc(uid);
+      final surveyDocRef = firestore.collection(FirestorePaths.surveys).doc(FirestorePaths.baselineSurvey);
+      batch.set(surveyDocRef, {
+        'questions': surveyQuestions,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
 
-      batch.set(surveyRef, {
-        'userId': uid,
+      final surveyResponseRef = firestore
+          .collection(FirestorePaths.responses)
+          .doc(FirestorePaths.baselineSurvey)
+          .collection('submissions')
+          .doc();
+
+      batch.set(surveyResponseRef, {
+        'ID': uid,
         'responses': surveyResponses,
-        'completedAt': FieldValue.serverTimestamp(),
+        'timestamp': FieldValue.serverTimestamp(),
       });
 
-      // Commit the batch to Firestore
       await batch.commit();
-
-      return uid; // Return the actual Firebase UID for downstream screens!
-      
+      return uid;
     } catch (e) {
-      debugPrint("💥 Professional Onboarding Sync Error: $e");
+      debugPrint('Onboarding sync error: $e');
       return null;
     }
   }
 }
+

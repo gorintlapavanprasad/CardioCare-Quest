@@ -1,0 +1,164 @@
+::StoryTitle
+Walk Buddy
+
+::StoryData
+{
+  "ifid": "B2C3D4E5-F6A7-8901-BCDE-F12345678901",
+  "format": "SugarCube",
+  "format-version": "2.37.3",
+  "start": "Story innit",
+  "zoom": 0.6
+}
+
+::UserStylesheet [stylesheet]
+body { font-family: "Times New Roman", Times, serif; }
+#ui-bar { display: none; }
+
+::UserScript [script]
+
+
+::Story innit [Important/Needed]
+/*
+SYSTEM CODE: runs once at the very start.
+
+Variables:
+- $playerName : pulled from sign-in
+- $buddyName  : the dog's name, carries into the Dog Walking Quest
+- $showError  : controls the name validation message
+
+You do not need to edit this.
+*/
+
+<<set $playerName to "Friend">>
+<<set $buddyName to "">>
+<<set $showError to false>>
+
+<<goto "Welcome">>
+
+
+::Welcome [Important/Needed]
+/*
+INCITING MOMENT: Personal greeting. One hook. One button.
+*/
+
+Hey $playerName. Welcome to Walk Buddy.
+
+Your heart needs movement. Any movement.
+
+Not a specific kind. Not a specific speed. Not a specific distance. Just regular, consistent physical activity that gets your blood moving and your vessels working.
+
+Walk Buddy is built around that idea. You and your buddy, moving together, at whatever pace works for you, for as long as you can manage today.
+
+[[Tell me more.|Why Movement]]
+
+
+::Why Movement [Important/Needed]
+/*
+RISING ACTION: Why movement lowers blood pressure.
+No assumptions about ability.
+*/
+
+When your body moves, your heart rate rises gently.
+
+Your blood vessels expand to deliver more oxygen to your muscles. That expansion, practiced regularly, keeps those vessels flexible. Flexible vessels mean lower resistance. Lower resistance means lower pressure.
+
+It is not magic. It is just what your cardiovascular system does when you use it.
+
+The problem is that thirty minutes can feel like a long time when there is nothing pulling you forward.
+
+[[That is where my buddy comes in?|Meet Your Buddy]]
+
+
+::Meet Your Buddy [Important/Needed]
+/*
+RISING ACTION: Introduce the buddy concept.
+*/
+
+Exactly.
+
+Your buddy is a dog. They go out with you every single day. Not a real one. But one that feels real enough to care about.
+
+Your buddy has energy. They need activity the same way you do. When you go out, your buddy thrives. When you skip a day, your buddy gets restless. When you hit a streak, your buddy grows stronger.
+
+Along the way, you will also meet other creatures. Some friendly. Some shy. Some that only appear on certain routes or at certain times. None of them are hard to find. You just have to show up.
+
+[[What do I name them?|Name Your Buddy]]
+
+
+::Name Your Buddy [Important/Needed]
+/*
+PLAYER INPUT: Player names their dog buddy.
+Validation: empty name shows error and stays on this page.
+This name is stored in $buddyName and carried into the Dog Walking Quest.
+*/
+
+Every buddy needs a name.
+
+What will you call yours?
+
+<<textbox "$buddyName" "" autofocus>>
+
+<<if $showError>>Please give your buddy a name before continuing.<</if>>
+
+<<link "That is their name.">>
+<<set $buddyName to $buddyName.trim()>>
+<<if $buddyName is "">>
+<<set $showError to true>>
+<<goto "Name Your Buddy">>
+<<else>>
+<<set $showError to false>>
+<<goto "Buddy Confirmed">>
+<</if>>
+<</link>>
+
+
+::Buddy Confirmed [Important/Needed]
+/*
+CONFIRMATION: Buddy named. Short warm reaction. Move forward.
+*/
+
+$buddyName. Good name.
+
+They are already at the door.
+
+[[How does this work?|How It Works]]
+
+
+::How It Works [Important/Needed]
+/*
+EXPOSITION: Explains the three difficulty levels from the Dog Walking Quest.
+Keep Going 50m. Travel to a Village 500m. Beat a Boss 1500m.
+*/
+
+Every day, Walk Buddy gives you a quest. A distance to cover with $buddyName.
+
+Three options, depending on what you have in you today.
+
+''Keep Going:'' a short walk, fifty meters. Just enough to get outside and move.
+
+''Travel to a Village:'' a medium walk, five hundred meters. Long enough for your blood vessels to properly warm up and expand.
+
+''Beat a Boss:'' a full walk, fifteen hundred meters. The distance cardiovascular doctors point to when they talk about meaningful daily movement.
+
+You pick the one that works for you. No wrong answer. Any distance is better than none.
+
+[[Want to know more about the game?|Know More]]
+
+[[Let us go.|QuestSelect]]
+
+
+::Know More [Important/Needed]
+/*
+OPTIONAL DETAIL: Short explanation of what happens during the game.
+Ends with Let us go connecting to QuestSelect.
+*/
+
+While you walk, $buddyName reacts to what is around you.
+
+Your streak updates every time you complete a quest. The longer you keep it going, the stronger $buddyName gets. Miss a day and they get restless. Come back the next day and they forgive you immediately.
+
+Your distance, your frequency, and your consistency are tracked automatically. You do not need to log anything. Just pick a quest and move.
+
+That is the whole game.
+
+[[Let us go.|QuestSelect]]

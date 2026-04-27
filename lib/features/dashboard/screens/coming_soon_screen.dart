@@ -23,7 +23,7 @@ class ComingSoonScreen extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
-                  color: AppColors.viridis2.withOpacity(0.1), 
+                  color: AppColors.viridis2.withValues(alpha: 0.1), 
                   shape: BoxShape.circle
                 ),
                 child: const Icon(

@@ -11,8 +11,8 @@ import 'features/splash/splash_screen.dart';
 import 'features/auth/auth_provider.dart';
 
 // ─── NETGAUGE ENGINE IMPORTS ───
-import 'package:cardio_care_quest/user_data_manager.dart'; // The Netgauge Brain
-import 'package:cardio_care_quest/activity_logs.dart';    // The Netgauge Telemetry Logger
+import 'package:cardio_care_quest/core/providers/user_data_manager.dart'; // The Netgauge Brain
+import 'package:cardio_care_quest/core/services/activity_logs.dart';    // The Netgauge Telemetry Logger
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();

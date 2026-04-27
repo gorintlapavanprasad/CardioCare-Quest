@@ -23,10 +23,10 @@ class CustomOptionButton extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
         margin: const EdgeInsets.only(bottom: 12),
         decoration: BoxDecoration(
-          color: isSelected ? AppColors.activeTeal.withValues(alpha: 0.07) : Colors.white,
+          color: isSelected ? AppColors.primary.withValues(alpha: 0.07) : Colors.white,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isSelected ? AppColors.activeTeal : AppColors.placeholder.withValues(alpha: 0.3),
+            color: isSelected ? AppColors.primary : AppColors.placeholder.withValues(alpha: 0.3),
             width: 1.5,
           ),
         ),
@@ -40,10 +40,10 @@ class CustomOptionButton extends StatelessWidget {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: isSelected ? AppColors.activeTeal : AppColors.placeholder.withValues(alpha: 0.5),
+                  color: isSelected ? AppColors.primary : AppColors.placeholder.withValues(alpha: 0.5),
                   width: 2,
                 ),
-                color: isSelected ? AppColors.activeTeal : Colors.transparent,
+                color: isSelected ? AppColors.primary : Colors.transparent,
               ),
               child: isSelected
                   ? const Center(child: Icon(Icons.circle, size: 8, color: Colors.white))
@@ -58,7 +58,7 @@ class CustomOptionButton extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 15,
                   fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                  color: isSelected ? AppColors.activeTeal : AppColors.body,
+                  color: isSelected ? AppColors.primary : AppColors.body,
                 ),
               ),
             ),

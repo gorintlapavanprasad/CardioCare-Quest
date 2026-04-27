@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Walk Buddy</title>
+<style>
+:root {
+  --bg: #f8f9fa;
+  --surface: #ffffff;
+  --ink: #1a2332;
+  --muted: #546e7a;
+  --line: #d1dfe5;
+  --green: #2d7d6d;
+  --green-soft: #e8f5f1;
+  --teal: #1b7373;
+  --gold: #d4a574;
+  --danger: #8b3a3a;
+  --radius: 18px;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  line-height: 1.5;
+}
+button, input { font: inherit; }
+.page { display: none; min-height: 100vh; }
+.page.active { display: block; }
+.shell { padding: 24px 20px 40px; max-width: 560px; margin: 0 auto; }
+.hero {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 24px;
+  margin-bottom: 18px;
+  box-shadow: 0 10px 28px rgba(34, 49, 45, 0.06);
+}
+.eyebrow {
+  color: var(--green);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+h1, h2, h3, p { margin: 0; }
+h1 { font-size: 30px; line-height: 1.15; margin-bottom: 12px; }
+h2 { font-size: 24px; line-height: 1.2; margin-bottom: 12px; }
+p { color: var(--muted); font-size: 16px; }
+.stack { display: flex; flex-direction: column; gap: 14px; }
+.actions { display: flex; flex-direction: column; gap: 12px; margin-top: 22px; }
+.btn {
+  width: 100%;
+  border: 0;
+  border-radius: 14px;
+  padding: 16px 18px;
+  min-height: 54px;
+  cursor: pointer;
+  font-weight: 800;
+}
+.btn.primary { background: var(--green); color: white; }
+.btn.secondary { background: var(--green-soft); color: var(--green); }
+.btn.ghost { background: transparent; border: 1px solid var(--line); color: var(--muted); }
+.input {
+  width: 100%;
+  padding: 16px;
+  border: 2px solid var(--line);
+  border-radius: 14px;
+  background: white;
+  color: var(--ink);
+  margin-top: 10px;
+}
+.input:focus { outline: 3px solid rgba(47, 107, 79, 0.16); border-color: var(--green); }
+.error {
+  display: none;
+  margin-top: 10px;
+  color: var(--danger);
+  background: #f8e9e7;
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-weight: 700;
+}
+.note {
+  background: var(--green-soft);
+  border: 1px solid #c7dacd;
+  border-radius: 14px;
+  padding: 14px;
+  color: var(--green);
+  font-weight: 650;
+}
+.quest {
+  text-align: left;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 18px;
+  cursor: pointer;
+}
+.quest strong { display: block; color: var(--ink); font-size: 18px; margin-bottom: 4px; }
+.quest span { color: var(--muted); font-size: 14px; }
+.quest small { float: right; color: var(--gold); font-weight: 900; font-size: 16px; }
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 16px 0; }
+.stat {
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 14px 8px;
+  text-align: center;
+}
+.stat b { display: block; color: var(--green); font-size: 19px; }
+.stat span { display: block; color: var(--muted); font-size: 11px; font-weight: 800; text-transform: uppercase; }
+.track {
+  height: 22px;
+  background: #dfe8e2;
+  border-radius: 999px;
+  overflow: hidden;
+  margin: 18px 0 10px;
+}
+.fill {
+  width: 0%;
+  height: 100%;
+  background: linear-gradient(90deg, var(--teal), var(--green));
+  border-radius: 999px;
+  transition: width 0.4s ease;
+}
+.percent { font-size: 44px; font-weight: 900; color: var(--green); text-align: center; }
+.center { text-align: center; }
+.history {
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 14px;
+}
+</style>
+</head>
+<body>
+<main id="page-home" class="page active">
+  <section class="shell">
+    <div class="hero">
+      <div class="eyebrow">Walk Buddy</div>
+      <h1>Move today in the way your body allows.</h1>
+      <p>Your heart benefits from regular movement. Not a specific speed, not a perfect route, and not an all-or-nothing workout. Just steady activity that gets your blood moving.</p>
+      <div class="actions">
+        <button class="btn primary" onclick="showPage('page-why')">Tell me more</button>
+        <button class="btn secondary" onclick="showPage(state.buddyName ? 'page-quests' : 'page-name')">Start</button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<main id="page-why" class="page">
+  <section class="shell">
+    <div class="hero stack">
+      <div class="eyebrow">Why movement helps</div>
+      <p>When your body moves, your heart rate rises gently. Your blood vessels expand to deliver oxygen to your muscles.</p>
+      <p>Practiced regularly, that expansion helps vessels stay flexible. Flexible vessels mean lower resistance. Lower resistance means lower pressure.</p>
+      <p>The goal is consistency. Walk, roll, pace, or move in another safe way that fits today.</p>
+      <div class="actions">
+        <button class="btn primary" onclick="showPage('page-buddy')">That is where my buddy comes in?</button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<main id="page-buddy" class="page">
+  <section class="shell">
+    <div class="hero stack">
+      <div class="eyebrow">Meet your buddy</div>
+      <p>Your buddy goes with you every day. They are a small reminder that showing up matters, even when the distance is short.</p>
+      <p>When you complete a quest, your streak and progress grow. If you miss a day, you simply come back and continue.</p>
+      <div class="actions">
+        <button class="btn primary" onclick="showPage('page-name')">Name my buddy</button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<main id="page-name" class="page">
+  <section class="shell">
+    <div class="hero">
+      <div class="eyebrow">Name your buddy</div>
+      <h2>Every buddy needs a name.</h2>
+      <p>What will you call yours?</p>
+      <input id="buddy-input" class="input" maxlength="24" autocomplete="off" placeholder="Buddy name">
+      <div id="name-error" class="error">Please enter a name before continuing.</div>
+      <div class="actions">
+        <button class="btn primary" onclick="confirmBuddy()">That is their name</button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<main id="page-quests" class="page">
+  <section class="shell">
+    <div class="hero">
+      <div class="eyebrow" id="quest-greeting">Choose your quest</div>
+      <h2>Pick what works today.</h2>
+      <p>Each option counts. Choose the distance that is safe and realistic for you right now.</p>
+      <div class="track"><div id="weekly-fill" class="fill"></div></div>
+      <p id="weekly-label" class="center">0 / 1500 meters this week</p>
+    </div>
+    <div class="stack">
+      <button class="quest" onclick="selectQuest(50, 'Keep Going', 30)">
+        <small>30 XP</small><strong>Keep Going</strong><span>50 meters. A short movement check-in.</span>
+      </button>
+      <button class="quest" onclick="selectQuest(500, 'Travel to a Village', 60)">
+        <small>60 XP</small><strong>Travel to a Village</strong><span>500 meters. A steady daily walk.</span>
+      </button>
+      <button class="quest" onclick="selectQuest(1500, 'Beat a Boss', 100)">
+        <small>100 XP</small><strong>Beat a Boss</strong><span>1500 meters. A longer cardiovascular goal.</span>
+      </button>
+      <button class="btn ghost" onclick="showPage('page-name')">Edit buddy name</button>
+    </div>
+  </section>
+</main>
+
+<main id="page-ready" class="page">
+  <section class="shell">
+    <div class="hero">
+      <div class="eyebrow">Ready</div>
+      <h2 id="ready-title">Ready for the quest?</h2>
+      <p id="ready-copy">You and your buddy will move together.</p>
+      <div class="stats">
+        <div class="stat"><b id="target-distance">--</b><span>meters</span></div>
+        <div class="stat"><b id="target-xp">--</b><span>XP</span></div>
+        <div class="stat"><b id="target-time">--</b><span>minutes</span></div>
+      </div>
+      <div class="note">Stop if you feel chest pain, dizziness, severe shortness of breath, or anything unusual. Your safety comes first.</div>
+      <div class="actions">
+        <button class="btn primary" onclick="startTracking()">Start movement tracking</button>
+        <button class="btn secondary" onclick="showPage('page-quests')">Choose a different quest</button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<main id="page-walking" class="page">
+  <section class="shell">
+    <div class="hero center">
+      <div class="eyebrow" id="walk-title">Keep Going</div>
+      <h2>Moving with <span id="walk-buddy">Buddy</span></h2>
+      <div class="track"><div id="walk-fill" class="fill"></div></div>
+      <div id="walk-percent" class="percent">0%</div>
+      <p id="walk-distance">0 / 50 meters</p>
+      <div class="actions">
+        <button id="done-button" class="btn primary" style="display:none" onclick="finishQuest()">Complete quest</button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<main id="page-complete" class="page">
+  <section class="shell">
+    <div class="hero center">
+      <div class="eyebrow">Quest complete</div>
+      <h2 id="complete-title">Good work.</h2>
+      <p id="complete-copy">You completed a movement quest.</p>
+      <div class="stats">
+        <div class="stat"><b id="done-distance">--</b><span>meters</span></div>
+        <div class="stat"><b id="done-xp">--</b><span>XP</span></div>
+        <div class="stat"><b id="total-xp">--</b><span>total XP</span></div>
+      </div>
+      <div id="history" class="history"></div>
+      <div class="actions">
+        <button class="btn primary" onclick="showPage('page-quests')">Do another quest</button>
+        <button class="btn secondary" onclick="goHome()">Back to dashboard</button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+var state = {
+  buddyName: '',
+  dogName: '',
+  totalXP: 0,
+  totalDistance: 0,
+  history: [],
+  currentDistance: 50,
+  currentTitle: 'Keep Going',
+  currentXP: 30
+};
+
+function bridge(payload) {
+  if (window.FlutterBridge) {
+    window.FlutterBridge.postMessage(JSON.stringify(payload));
+  }
+}
+
+function goHome() {
+  bridge({ type: 'GO_HOME' });
+}
+
+function showPage(id) {
+  document.querySelectorAll('.page').forEach(function(page) {
+    page.classList.remove('active');
+  });
+  document.getElementById(id).classList.add('active');
+  refresh();
+}
+
+function nameValue() {
+  return state.buddyName || state.dogName || 'Buddy';
+}
+
+function confirmBuddy() {
+  var input = document.getElementById('buddy-input');
+  var value = input.value.trim();
+  if (!value) {
+    document.getElementById('name-error').style.display = 'block';
+    return;
+  }
+  document.getElementById('name-error').style.display = 'none';
+  state.buddyName = value;
+  state.dogName = value;
+  bridge({ type: 'SET_DOG_NAME', name: value });
+  saveState();
+  showPage('page-quests');
+}
+
+function selectQuest(distance, title, xp) {
+  state.currentDistance = distance;
+  state.currentTitle = title;
+  state.currentXP = xp;
+  document.getElementById('ready-title').textContent = 'Ready for ' + title + '?';
+  document.getElementById('ready-copy').textContent = 'You and ' + nameValue() + ' will move ' + distance.toLocaleString() + ' meters.';
+  document.getElementById('target-distance').textContent = distance.toLocaleString();
+  document.getElementById('target-xp').textContent = '+' + xp;
+  document.getElementById('target-time').textContent = Math.max(1, Math.round(distance / 80));
+  showPage('page-ready');
+}
+
+function startTracking() {
+  updateGameProgress(0);
+  document.getElementById('walk-title').textContent = state.currentTitle;
+  document.getElementById('walk-buddy').textContent = nameValue();
+  bridge({
+    type: 'START_TRACKING',
+    distance: state.currentDistance,
+    questName: state.currentTitle,
+    buddyName: nameValue(),
+    dogName: nameValue()
+  });
+  showPage('page-walking');
+}
+
+function updateGameProgress(metersMoved) {
+  var total = state.currentDistance || 50;
+  var progress = Math.max(0, Math.min(metersMoved / total, 1));
+  var pct = Math.round(progress * 100);
+  document.getElementById('walk-fill').style.width = pct + '%';
+  document.getElementById('walk-percent').textContent = pct + '%';
+  document.getElementById('walk-distance').textContent =
+    Math.round(Math.min(metersMoved, total)).toLocaleString() + ' / ' + total.toLocaleString() + ' meters';
+  document.getElementById('done-button').style.display = progress >= 1 ? 'block' : 'none';
+}
+
+function resumeWalk(currentMeters, totalMeters) {
+  state.currentDistance = Number(totalMeters) || state.currentDistance;
+  document.getElementById('walk-title').textContent = state.currentTitle || 'Keep Going';
+  document.getElementById('walk-buddy').textContent = nameValue();
+  showPage('page-walking');
+  updateGameProgress(Number(currentMeters) || 0);
+}
+
+function finishQuest() {
+  bridge({ type: 'FINISH_QUEST_DATA' });
+}
+
+function onQuestFinished(xpGained) {
+  var xp = Number(xpGained) || state.currentXP || 0;
+  state.totalXP += xp;
+  state.totalDistance += state.currentDistance;
+  state.history.unshift({
+    title: state.currentTitle,
+    distance: state.currentDistance,
+    xp: xp
+  });
+  state.history = state.history.slice(0, 5);
+  saveState();
+  document.getElementById('complete-title').textContent = 'Congratulations, you finished the quest.';
+  document.getElementById('complete-copy').textContent =
+    'You moved ' + state.currentDistance.toLocaleString() + ' meters.';
+  document.getElementById('done-distance').textContent = state.currentDistance.toLocaleString();
+  document.getElementById('done-xp').textContent = '+' + xp;
+  document.getElementById('total-xp').textContent = state.totalXP.toLocaleString();
+  renderHistory();
+  showPage('page-complete');
+}
+
+function renderHistory() {
+  var history = document.getElementById('history');
+  if (!state.history.length) {
+    history.textContent = 'No completed quests yet.';
+    return;
+  }
+  history.innerHTML = state.history.map(function(item) {
+    return '<p><strong>' + item.title + '</strong>: ' +
+      Number(item.distance).toLocaleString() + ' meters, +' +
+      Number(item.xp).toLocaleString() + ' XP</p>';
+  }).join('');
+}
+
+function refresh() {
+  var buddy = nameValue();
+  document.getElementById('quest-greeting').textContent = 'Where to, ' + buddy + '?';
+  document.getElementById('buddy-input').value = state.buddyName || state.dogName || '';
+  var weeklyGoal = 1500;
+  var pct = Math.min((state.totalDistance / weeklyGoal) * 100, 100);
+  document.getElementById('weekly-fill').style.width = pct + '%';
+  document.getElementById('weekly-label').textContent =
+    state.totalDistance.toLocaleString() + ' / ' + weeklyGoal.toLocaleString() + ' meters this week';
+}
+
+function saveState() {
+  bridge({ type: 'SAVE_STATE', state: JSON.stringify(state) });
+}
+
+function hydrateState(jsonString) {
+  try {
+    var saved = JSON.parse(jsonString);
+    if (saved) {
+      state = Object.assign(state, saved);
+      if (state.dogName && !state.buddyName) state.buddyName = state.dogName;
+      if (state.buddyName && !state.dogName) state.dogName = state.buddyName;
+    }
+  } catch (e) {}
+  refresh();
+  showPage('page-home');
+}
+
+function setDogName(name) {
+  state.buddyName = name;
+  state.dogName = name;
+  refresh();
+}
+
+refresh();
+</script>
+</body>
+</html>

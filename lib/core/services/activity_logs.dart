@@ -1,0 +1,149 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:flutter/foundation.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+import 'package:uuid/uuid.dart';
+
+import 'package:cardio_care_quest/core/constants/firestore_paths.dart';
+
+class LogEvent {
+  final String id;
+  final String name;
+  final Map<String, dynamic> params;
+  final DateTime occurredAt;
+
+  LogEvent({
+    required this.id,
+    required this.name,
+    required this.params,
+    required this.occurredAt,
+  });
+
+  Map<String, dynamic> toMap() => {
+        'id': id,
+        'name': name,
+        'params': params,
+        'occurredAt': occurredAt.toIso8601String(),
+      };
+
+  factory LogEvent.fromMap(Map<dynamic, dynamic> map) {
+    return LogEvent(
+      id: map['id'] as String,
+      name: map['name'] as String,
+      params: Map<String, dynamic>.from(map['params'] as Map),
+      occurredAt: DateTime.parse(map['occurredAt'] as String),
+    );
+  }
+}
+
+class LoggingService {
+  static const String _boxName = 'event_queue';
+  static const int _maxQueueSize = 500;
+  static const int _batchSize = 100;
+
+  final FirebaseFirestore _firestore;
+  final Uuid _uuid = const Uuid();
+  late Box _box;
+  bool _isSyncing = false;
+
+  LoggingService({FirebaseFirestore? firestore})
+      : _firestore = firestore ?? FirebaseFirestore.instance;
+
+  Future<void> init() async {
+    await Hive.initFlutter();
+    _box = await Hive.openBox(_boxName);
+
+    Connectivity().onConnectivityChanged.listen((result) {
+      if (_hasConnection(result)) {
+        syncToFirestore();
+      }
+    });
+
+    await syncToFirestore();
+    debugPrint('LoggingService initialized');
+  }
+
+  Future<void> logEvent(
+    String name, {
+    Map<String, dynamic>? parameters,
+    String? phone,
+    String? userId,
+  }) async {
+    if (_box.length >= _maxQueueSize) {
+      final oldestKey = _box.keys.first;
+      await _box.delete(oldestKey);
+    }
+
+    final event = LogEvent(
+      id: _uuid.v4(),
+      name: name,
+      params: {
+        ...?parameters,
+        'phone': ?phone,
+        'userId': ?userId,
+      },
+      occurredAt: DateTime.now(),
+    );
+
+    await _box.put(event.id, event.toMap());
+    debugPrint('Queued log event: $name');
+    await syncToFirestore();
+  }
+
+  Future<void> syncToFirestore() async {
+    if (_isSyncing || _box.isEmpty) return;
+    _isSyncing = true;
+
+    try {
+      final keys = _box.keys.toList();
+
+      for (var i = 0; i < keys.length; i += _batchSize) {
+        final batchKeys = keys.skip(i).take(_batchSize).toList();
+        final batch = _firestore.batch();
+
+        for (final key in batchKeys) {
+          final rawMap = _box.get(key);
+          if (rawMap == null) continue;
+
+          final event = LogEvent.fromMap(rawMap as Map<dynamic, dynamic>);
+          final docRef =
+              _firestore.collection(FirestorePaths.events).doc(event.id);
+
+          batch.set(docRef, {
+            ...event.toMap(),
+            'syncedAt': FieldValue.serverTimestamp(),
+          });
+        }
+
+        await batch.commit();
+        await _box.deleteAll(batchKeys);
+      }
+    } catch (e) {
+      debugPrint('Activity log sync failed: $e');
+    } finally {
+      _isSyncing = false;
+    }
+  }
+
+  Future<List<dynamic>> getAllLogs() async {
+    if (!_box.isOpen) return [];
+    return _box.values.toList();
+  }
+
+  Future<void> clearLogs() async {
+    if (_box.isOpen) {
+      await _box.clear();
+    }
+  }
+
+  bool _hasConnection(Object result) {
+    if (result is ConnectivityResult) {
+      return result != ConnectivityResult.none;
+    }
+    if (result is List<ConnectivityResult>) {
+      return result.any((value) => value != ConnectivityResult.none);
+    }
+    return true;
+  }
+}
+

@@ -4,10 +4,9 @@ import 'package:provider/provider.dart';
 import 'package:signature/signature.dart';
 import '../../core/theme/app_colors.dart';
 import 'auth_provider.dart';
-import 'create_pin_screen.dart';
 import 'widgets/custom_option_button.dart';
 import 'widgets/signature_pad.dart';
-import 'package:cardio_care_quest/user_data_manager.dart'; // ─── ADD THIS
+import 'package:cardio_care_quest/core/providers/user_data_manager.dart'; // ─── ADD THIS
 
 
 class AuthScreen extends StatefulWidget {
@@ -16,6 +15,11 @@ class AuthScreen extends StatefulWidget {
   @override
   State<AuthScreen> createState() => _AuthScreenState();
 }
+
+// ─── THE DEMO MODE TOGGLE ───
+// Set this to `true` to skip the PIN screen and go directly to the Dashboard
+// This is useful for conference demos or user testing where you want to show the app quickly.
+const bool isDemoMode = true;
 
 class _AuthScreenState extends State<AuthScreen> {
   final PageController _pageController = PageController();
@@ -168,7 +172,7 @@ class _AuthScreenState extends State<AuthScreen> {
                   fontSize: 12,
                   fontWeight: FontWeight.w900,
                   letterSpacing: 1.2,
-                  color: getViridisColor(current + 1, total),
+                  color: getProgressColor(current + 1, total),
                 ),
               ),
               Text(
@@ -190,7 +194,7 @@ class _AuthScreenState extends State<AuthScreen> {
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(10),
                     color: isPast || isCurrent 
-                        ? getViridisColor(index + 1, total) 
+                        ? getProgressColor(index + 1, total) 
                         : AppColors.placeholder.withValues(alpha: 0.2),
                   ),
                 ),
@@ -267,8 +271,8 @@ class _AuthScreenState extends State<AuthScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8), // Room for the scrollbar
             decoration: BoxDecoration(
-              color: AppColors.viridis1.withOpacity(0.04),
-              border: Border.all(color: AppColors.viridis1.withOpacity(0.12)),
+              color: AppColors.viridis1.withValues(alpha: 0.04),
+              border: Border.all(color: AppColors.viridis1.withValues(alpha: 0.12)),
               borderRadius: BorderRadius.circular(16),
             ),
             height: 200,
@@ -412,7 +416,7 @@ Widget _buildStepWrapper(String title, List<Widget> children) {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: AppColors.activeTeal, width: 2),
+          borderSide: const BorderSide(color: AppColors.primary, width: 2),
         ),
       ),
     );
@@ -476,18 +480,17 @@ Widget _buildNavButtons(AuthProvider provider) {
 
                   // ─── 2. THE CRITICAL FIX: Fetch the newly created profile! ───
                   // This tells the "Brain" to load the data so the HomeTab doesn't spin forever.
-                  await Provider.of<UserDataProvider>(context, listen: false).fetchUserData();
+                  try {
+                    await Provider.of<UserDataProvider>(context, listen: false).fetchUserData();
+                  } catch (e) {
+                    debugPrint('Error fetching user data after signup: $e');
+                  }
 
                   // ─── 3. THE DEMO TOGGLE ───
-                  if (isDemoMode) {
+                  if (isDemoMode && mounted) {
                     // Send directly to Dashboard for the conference
                     Navigator.of(context).pushReplacement(
                       MaterialPageRoute(builder: (context) => const MainLayout()),
-                    );
-                  } else {
-                    // Original Authentication Flow
-                    Navigator.of(context).pushReplacement(
-                      MaterialPageRoute(builder: (context) => CreatePinScreen(participantId: newId)),
                     );
                   }
                 } else if (mounted) {
@@ -524,11 +527,14 @@ Widget _buildLikertScale(AuthProvider provider, String key) {
                 onTap: () => provider.updateField(key, value),
                 child: Column(
                   children: [
+                    // ignore: deprecated_member_use
                     Radio<int>(
                       value: value,
+                      // ignore: deprecated_member_use
                       groupValue: currentValue,
-                      activeColor: AppColors.activeTeal,
+                      activeColor: AppColors.primary,
                       materialTapTargetSize: MaterialTapTargetSize.shrinkWrap, // Shrinks the hit area to save space
+                      // ignore: deprecated_member_use
                       onChanged: (val) => provider.updateField(key, val),
                     ),
                     Text("$value", style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),

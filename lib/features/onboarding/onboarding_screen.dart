@@ -1,8 +1,10 @@
+import 'package:cardio_care_quest/core/providers/user_data_manager.dart';
+import 'package:provider/provider.dart';
 import 'package:cardio_care_quest/features/dashboard/screens/main_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/constants/firestore_paths.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -43,16 +45,16 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     setState(() => _isSaving = true);
 
     try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user != null) {
+      final uid = Provider.of<UserDataProvider>(context, listen: false).uid;
+      if (uid.isNotEmpty) {
         await FirebaseFirestore.instance
-            .collection('ABC_Onboarding')
-            .doc('user')
-            .collection(user.uid)
-            .doc('flags')
+            .collection(FirestorePaths.userData)
+            .doc(uid)
             .set({
-          'play_message': true,
-          'completedAt': FieldValue.serverTimestamp(),
+          'onboarding': {
+            'play_message': true,
+            'completedAt': FieldValue.serverTimestamp(),
+          },
         }, SetOptions(merge: true));
       }
     } catch (_) {}
@@ -93,8 +95,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
                       colors: [
-                        Colors.black.withOpacity(0.3),
-                        Colors.black.withOpacity(0.8),
+                        Colors.black.withValues(alpha: 0.3),
+                        Colors.black.withValues(alpha: 0.8),
                       ],
                     ),
                   ),
@@ -110,12 +112,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           padding: const EdgeInsets.all(24),
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: Colors.white.withOpacity(0.15), // Glassmorphism circle behind icon
+                            color: Colors.white.withValues(alpha: 0.15), // Glassmorphism circle behind icon
                           ),
                           child: Icon(
                             _pages[index]["icon"],
                             size: 90,
-                            color: AppColors.activeTeal, // Keep your brand color
+                            color: AppColors.primary, // Keep your brand color
                           ),
                         ),
                         const SizedBox(height: 40),
@@ -139,7 +141,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             fontSize: 18,
-                            color: Colors.white.withOpacity(0.9),
+                            color: Colors.white.withValues(alpha: 0.9),
                             height: 1.5,
                             fontWeight: FontWeight.w500,
                           ),
@@ -192,8 +194,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                             width: _currentPage == index ? 28 : 8,
                             decoration: BoxDecoration(
                               color: _currentPage == index
-                                  ? AppColors.activeTeal
-                                  : Colors.white.withOpacity(0.4), // Lighter inactive dots
+                                  ? AppColors.primary
+                                  : Colors.white.withValues(alpha: 0.4), // Lighter inactive dots
                               borderRadius: BorderRadius.circular(4),
                             ),
                           );
@@ -207,10 +209,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       height: 52,
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.activeTeal,
+                          backgroundColor: AppColors.primary,
                           foregroundColor: Colors.white,
                           elevation: 8,
-                          shadowColor: AppColors.activeTeal.withOpacity(0.5),
+                          shadowColor: AppColors.primary.withValues(alpha: 0.5),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(16),
                           ),
@@ -245,3 +247,4 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 }
+

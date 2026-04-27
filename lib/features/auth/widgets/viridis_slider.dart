@@ -65,10 +65,10 @@ class ViridisSlider extends StatelessWidget {
         // ─── Custom Slider Track ───
         SliderTheme(
           data: SliderTheme.of(context).copyWith(
-            activeTrackColor: AppColors.activeTeal,
-            inactiveTrackColor: AppColors.activeTeal.withValues(alpha: 0.2),
-            thumbColor: AppColors.activeTeal,
-            overlayColor: AppColors.activeTeal.withValues(alpha: 0.1),
+            activeTrackColor: AppColors.primary,
+            inactiveTrackColor: AppColors.primary.withValues(alpha: 0.2),
+            thumbColor: AppColors.primary,
+            overlayColor: AppColors.primary.withValues(alpha: 0.1),
             trackHeight: 6,
             tickMarkShape: SliderTickMarkShape.noTickMark,
           ),

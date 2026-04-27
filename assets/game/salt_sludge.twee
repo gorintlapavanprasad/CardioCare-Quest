@@ -1,0 +1,396 @@
+::StoryTitle
+Salt Sludge
+
+::StoryData
+{
+  "ifid": "A1B2C3D4-E5F6-7890-ABCD-EF1234567890",
+  "format": "SugarCube",
+  "format-version": "2.37.3",
+  "start": "Story innit",
+  "zoom": 0.6
+}
+
+::UserStylesheet [stylesheet]
+body { font-family: "Times New Roman", Times, serif; }
+#ui-bar { display: none; }
+
+
+::UserScript [script]
+
+
+::Story innit [Important/Needed]
+/*
+SYSTEM CODE: runs once at the very start.
+
+Variables:
+- $playerName  : pulled from sign-in
+- $sludge      : sludge level 0 to 100, starts at 0
+- $score       : nutrient points earned
+- $day         : current day 1 to 5
+- $foodChoice  : what the player just ate
+
+You do not need to edit this.
+*/
+
+<<set $playerName to "Friend">>
+<<set $sludge to 0>>
+<<set $score to 0>>
+<<set $day to 1>>
+<<set $foodChoice to "">>
+
+<<goto "Welcome">>
+
+
+::Welcome [Important/Needed]
+/*
+INCITING MOMENT: Personal greeting. One hook. One button.
+*/
+
+Hey $playerName. Welcome to Salt Sludge.
+
+You are about to see something most people never get to see: the inside of their own arteries, reacting in real time to what they eat.
+
+It takes about five minutes.
+
+[[Show me what is inside.|What Are Arteries]]
+
+
+::What Are Arteries [Important/Needed]
+/*
+RISING ACTION: First concept. What are arteries.
+Simple city metaphor. One button.
+*/
+
+Think of your body as a city.
+
+Every part of it needs supplies to survive: oxygen, nutrients, energy. The system that delivers all of that is your blood.
+
+And the roads that blood travels through? Those are your ''arteries.''
+
+Soft, flexible, living tubes that run from your heart all the way to your fingers and toes. Your heart pumps blood through them thousands of times every single day.
+
+When those roads are clear and healthy, blood flows freely. Your heart does not have to push too hard. Blood pressure stays low.
+
+[[So what happens when something goes wrong?|What Goes Wrong]]
+
+
+::What Goes Wrong [Important/Needed]
+/*
+RISING ACTION: What sodium does to arteries.
+*/
+
+Salt.
+
+Not immediately. Not after one meal. But slowly, over time, when you eat too much sodium, something shifts inside those artery walls.
+
+Sodium pulls extra water into your bloodstream. More water means more volume pressing against those walls. More volume means more pressure. And under that pressure, a thick sticky residue starts to form on the inside of your arteries.
+
+High blood pressure caused by this buildup damages your heart, your kidneys, and your brain. Most people never feel it happening. That is what makes it dangerous.
+
+[[What does this residue look like?|Meet The Sludge]]
+
+
+::Meet The Sludge [Important/Needed]
+/*
+CRISIS: Introduce the core mechanic. Name the sludge.
+*/
+
+We call it sludge.
+
+Orange-brown. Thick. Slow-moving. It coats the inside of your artery walls and makes it harder for blood to get through. The more it builds up, the harder your heart has to work. The harder your heart works, the higher your blood pressure climbs.
+
+In this game, you are going to watch it happen in real time, based on the food choices you make.
+
+Right now your artery is clean. It stays that way only if you make the right calls.
+
+[[Wait. Can anything actually clear it?|The Fix]]
+
+
+::The Fix [Important/Needed]
+/*
+TURNING POINT: The good news. Potassium. Familiar foods.
+*/
+
+Good news, $playerName.
+
+Your body already knows how to fight sludge.
+
+It uses a nutrient called ''potassium'' to flush excess sodium out through your kidneys. When potassium is high and sodium is low, those artery walls relax. Blood pressure drops. The sludge clears.
+
+Potassium is not hard to find. Bananas. Spinach. Beans. Sweet potatoes. Foods most people already cook with, already eat, already know.
+
+Salt Sludge shows you exactly what this looks like inside your artery, based on what you choose to eat.
+
+[[How do I actually play?|How To Play]]
+
+
+::How To Play [Important/Needed]
+/*
+EXPOSITION: Rules. Clear and simple.
+*/
+
+Every round, a food appears. Something real. Something you might actually eat.
+
+You tap it. You find out what is in it. Then you decide.
+
+High sodium: sludge forms on your artery wall.
+High potassium: sludge dissolves. The vessel clears.
+
+You play through five days. Each day brings one food choice. Whatever sludge you leave behind carries into the next day.
+
+After Day 5, your artery is revealed. Your score shows up.
+
+That is the whole game.
+
+[[I am ready. Let us play.|Day Start]]
+
+
+::Day Start [Important/Needed]
+/*
+START OF EACH DAY.
+Shows current day, current sludge level, and a daily health tip.
+Sends player to the food choice for that day.
+*/
+
+''Day $day of 5''
+
+<<if $sludge lt 30>>Your artery is looking clean right now.
+<<elseif $sludge lt 60>>Some sludge is building up. Today is a chance to clear it.
+<<else>>That sludge is getting thick. Choose carefully today.
+<</if>>
+
+Sludge level: $sludge out of 100.
+
+Did you know:
+<<if $day is 1>>Most adults eat double the recommended daily sodium without realizing it.
+<<elseif $day is 2>>Potassium helps your kidneys flush sodium out. Most people do not get enough of it.
+<<elseif $day is 3>>Canned foods are one of the biggest hidden sources of sodium. One serving can contain more than half your daily limit.
+<<elseif $day is 4>>Walking also helps lower blood pressure. Potassium is not the only tool you have.
+<<else>>Five days of better choices can make a measurable difference in your resting blood pressure.
+<</if>>
+
+<<if $day is 1>>[[Show me today's food.|Food Day 1]]
+<<elseif $day is 2>>[[Show me today's food.|Food Day 2]]
+<<elseif $day is 3>>[[Show me today's food.|Food Day 3]]
+<<elseif $day is 4>>[[Show me today's food.|Food Day 4]]
+<<else>>[[Show me today's food.|Food Day 5]]
+<</if>>
+
+
+::Food Day 1 [Important/Needed]
+/*
+DAY 1 FOOD CHOICE: Banana vs Canned Soup.
+Banana clears sludge and earns points.
+Canned Soup adds sludge.
+*/
+
+You are home. It is late afternoon. You are hungry and need something quick.
+
+Two options in front of you.
+
+<<link "A banana.">>
+<<set $sludge to Math.max(0, $sludge - 15)>>
+<<set $score to $score + 10>>
+<<set $foodChoice to "banana">>
+<<goto "Food Result">>
+<</link>>
+
+or
+
+<<link "A bowl of canned soup.">>
+<<set $sludge to Math.min(100, $sludge + 25)>>
+<<set $foodChoice to "soup">>
+<<goto "Food Result">>
+<</link>>
+
+
+::Food Day 2 [Important/Needed]
+/*
+DAY 2 FOOD CHOICE: Spinach vs Instant Noodles.
+*/
+
+Lunchtime. You have ten minutes and two options on the counter.
+
+<<link "A plate of spinach.">>
+<<set $sludge to Math.max(0, $sludge - 20)>>
+<<set $score to $score + 10>>
+<<set $foodChoice to "spinach">>
+<<goto "Food Result">>
+<</link>>
+
+or
+
+<<link "A packet of instant noodles.">>
+<<set $sludge to Math.min(100, $sludge + 30)>>
+<<set $foodChoice to "noodles">>
+<<goto "Food Result">>
+<</link>>
+
+
+::Food Day 3 [Important/Needed]
+/*
+DAY 3 FOOD CHOICE: Beans vs Potato Chips.
+*/
+
+Afternoon snack time. You open the cupboard. Two things catch your eye.
+
+<<link "A bowl of beans.">>
+<<set $sludge to Math.max(0, $sludge - 20)>>
+<<set $score to $score + 10>>
+<<set $foodChoice to "beans">>
+<<goto "Food Result">>
+<</link>>
+
+or
+
+<<link "A bag of potato chips.">>
+<<set $sludge to Math.min(100, $sludge + 25)>>
+<<set $foodChoice to "chips">>
+<<goto "Food Result">>
+<</link>>
+
+
+::Food Day 4 [Important/Needed]
+/*
+DAY 4 FOOD CHOICE: Sweet Potato vs Bacon.
+*/
+
+Dinner. You are tired. You want something good. Two options in front of you.
+
+<<link "A sweet potato.">>
+<<set $sludge to Math.max(0, $sludge - 20)>>
+<<set $score to $score + 10>>
+<<set $foodChoice to "sweetpotato">>
+<<goto "Food Result">>
+<</link>>
+
+or
+
+<<link "Bacon.">>
+<<set $sludge to Math.min(100, $sludge + 30)>>
+<<set $foodChoice to "bacon">>
+<<goto "Food Result">>
+<</link>>
+
+
+::Food Day 5 [Important/Needed]
+/*
+DAY 5 FOOD CHOICE: Yogurt vs Hot Dog.
+Final choice of the game.
+*/
+
+Last day, $playerName. Last meal. Your artery has been through four days of choices with you.
+
+One more.
+
+<<link "Yogurt.">>
+<<set $sludge to Math.max(0, $sludge - 20)>>
+<<set $score to $score + 10>>
+<<set $foodChoice to "yogurt">>
+<<goto "Food Result">>
+<</link>>
+
+or
+
+<<link "A hot dog.">>
+<<set $sludge to Math.min(100, $sludge + 25)>>
+<<set $foodChoice to "hotdog">>
+<<goto "Food Result">>
+<</link>>
+
+
+::Food Result [Important/Needed]
+/*
+RESULT OF EACH FOOD CHOICE.
+Tells the player what that food did to their artery and why.
+Then moves to next day or final result after Day 5.
+*/
+
+<<if $foodChoice is "banana" or $foodChoice is "spinach" or $foodChoice is "beans" or $foodChoice is "sweetpotato" or $foodChoice is "yogurt">>
+
+Good choice.
+
+<<if $foodChoice is "banana">>That banana just delivered a flood of potassium to your kidneys. They got to work immediately, flushing out excess sodium. Your artery wall relaxed.
+<<elseif $foodChoice is "spinach">>Spinach is one of the most potassium-dense foods around. Your artery walls eased up. Blood is moving more freely right now.
+<<elseif $foodChoice is "beans">>Beans are loaded with potassium and fiber. The sludge thinned out noticeably. Your vessel just got a proper clean.
+<<elseif $foodChoice is "sweetpotato">>Sweet potato is the quiet champion of blood pressure foods. High potassium. Low sodium. Your artery is grateful.
+<<else>>Yogurt brings calcium and potassium together. Both help keep blood pressure down. Good call.
+<</if>>
+
+Sludge cleared. Sludge level is now $sludge out of 100.
+
+<<else>>
+
+Your artery felt that one.
+
+<<if $foodChoice is "soup">>That canned soup had nearly 900 milligrams of sodium in a single serving. Almost half your daily limit in one bowl. Your artery walls tightened. Sludge started forming.
+<<elseif $foodChoice is "noodles">>Instant noodles pack around 1500 milligrams of sodium per packet. Your artery is working harder now than it was five minutes ago.
+<<elseif $foodChoice is "chips">>Potato chips are one of the sneakiest sodium sources around. A single serving can contain 200 milligrams or more. Your artery walls just got a little thicker.
+<<elseif $foodChoice is "bacon">>Bacon is cured in salt. That sodium hit your bloodstream fast. The sludge built up quickly.
+<<else>>A single hot dog contains nearly 600 milligrams of sodium. Your artery noticed immediately.
+<</if>>
+
+Sludge increased. Sludge level is now $sludge out of 100.
+
+Tomorrow is a chance to clear it.
+
+<</if>>
+
+<<if $day lt 5>>
+<<set $day to $day + 1>>
+<<link "On to Day " + $day + ".">><<goto "Day Start">><</link>>
+<<else>>
+[[See your final artery.|Final Result]]
+<</if>>
+
+
+::Final Result [Important/Needed]
+/*
+DENOUEMENT: End of game.
+Personalized message based on final sludge level.
+Score shown. Option to play again.
+*/
+
+Five days done, $playerName.
+
+Here is what your artery looks like right now.
+
+Sludge level: $sludge out of 100.
+Nutrient points earned: $score.
+
+<<if $sludge lt 30>>
+Clean artery.
+
+Your potassium choices paid off. Blood is moving freely. Your blood pressure is lower right now than it was at the start of Day 1.
+
+Five days of consistent good choices. Not dramatic. Not perfect. Just noticeably better.
+<<elseif $sludge lt 60>>
+Some sludge.
+
+A mix of good and tough choices. Your artery is managing but working harder than it needs to.
+
+The good news is you already know which foods cleared it. Those are the ones to reach for more often.
+<<else>>
+Heavy sludge.
+
+A tough five days. Your artery has been working overtime.
+
+The sodium added up faster than the potassium could clear it. That is the most common pattern. And now you can see exactly why it matters.
+<</if>>
+
+Every banana, every handful of spinach, every bowl of beans is clearing sludge in real arteries right now. Including yours.
+
+[[Play again.|Story innit]]
+
+[[Back to CardioCareQuest.|Central Hub]]
+
+
+::Central Hub [Important/Needed]
+/*
+Placeholder passage. In the full app this returns
+the player to the CardioCareQuest main hub.
+*/
+
+Returning to CardioCareQuest.
+
+[[Play Salt Sludge again.|Story innit]]

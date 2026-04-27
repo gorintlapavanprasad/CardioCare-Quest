@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/constants/firestore_paths.dart';
 import 'quest_complete_screen.dart'; // Make sure this is imported!
 
 class CreatePinScreen extends StatefulWidget {
@@ -21,7 +22,7 @@ Future<void> _savePin() async {
     
     try {
       // ─── CHANGED 'userData' TO 'users' ───
-      await FirebaseFirestore.instance.collection('users').doc(widget.participantId).update({
+      await FirebaseFirestore.instance.collection(FirestorePaths.userData).doc(widget.participantId).update({
         'transferPin': _pin,
       });
 
@@ -91,3 +92,4 @@ Future<void> _savePin() async {
     );
   }
 }
+

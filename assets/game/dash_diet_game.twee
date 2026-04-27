@@ -1,0 +1,412 @@
+::StoryTitle
+DASH Diet Game
+
+::StoryData
+{
+  "ifid": "C3D4E5F6-A7B8-9012-CDEF-123456789012",
+  "format": "SugarCube",
+  "format-version": "2.37.3",
+  "start": "Story innit",
+  "zoom": 0.6
+}
+
+::UserStylesheet [stylesheet]
+body { font-family: "Times New Roman", Times, serif; }
+#ui-bar { display: none; }
+
+::UserScript [script]
+
+
+::Story innit [Important/Needed]
+/*
+SYSTEM CODE: runs once at the very start.
+
+Variables:
+- $playerName  : pulled from sign-in
+- $score       : total correct answers
+- $mealScore   : blood pressure score of the meal the player builds
+- $round       : which food card round it is 1 to 6
+- $lastFood    : the food the player just classified
+- $lastCorrect : whether the player got the last answer right
+- $meal        : list of ingredients the player picked for their meal
+
+You do not need to edit this.
+*/
+
+<<set $playerName to "Friend">>
+<<set $score to 0>>
+<<set $mealScore to 0>>
+<<set $round to 1>>
+<<set $lastFood to "">>
+<<set $lastCorrect to false>>
+<<set $meal to []>>
+
+<<goto "Welcome">>
+
+
+::Welcome [Important/Needed]
+/*
+INCITING MOMENT: Professional greeting. What DASH is. One button.
+*/
+
+Hey $playerName. Welcome to the DASH Diet Game.
+
+DASH stands for Dietary Approaches to Stop Hypertension. It is not a fad. It is a way of eating that has been studied for decades and consistently shown to lower blood pressure in people who follow it.
+
+This game helps you understand which everyday foods support healthy blood pressure and which ones work against it.
+
+[[What is DASH exactly?|What Is DASH]]
+
+
+::What Is DASH [Important/Needed]
+/*
+RISING ACTION: Explain the DASH framework simply.
+*/
+
+DASH is about balance.
+
+High in potassium. High in fiber. High in calcium. Low in sodium. Low in saturated fat.
+
+Foods that hit those marks tend to lower blood pressure. Foods that work against them tend to raise it.
+
+Most people already eat some DASH foods every day without knowing it. This game helps you see which ones they are.
+
+[[How do I play?|How To Play]]
+
+
+::How To Play [Important/Needed]
+/*
+EXPOSITION: Game rules. Two parts. Cards then meal building.
+*/
+
+The game has two parts.
+
+''Part one: Food cards.''
+
+A food appears on your screen. Something real. Something from an actual kitchen.
+
+You decide whether it lowers blood pressure or raises it.
+
+If you are right, you learn why. If you are wrong, you still learn why. Either way, you leave knowing something you did not know before.
+
+''Part two: Build a meal.''
+
+After the cards, you pick ingredients to build a meal. The game shows you what that meal does to your blood pressure score. Swap something out. See what a small change actually does.
+
+[[Why does this matter?|Why It Matters]]
+
+
+::Why It Matters [Important/Needed]
+/*
+TURNING POINT: Real examples. Specific. No lecturing.
+*/
+
+Most people do not know which foods are quietly working for them and which ones are working against them.
+
+A tomato lowers blood pressure.
+
+Dark chocolate in small amounts also lowers blood pressure.
+
+Instant noodles have more sodium in one packet than most people should eat in a full day.
+
+The DASH Diet Game is not here to tell you what to eat. It is here to show you what your food is already doing.
+
+[[I am ready. Let us play.|Round Start]]
+
+
+::Round Start [Important/Needed]
+/*
+START OF EACH FOOD CARD ROUND.
+Shows which round it is and sends player to that round's food card.
+*/
+
+''Round $round of 6''
+
+Score so far: $score correct.
+
+A food is coming. Think about what it does to blood pressure before you answer.
+
+<<if $round is 1>>[[Show me the food.|Food Card 1]]
+<<elseif $round is 2>>[[Show me the food.|Food Card 2]]
+<<elseif $round is 3>>[[Show me the food.|Food Card 3]]
+<<elseif $round is 4>>[[Show me the food.|Food Card 4]]
+<<elseif $round is 5>>[[Show me the food.|Food Card 5]]
+<<else>>[[Show me the food.|Food Card 6]]
+<</if>>
+
+
+::Food Card 1 [Important/Needed]
+/*
+FOOD CARD 1: Banana.
+Correct answer: Low BP. High potassium.
+*/
+
+''Banana.''
+
+A common fruit. Sweet. Easy to find. You probably already know someone who eats one every morning.
+
+Does a banana lower blood pressure or raise it?
+
+<<link "Low BP. It lowers blood pressure.">>
+<<set $lastFood to "banana">>
+<<set $lastCorrect to true>>
+<<set $score to $score + 1>>
+<<goto "Food Result">>
+<</link>>
+
+<<link "High BP. It raises blood pressure.">>
+<<set $lastFood to "banana">>
+<<set $lastCorrect to false>>
+<<goto "Food Result">>
+<</link>>
+
+
+::Food Card 2 [Important/Needed]
+/*
+FOOD CARD 2: Instant Noodles.
+Correct answer: High BP. Very high sodium.
+*/
+
+''Instant Noodles.''
+
+Quick to make. Inexpensive. A meal that shows up in most kitchens at some point.
+
+Does a packet of instant noodles lower blood pressure or raise it?
+
+<<link "Low BP. It lowers blood pressure.">>
+<<set $lastFood to "noodles">>
+<<set $lastCorrect to false>>
+<<goto "Food Result">>
+<</link>>
+
+<<link "High BP. It raises blood pressure.">>
+<<set $lastFood to "noodles">>
+<<set $lastCorrect to true>>
+<<set $score to $score + 1>>
+<<goto "Food Result">>
+<</link>>
+
+
+::Food Card 3 [Important/Needed]
+/*
+FOOD CARD 3: Dark Chocolate.
+Correct answer: Low BP. Flavonoids lower blood pressure in small amounts.
+*/
+
+''Dark Chocolate.''
+
+Not milk chocolate. Dark chocolate, seventy percent cacao or higher. A small square. Not a whole bar.
+
+Does dark chocolate lower blood pressure or raise it?
+
+<<link "Low BP. It lowers blood pressure.">>
+<<set $lastFood to "darkchocolate">>
+<<set $lastCorrect to true>>
+<<set $score to $score + 1>>
+<<goto "Food Result">>
+<</link>>
+
+<<link "High BP. It raises blood pressure.">>
+<<set $lastFood to "darkchocolate">>
+<<set $lastCorrect to false>>
+<<goto "Food Result">>
+<</link>>
+
+
+::Food Card 4 [Important/Needed]
+/*
+FOOD CARD 4: Bacon.
+Correct answer: High BP. High sodium and saturated fat.
+*/
+
+''Bacon.''
+
+Cured in salt. High in saturated fat. A food that appears on a lot of breakfast plates.
+
+Does bacon lower blood pressure or raise it?
+
+<<link "Low BP. It lowers blood pressure.">>
+<<set $lastFood to "bacon">>
+<<set $lastCorrect to false>>
+<<goto "Food Result">>
+<</link>>
+
+<<link "High BP. It raises blood pressure.">>
+<<set $lastFood to "bacon">>
+<<set $lastCorrect to true>>
+<<set $score to $score + 1>>
+<<goto "Food Result">>
+<</link>>
+
+
+::Food Card 5 [Important/Needed]
+/*
+FOOD CARD 5: Spinach.
+Correct answer: Low BP. High potassium and magnesium.
+*/
+
+''Spinach.''
+
+A leafy green. Can be eaten raw or cooked. Shows up in salads, soups, and side dishes.
+
+Does spinach lower blood pressure or raise it?
+
+<<link "Low BP. It lowers blood pressure.">>
+<<set $lastFood to "spinach">>
+<<set $lastCorrect to true>>
+<<set $score to $score + 1>>
+<<goto "Food Result">>
+<</link>>
+
+<<link "High BP. It raises blood pressure.">>
+<<set $lastFood to "spinach">>
+<<set $lastCorrect to false>>
+<<goto "Food Result">>
+<</link>>
+
+
+::Food Card 6 [Important/Needed]
+/*
+FOOD CARD 6: Canned Soup.
+Correct answer: High BP. One serving often contains half a day's sodium.
+*/
+
+''Canned Soup.''
+
+Warm. Convenient. A common meal for busy days or cold evenings.
+
+Does canned soup lower blood pressure or raise it?
+
+<<link "Low BP. It lowers blood pressure.">>
+<<set $lastFood to "cannedsoup">>
+<<set $lastCorrect to false>>
+<<goto "Food Result">>
+<</link>>
+
+<<link "High BP. It raises blood pressure.">>
+<<set $lastFood to "cannedsoup">>
+<<set $lastCorrect to true>>
+<<set $score to $score + 1>>
+<<goto "Food Result">>
+<</link>>
+
+
+::Food Result [Important/Needed]
+/*
+RESULT OF EACH FOOD CARD.
+Tells the player whether they were right and explains why.
+Moves to next round or meal builder after round 6.
+*/
+
+<<if $lastCorrect is true>>Correct.<<else>>Not quite.<</if>>
+
+<<if $lastFood is "banana">>Bananas are high in potassium, which helps your kidneys flush excess sodium out of your body. Less sodium means less pressure on your artery walls. A banana a day is a genuine cardiovascular tool.
+<<elseif $lastFood is "noodles">>A single packet of instant noodles can contain up to 1500 milligrams of sodium. The recommended daily limit is 2300 milligrams. One packet gets you more than halfway there before you have eaten anything else that day.
+<<elseif $lastFood is "darkchocolate">>Dark chocolate contains flavonoids, compounds that help blood vessels relax and widen. Studies show that a small amount of dark chocolate, around one square, can produce a measurable drop in blood pressure. The key word is small.
+<<elseif $lastFood is "bacon">>Bacon is cured in salt and high in saturated fat. Both raise blood pressure through different mechanisms. Sodium increases blood volume. Saturated fat stiffens artery walls over time. Together they are a significant cardiovascular load.
+<<elseif $lastFood is "spinach">>Spinach is high in potassium and magnesium, two minerals that directly support healthy blood pressure. It is one of the most nutrient-dense foods for cardiovascular health and one of the most consistently underrated.
+<<elseif $lastFood is "cannedsoup">>One serving of canned soup often contains between 800 and 1200 milligrams of sodium. Some servings contain more. Many cans hold two servings, which most people eat as one. Checking the label on canned food is one of the most effective things a person can do for their blood pressure.
+<</if>>
+
+Score: $score out of $round correct.
+
+<<if $round lt 6>>
+<<set $round to $round + 1>>
+[[Next food.|Round Start]]
+<<else>>
+[[Now build your meal.|Meal Builder Intro]]
+<</if>>
+
+
+::Meal Builder Intro [Important/Needed]
+/*
+TRANSITION: Cards done. Introduce the meal building section.
+*/
+
+Cards done. Score: $score out of 6.
+
+Now for part two.
+
+You are going to build a meal from a list of ingredients. Pick what you want. The game will show you what that combination does to your blood pressure score.
+
+There are no wrong answers here. The point is to see what happens when you swap one thing for another.
+
+[[Build my meal.|Meal Builder]]
+
+
+::Meal Builder [Important/Needed]
+/*
+MEAL BUILDER: Player picks ingredients.
+Each selection adds or subtracts from $mealScore.
+Uses linkreplace so each item can only be selected once.
+*/
+
+Pick your ingredients. Select as many as you like.
+
+''Proteins:''
+
+<<linkreplace "Brown Rice">>''Brown Rice'' added. Brown rice is high in fiber and magnesium. Good for blood pressure.<<run $meal.push("Brown Rice"), $mealScore += 10>><</linkreplace>>
+
+<<linkreplace "Beans">>''Beans'' added. High in potassium and fiber. One of the strongest DASH foods.<<run $meal.push("Beans"), $mealScore += 15>><</linkreplace>>
+
+<<linkreplace "Bacon">>''Bacon'' added. High sodium and saturated fat. Raises blood pressure.<<run $meal.push("Bacon"), $mealScore -= 15>><</linkreplace>>
+
+<<linkreplace "Yogurt">>''Yogurt'' added. High in calcium and potassium. Supports healthy blood pressure.<<run $meal.push("Yogurt"), $mealScore += 10>><</linkreplace>>
+
+''Vegetables and Fruit:''
+
+<<linkreplace "Spinach">>''Spinach'' added. High in potassium and magnesium. Excellent for blood pressure.<<run $meal.push("Spinach"), $mealScore += 15>><</linkreplace>>
+
+<<linkreplace "Tomato">>''Tomato'' added. Rich in potassium and lycopene. Lowers blood pressure.<<run $meal.push("Tomato"), $mealScore += 10>><</linkreplace>>
+
+<<linkreplace "Banana">>''Banana'' added. High in potassium. Helps flush sodium from your body.<<run $meal.push("Banana"), $mealScore += 10>><</linkreplace>>
+
+<<linkreplace "Potato Chips">>''Potato Chips'' added. High sodium snack. Raises blood pressure.<<run $meal.push("Potato Chips"), $mealScore -= 10>><</linkreplace>>
+
+''Extras:''
+
+<<linkreplace "Dark Chocolate">>''Dark Chocolate'' added. Small amounts lower blood pressure through flavonoids.<<run $meal.push("Dark Chocolate"), $mealScore += 5>><</linkreplace>>
+
+<<linkreplace "Instant Noodles">>''Instant Noodles'' added. Very high sodium. Raises blood pressure significantly.<<run $meal.push("Instant Noodles"), $mealScore -= 20>><</linkreplace>>
+
+<<linkreplace "Water">>''Water'' added. Proper hydration supports healthy blood pressure.<<run $meal.push("Water"), $mealScore += 5>><</linkreplace>>
+
+<<linkreplace "Hot Dog">>''Hot Dog'' added. High in sodium and saturated fat. Raises blood pressure.<<run $meal.push("Hot Dog"), $mealScore -= 15>><</linkreplace>>
+
+[[See what this meal does to my blood pressure.|Meal Result]]
+
+
+::Meal Result [Important/Needed]
+/*
+MEAL RESULT: Shows what the meal does to blood pressure.
+Personalized message based on $mealScore.
+Lists what the player picked.
+*/
+
+Here is your meal:
+
+<<for _item range $meal>>* _item
+<</for>>
+
+Blood pressure score: $mealScore points.
+
+<<if $mealScore gte 30>>Strong DASH meal. Your ingredient choices are high in potassium, fiber, and minerals that actively support lower blood pressure. A meal like this, eaten regularly, produces measurable results over weeks.
+<<elseif $mealScore gte 10>>Moderate DASH meal. Some strong choices in there. Swapping one high-sodium ingredient for a potassium-rich one would shift this meal significantly in the right direction.
+<<elseif $mealScore gte 0>>Mixed meal. The DASH-friendly choices are being offset by the high-sodium ones. Small swaps make a real difference here.
+<<else>>This meal is working against your blood pressure. The sodium load is high and the potassium is low. Try replacing one ingredient and see what changes.
+<</if>>
+
+[[Play again.|Story innit]]
+
+[[Back to CardioCareQuest.|Central Hub]]
+
+
+::Central Hub [Important/Needed]
+/*
+Placeholder passage. In the full app this returns
+the player to the CardioCareQuest main hub.
+*/
+
+Returning to CardioCareQuest.
+
+[[Play the DASH Diet Game again.|Story innit]]

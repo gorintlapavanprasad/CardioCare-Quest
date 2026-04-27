@@ -1,0 +1,400 @@
+::StoryTitle
+Bingo Bash
+
+::StoryData
+{
+  "ifid": "E5F6A7B8-C9D0-1234-EFAB-345678901234",
+  "format": "SugarCube",
+  "format-version": "2.37.3",
+  "start": "Story innit",
+  "zoom": 0.6
+}
+
+::UserStylesheet [stylesheet]
+body { font-family: "Times New Roman", Times, serif; }
+#ui-bar { display: none; }
+
+::UserScript [script]
+
+
+::Story innit [Important/Needed]
+/*
+SYSTEM CODE: runs once at the very start.
+
+Variables:
+- $playerName   : pulled from sign-in
+- $marked       : list of activities the player has marked complete today
+- $score        : how many cells marked today
+- $streak       : days in a row the player has played
+- $wonToday     : whether the player has got five in a row today
+- $customGoal   : a personal goal the player adds to their board
+
+You do not need to edit this.
+*/
+
+<<set $playerName to "Friend">>
+<<set $marked to []>>
+<<set $score to 0>>
+<<set $streak to 0>>
+<<set $wonToday to false>>
+<<set $customGoal to "">>
+
+<<goto "Welcome">>
+
+
+::Welcome [Important/Needed]
+/*
+INCITING MOMENT: Personal greeting. Simple hook. One button.
+*/
+
+Hey $playerName. Welcome to Bingo Bash.
+
+You know how bingo works. A grid. Items called. Mark them off. Five in a row and you win.
+
+Bingo Bash works the same way. Except the grid is not numbers. It is your health goals for the day.
+
+[[What is on the board?|What Is On The Board]]
+
+
+::What Is On The Board [Important/Needed]
+/*
+RISING ACTION: What the board contains. Real activities. Daily refresh.
+*/
+
+Every morning your board refreshes. Twenty-five cells. Each one contains a blood-pressure-friendly activity.
+
+Reduce sodium today. Take a walk. Drink eight glasses of water. Take your medication. Call a family member. Meditate for ten minutes. Cook a DASH-friendly meal.
+
+Real activities. Things you can actually do before the end of the day.
+
+[[How do I win?|How You Win]]
+
+
+::How You Win [Important/Needed]
+/*
+RISING ACTION: Five in a row. Any direction.
+*/
+
+Mark five in a row and you win the day.
+
+Horizontal. Vertical. Diagonal. Any five connected cells you completed.
+
+The board is designed so that five in a row is achievable. Not easy. Achievable. The activities are chosen to complement each other, so completing one often makes the next one easier.
+
+[[Is there anything else on the board?|The Community]]
+
+
+::The Community [Important/Needed]
+/*
+RISING ACTION: Community button. You are not playing alone.
+*/
+
+You are not playing alone.
+
+The community button connects you with other players working on their boards. You can see what activities others are marking off, get ideas for ones you have not tried, and move alongside people working toward the same goal.
+
+[[What if I do not know how to start an activity?|The Inspiration Button]]
+
+
+::The Inspiration Button [Important/Needed]
+/*
+RISING ACTION: Inspiration button. Practical help for stuck cells.
+*/
+
+Some cells will stop you. An activity you have never tried. One that sounds right but you are not sure how to start.
+
+The inspiration button is there for exactly that. Tap it next to any cell and you get a short practical idea for how to approach that goal today. Not a lecture. Just a starting point.
+
+[[Can I add my own goals?|Your Personal Goals]]
+
+
+::Your Personal Goals [Important/Needed]
+/*
+TURNING POINT: Personal goals. The board is yours.
+*/
+
+Yes.
+
+The edit page lets you add your own activities to the board. If your doctor gave you a specific target, if your family has a tradition that supports your health, if there is something you know works for you that is not on the default board, you can put it there.
+
+The board reflects your health. Not a generic template.
+
+[[I want to add a personal goal now.|Add Personal Goal]]
+
+[[Skip this and go to my board.|Board Start]]
+
+
+::Add Personal Goal [Important/Needed]
+/*
+OPTIONAL: Player adds a personal health goal to their board.
+Stored in $customGoal. Carried into the board.
+*/
+
+What is one health goal you want to work on today?
+
+It can be anything. A specific food to avoid. A habit to build. Something your doctor mentioned. Something you just want to try.
+
+<<textbox "$customGoal" "" autofocus>>
+
+<<link "Add this to my board.">>
+<<set $customGoal to $customGoal.trim()>>
+<<if $customGoal is "">>
+<<goto "Add Personal Goal">>
+<<else>>
+<<goto "Goal Confirmed">>
+<</if>>
+<</link>>
+
+
+::Goal Confirmed [Important/Needed]
+/*
+CONFIRMATION: Personal goal added. Move to board.
+*/
+
+Added to your board: ''$customGoal''
+
+It will appear among your activities for today. Mark it off when you complete it.
+
+[[Go to my board.|Board Start]]
+
+
+::Board Start [Important/Needed]
+/*
+THE BOARD: Daily board of activities.
+Player marks activities complete using linkreplace.
+Each marked activity updates $score and $marked.
+Board checks for win after each mark.
+*/
+
+''Today's Board''
+
+Streak: $streak days.
+Marked today: $score cells.
+
+Mark the activities you have completed today. Each one you mark brings you closer to five in a row.
+
+''Row 1:''
+<<linkreplace "Reduce sodium at one meal today.">>''Reduce sodium at one meal today'' marked.<<run $marked.push("reduce sodium"), $score += 1>><</linkreplace>>
+
+<<linkreplace "Drink eight glasses of water.">>''Drink eight glasses of water'' marked.<<run $marked.push("water"), $score += 1>><</linkreplace>>
+
+<<linkreplace "Take a walk, any distance.">>''Take a walk, any distance'' marked.<<run $marked.push("walk"), $score += 1>><</linkreplace>>
+
+<<linkreplace "Take your medication today.">>''Take your medication today'' marked.<<run $marked.push("medication"), $score += 1>><</linkreplace>>
+
+<<linkreplace "Eat one piece of fruit.">>''Eat one piece of fruit'' marked.<<run $marked.push("fruit"), $score += 1>><</linkreplace>>
+
+''Row 2:''
+<<linkreplace "Cook a meal at home instead of eating out.">>''Cook a meal at home instead of eating out'' marked.<<run $marked.push("cook home"), $score += 1>><</linkreplace>>
+
+<<linkreplace "Meditate or sit quietly for ten minutes.">>''Meditate or sit quietly for ten minutes'' marked.<<run $marked.push("meditate"), $score += 1>><</linkreplace>>
+
+<<linkreplace "Eat a vegetable with your main meal.">>''Eat a vegetable with your main meal'' marked.<<run $marked.push("vegetable"), $score += 1>><</linkreplace>>
+
+<<linkreplace "Check your blood pressure today.">>''Check your blood pressure today'' marked.<<run $marked.push("bp check"), $score += 1>><</linkreplace>>
+
+<<linkreplace "Avoid adding salt at the table.">>''Avoid adding salt at the table'' marked.<<run $marked.push("no salt"), $score += 1>><</linkreplace>>
+
+''Row 3:''
+<<linkreplace "Call or spend time with a family member.">>''Call or spend time with a family member'' marked.<<run $marked.push("family"), $score += 1>><</linkreplace>>
+
+<<linkreplace "Eat beans or lentils today.">>''Eat beans or lentils today'' marked.<<run $marked.push("beans"), $score += 1>><</linkreplace>>
+
+<<linkreplace "Take five deep breaths when you feel stress.">>''Take five deep breaths when you feel stress'' marked.<<run $marked.push("breathe"), $score += 1>><</linkreplace>>
+
+<<linkreplace "Swap a high-sodium snack for a low-sodium one.">>''Swap a high-sodium snack for a low-sodium one'' marked.<<run $marked.push("swap snack"), $score += 1>><</linkreplace>>
+
+<<linkreplace "Get at least seven hours of sleep tonight.">>''Get at least seven hours of sleep tonight'' marked.<<run $marked.push("sleep"), $score += 1>><</linkreplace>>
+
+''Row 4:''
+<<linkreplace "Eat a potassium-rich food. Banana, spinach, or sweet potato.">>''Eat a potassium-rich food'' marked.<<run $marked.push("potassium"), $score += 1>><</linkreplace>>
+
+<<linkreplace "Avoid alcohol today.">>''Avoid alcohol today'' marked.<<run $marked.push("no alcohol"), $score += 1>><</linkreplace>>
+
+<<linkreplace "Read something about blood pressure management.">>''Read something about blood pressure management'' marked.<<run $marked.push("read"), $score += 1>><</linkreplace>>
+
+<<linkreplace "Take a break from screens for thirty minutes.">>''Take a break from screens for thirty minutes'' marked.<<run $marked.push("screen break"), $score += 1>><</linkreplace>>
+
+<<linkreplace "Eat a DASH-friendly breakfast.">>''Eat a DASH-friendly breakfast'' marked.<<run $marked.push("dash breakfast"), $score += 1>><</linkreplace>>
+
+''Row 5:''
+<<linkreplace "Stretch or do light movement for ten minutes.">>''Stretch or do light movement for ten minutes'' marked.<<run $marked.push("stretch"), $score += 1>><</linkreplace>>
+
+<<linkreplace "Avoid processed food at one meal.">>''Avoid processed food at one meal'' marked.<<run $marked.push("no processed"), $score += 1>><</linkreplace>>
+
+<<linkreplace "Thank someone in your community today.">>''Thank someone in your community today'' marked.<<run $marked.push("community"), $score += 1>><</linkreplace>>
+
+<<linkreplace "Eat a handful of unsalted nuts.">>''Eat a handful of unsalted nuts'' marked.<<run $marked.push("nuts"), $score += 1>><</linkreplace>>
+
+<<if $customGoal is "">>
+<<linkreplace "Write down one thing you are grateful for.">>''Write down one thing you are grateful for'' marked.<<run $marked.push("gratitude"), $score += 1>><</linkreplace>>
+<<else>>
+<<linkreplace "Your goal: $customGoal">>''$customGoal'' marked.<<run $marked.push("custom"), $score += 1>><</linkreplace>>
+<</if>>
+
+[[Check my progress.|Check Progress]]
+
+[[I need inspiration on an activity.|Inspiration]]
+
+
+::Check Progress [Important/Needed]
+/*
+PROGRESS CHECK: Shows how many cells marked.
+Checks if player has reached five for a win.
+*/
+
+Cells marked today: $score out of 25.
+
+<<if $score gte 5>>
+''You have marked five or more cells today.''
+
+Check your board. If five of them form a line, horizontal, vertical, or diagonal, you have won today's board.
+
+[[Claim my win.|Daily Win]]
+<<else>>
+You need <<print 5 - $score>> more to get five in a row.
+
+Keep going. Every activity you mark is a real action that supports your blood pressure.
+
+[[Back to my board.|Board Start]]
+<</if>>
+
+
+::Daily Win [Important/Needed]
+/*
+CLIMAX: Player has won the day's board. Celebration and streak update.
+*/
+
+Bingo.
+
+Five in a row. Today's board is complete.
+
+<<set $wonToday to true>>
+<<set $streak to $streak + 1>>
+
+Streak: $streak days in a row.
+
+Every cell you marked today was a real action. Reduced sodium. Movement. Rest. Connection. These are not game points. They are the actual behaviors that lower blood pressure over time.
+
+Come back tomorrow. The board will be different. The goal is the same.
+
+[[Back to CardioCareQuest.|Central Hub]]
+
+
+::Inspiration [Important/Needed]
+/*
+INSPIRATION: Player picks which activity they need help with.
+Short practical tip for each one.
+*/
+
+Which activity do you need a starting point for?
+
+<<link "Reduce sodium at a meal.">><<goto "Inspire Sodium">><</link>>
+
+<<link "Meditate or sit quietly.">><<goto "Inspire Meditate">><</link>>
+
+<<link "Eat a DASH-friendly meal.">><<goto "Inspire DASH">><</link>>
+
+<<link "Check my blood pressure.">><<goto "Inspire BP">><</link>>
+
+<<link "Take a walk.">><<goto "Inspire Walk">><</link>>
+
+[[Back to my board.|Board Start]]
+
+
+::Inspire Sodium [Important/Needed]
+/*
+INSPIRATION: Sodium reduction tip.
+*/
+
+Reducing sodium at one meal does not mean cooking something different.
+
+It means checking what you already planned to eat and making one swap. Use herbs instead of salt to season. Choose a low-sodium version of something you already buy. Skip adding salt at the table.
+
+One meal. One swap. That is enough to count.
+
+[[Back to my board.|Board Start]]
+
+
+::Inspire Meditate [Important/Needed]
+/*
+INSPIRATION: Meditation tip.
+*/
+
+You do not need an app or a special technique.
+
+Sit in a chair. Close your eyes if that is comfortable. Breathe in slowly for four counts. Hold for two. Breathe out for six. Do that ten times.
+
+That is ten minutes. It is enough to lower your heart rate and reduce the stress hormones that raise blood pressure.
+
+[[Back to my board.|Board Start]]
+
+
+::Inspire DASH [Important/Needed]
+/*
+INSPIRATION: DASH meal tip.
+*/
+
+A DASH-friendly meal does not have to be complicated.
+
+Beans and brown rice. A salad with spinach, tomato, and a banana on the side. Yogurt with berries. Sweet potato with no added salt.
+
+Pick one of those. Cook it the way you normally would. That is a DASH meal.
+
+[[Back to my board.|Board Start]]
+
+
+::Inspire BP [Important/Needed]
+/*
+INSPIRATION: Blood pressure check tip.
+*/
+
+If you have a blood pressure cuff at home, sit quietly for five minutes first. Feet flat on the floor. Back supported. Then take the reading.
+
+If you do not have a cuff, many pharmacies have a free machine available. Some clinics offer walk-in readings.
+
+The goal is just to know the number. You cannot manage what you cannot measure.
+
+[[Back to my board.|Board Start]]
+
+
+::Inspire Walk [Important/Needed]
+/*
+INSPIRATION: Walking tip. No assumptions about ability or pace.
+*/
+
+A walk does not have a minimum distance or speed.
+
+It means leaving where you are and moving your body through space for any amount of time. Around the block. Down the hall. To the end of the driveway and back.
+
+The activity on the board is marked when you go. Not when you reach a specific distance.
+
+[[Back to my board.|Board Start]]
+
+
+::Final Result [Important/Needed]
+/*
+END OF SESSION: Shows today's summary.
+Encourages return tomorrow.
+*/
+
+Here is today's summary, $playerName.
+
+Cells marked: $score out of 25.
+Streak: $streak days.
+
+<<if $wonToday is true>>You completed a full row today. Every activity you marked was a real step toward better blood pressure management.
+<<elseif $score gte 3>>Good progress. Three or more activities completed is a meaningful day. Come back tomorrow and the board resets.
+<<else>>A start is a start. Any activity you marked today made a difference. Come back tomorrow.
+<</if>>
+
+[[Back to CardioCareQuest.|Central Hub]]
+
+
+::Central Hub [Important/Needed]
+/*
+Placeholder passage. In the full app this returns
+the player to the CardioCareQuest main hub.
+*/
+
+Returning to CardioCareQuest.

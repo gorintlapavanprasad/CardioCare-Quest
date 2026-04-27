@@ -46,7 +46,7 @@ class QuestCompleteScreen extends StatelessWidget {
                   ),
                   child: Column(
                     children: [
-                      Text("PARTICIPANT ID", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.viridis4.withOpacity(0.7), letterSpacing: 1.5)),
+                      Text("PARTICIPANT ID", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.viridis4.withValues(alpha: 0.7), letterSpacing: 1.5)),
                       const SizedBox(height: 8),
                       Text(participantId, style: const TextStyle(fontSize: 40, fontWeight: FontWeight.w900, color: AppColors.viridis4, letterSpacing: 2)),
                     ],

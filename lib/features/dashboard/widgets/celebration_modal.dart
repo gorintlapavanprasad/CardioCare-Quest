@@ -132,21 +132,21 @@ class _CelebrationModalContentState extends State<_CelebrationModalContent> with
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
                 decoration: BoxDecoration(
-                  color: AppColors.activeTeal.withValues(alpha: 0.1),
+                  color: AppColors.primary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: AppColors.activeTeal.withValues(alpha: 0.2)),
+                  border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.add_task_rounded, color: AppColors.activeTeal, size: 22),
+                    const Icon(Icons.add_task_rounded, color: AppColors.primary, size: 22),
                     const SizedBox(width: 10),
                     Text(
                       "${widget.xpGained} XP GAINED", 
                       style: const TextStyle(
                         fontSize: 16, 
                         fontWeight: FontWeight.w900, 
-                        color: AppColors.activeTeal,
+                        color: AppColors.primary,
                         letterSpacing: 1.1,
                       )
                     ),
