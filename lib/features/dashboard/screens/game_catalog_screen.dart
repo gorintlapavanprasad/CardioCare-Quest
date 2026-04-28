@@ -3,7 +3,6 @@ import '../../../core/theme/app_colors.dart';
 import '../../games/game_stories.dart';
 import '../../games/dog_quest.dart';
 import 'coming_soon_screen.dart';
-import 'package:cardio_care_quest/shared/widgets/game_narrative_card.dart';
 
 class GameCatalogScreen extends StatelessWidget {
   const GameCatalogScreen({super.key});
@@ -25,14 +24,19 @@ class GameCatalogScreen extends StatelessWidget {
       ),
       body: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
-        child: ListView.separated(
+        child: GridView.builder(
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            mainAxisSpacing: 16,
+            crossAxisSpacing: 16,
+            childAspectRatio: 1,
+          ),
           itemCount: allGames.length,
-          separatorBuilder: (context, index) => const SizedBox(height: 16),
           itemBuilder: (context, index) {
             final game = allGames[index];
-            return GameNarrativeCard(
+            return _GameSquareCard(
               game: game,
-              onPlayTap: () {
+              onTap: () {
                 if (game.id == 'dog_quest') {
                   Navigator.push(
                     context,
@@ -51,6 +55,62 @@ class GameCatalogScreen extends StatelessWidget {
               },
             );
           },
+        ),
+      ),
+    );
+  }
+}
+
+class _GameSquareCard extends StatelessWidget {
+  final GameStory game;
+  final VoidCallback onTap;
+
+  const _GameSquareCard({required this.game, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final Color cardColor =
+        Color(int.parse(game.color.replaceFirst('#', '0xFF')));
+
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: AppColors.cardBorder),
+            boxShadow: [
+              BoxShadow(
+                color: cardColor.withValues(alpha: 0.08),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(game.emoji, style: const TextStyle(fontSize: 44)),
+                const SizedBox(height: 12),
+                Text(
+                  game.title,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: AppColors.title,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );

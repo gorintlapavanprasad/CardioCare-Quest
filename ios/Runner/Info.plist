@@ -8,6 +8,17 @@
 		<string>This app needs access to your location even in the background to accurately record your movement data for research.</string>
 		<key>NSLocationAlwaysUsageDescription</key>
 		<string>This app requires constant location access to provide accurate real-time feedback during your walking sessions.</string>
+		<key>NSCameraUsageDescription</key>
+		<string>This app uses the camera to scan your unique login QR code and to capture meal photos for the DASH diet quest.</string>
+		<key>NSPhotoLibraryUsageDescription</key>
+		<string>This app accesses your photo library so you can attach meal photos when logging food for the DASH diet quest.</string>
+		<key>NSFaceIDUsageDescription</key>
+		<string>This app uses Face ID to keep your health data secure and let you sign in quickly.</string>
+		<key>UIBackgroundModes</key>
+		<array>
+			<string>location</string>
+			<string>fetch</string>
+		</array>
 		<key>CADisableMinimumFrameDurationOnPhone</key>
 		<true/>
 		<key>CFBundleDevelopmentRegion</key>

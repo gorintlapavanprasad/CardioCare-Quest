@@ -115,6 +115,45 @@ class _DogQuestGameState extends State<DogQuestGame> {
       ..loadFlutterAsset('assets/game/dog_quest.html');
   }
 
+  Future<int> _fetchWeeklyQuestCount(String uid) async {
+    try {
+      final now = DateTime.now();
+      // Monday 00:00 of the current ISO week
+      final startOfWeek = DateTime(now.year, now.month, now.day)
+          .subtract(Duration(days: now.weekday - DateTime.monday));
+
+      // Single-field equality query — uses Firestore's auto single-field index,
+      // so no composite index deploy is required. We filter game/endedAt
+      // client-side; for early users with a small session history this is
+      // negligible. (For scaled production usage, switch back to the indexed
+      // composite query in firestore.indexes.json.)
+      final snap = await FirebaseFirestore.instance
+          .collection(FirestorePaths.movementData)
+          .where('userId', isEqualTo: uid)
+          .get();
+
+      int count = 0;
+      for (final doc in snap.docs) {
+        final data = doc.data();
+        if (data['game'] != _gameId) continue;
+        final endedAt = data['endedAt'];
+        if (endedAt is! Timestamp) continue;
+        if (endedAt.toDate().isBefore(startOfWeek)) continue;
+        count++;
+      }
+      return count;
+    } catch (e) {
+      debugPrint('❌ DogQuest: Weekly quest count error: $e');
+      return 0;
+    }
+  }
+
+  void _pushWeeklyQuestCount(int count) {
+    _controller.runJavaScript(
+      "if(typeof setWeeklyQuestCount === 'function') { setWeeklyQuestCount($count); }",
+    );
+  }
+
   Future<DocumentSnapshot> _fetchStateDocument(String id) async {
     final uid = Provider.of<UserDataProvider>(context, listen: false).uid;
     if (uid.isEmpty) {
@@ -148,6 +187,9 @@ class _DogQuestGameState extends State<DogQuestGame> {
 
     try {
       bool hasOngoingWalk = false;
+
+      // Fetch and push this week's completed quest count for scene3 stats line.
+      _fetchWeeklyQuestCount(uid).then(_pushWeeklyQuestCount);
 
       debugPrint('🎮 DogQuest: Loading user data for $uid');
       DocumentSnapshot userDoc = await FirebaseFirestore.instance
@@ -575,6 +617,11 @@ class _DogQuestGameState extends State<DogQuestGame> {
           '🎮 DogQuest: Calling onQuestFinished with pointsGained=$pointsGained',
         );
         _controller.runJavaScript('onQuestFinished($pointsGained)');
+
+        // Refresh the weekly quest count so scene3 reflects the new total
+        // when the user taps "Do Another Quest".
+        final weeklyCount = await _fetchWeeklyQuestCount(uid);
+        if (mounted) _pushWeeklyQuestCount(weeklyCount);
       }
     } catch (e) {
       debugPrint('❌ DogQuest Sync Error: $e');

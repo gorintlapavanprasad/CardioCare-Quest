@@ -43,3 +43,32 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Node.js (dev-only scripts; should never be committed)
+node_modules/
+package.json
+package-lock.json
+yarn.lock
+
+# One-off dev / debug scripts and dumps (must not contain credentials)
+test-mongo.js
+full_history.txt
+
+# Local environment files
+.env
+.env.*
+!.env.example
+
+# macOS
+.DS_Store
+
+# Flutter cloud / deploy
+ios/Pods/
+ios/.symlinks/
+ios/Podfile.lock
+ios/Runner.xcworkspace/xcuserdata/
+ios/Runner.xcodeproj/xcuserdata/
+
+# Firebase service account keys (never commit)
+*-service-account.json
+serviceAccountKey.json

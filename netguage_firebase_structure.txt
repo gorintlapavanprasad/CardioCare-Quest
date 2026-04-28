@@ -1,0 +1,90 @@
+NETGUAGE FIREBASE FIRESTORE DATABASE STRUCTURE
+==============================================
+
+This document maps the exact top-level collections and nested sub-collections 
+used natively inside the `netguage` app codebase.
+
+1. userData (Collection)
+------------------------
+Path: /userData/{userId}
+Description: Stores profile data and lifetime stats for users.
+Fields:
+  - uid (String)
+  - email (String)
+  - phone (String)
+  - totalXP (Number)
+  - distanceTraveled (Number)
+  - totalDistance (Number)
+  - measurementsTaken (Number)
+  - totalSessions (Number)
+  - totalSteps (Number)
+  - radGyration (Number)
+  - dataPoints (Array)
+  - createdAt (Timestamp)
+  - basicInfo (Map):
+    - firstName (String)
+
+2. data_points (Collection)
+---------------------------
+Path: /data_points/{auto_id}
+Description: Global geospatial heatmap data. Fed by the game sessions. Used by geoflutterfire_plus to query locations by radius.
+Fields:
+  - game (String) [e.g. "walk_buddy", "Zombie Apocalypse"]
+  - geohash (String)
+  - location (Map):
+      - geopoint (GeoPoint)
+  - sessionId (String)
+  - userId (String)
+  - timestamp/datetime (Timestamp)
+  - uploadSpeed (Number)
+  - downloadSpeed (Number)
+  - latency (Number)
+
+3. Movement Data (Collection)
+-----------------------------
+Path: /Movement Data/{sessionId}
+Description: Tracks individual play sessions/walks for users.
+Fields:
+  - sessionId (String)
+  - userId (String)
+  - game (String)
+  - test (Boolean)
+  - created (Timestamp)
+  
+  Sub-collections:
+  -> /LocationData/{auto_id}
+     Fields: game, latitude, longitude, geopoint, geohash, datetime, test
+  -> /CheckData/{auto_id}
+     Fields: downloadSpeed, uploadSpeed, latency, latitude, longitude, datetime, test
+  -> /LikertData/{auto_id}
+     Fields: (Stores post-session mood/survey scale data tied to that specific walk)
+
+4. events (Collection)
+----------------------
+Path: /events/{eventId}
+Description: System-wide analytics and logging for actions users take inside the app.
+Fields:
+  - id (String)
+  - userId (String)
+  - event (String) [e.g., 'quest_started', 'medication_logged', etc.]
+  - timestamp (Timestamp)
+  - syncedAt (Timestamp)
+  - ... (event specific payloads)
+
+5. surveys (Collection)
+-----------------------
+Path: /surveys/{surveyId}
+Description: Configuration for dynamic surveys/questionnaires.
+Fields:
+  - title (String)
+  - description (String)
+  - questions (Array of Maps)
+
+6. responses (Collection)
+-------------------------
+Path: /responses/{surveyId}/submissions/{auto_id}
+Description: Where user answers to the 'surveys' collection are saved.
+Fields:
+  - userId (String)
+  - answers (Map)
+  - timestamp (Timestamp)
