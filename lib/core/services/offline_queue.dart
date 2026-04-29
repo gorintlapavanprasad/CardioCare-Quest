@@ -29,10 +29,18 @@ class OfflineQueue {
   static const String _boxName = 'offline_write_queue';
   static const int _maxBatches = 1000;
 
+  /// Safety-net retry interval. The primary sync trigger is the
+  /// connectivity_plus stream; this timer just guarantees we don't get stuck
+  /// if the OS / emulator silently drops a connectivity event (observed on
+  /// Android emulator after toggling airplane mode). Cheap: it short-circuits
+  /// on `_box.isEmpty`.
+  static const Duration _retryInterval = Duration(seconds: 15);
+
   final FirebaseFirestore _firestore;
   final Uuid _uuid = const Uuid();
   late Box _box;
   bool _isSyncing = false;
+  Timer? _retryTimer;
 
   /// Number of batches currently waiting to sync. Drives the dashboard badge.
   final ValueNotifier<int> pendingCount = ValueNotifier<int>(0);
@@ -49,13 +57,32 @@ class OfflineQueue {
     _refreshPendingCount();
 
     Connectivity().onConnectivityChanged.listen((result) {
+      debugPrint('OfflineQueue: connectivity event $result');
       if (_hasConnection(result)) {
+        syncToFirestore();
+      }
+    });
+
+    // Periodic safety-net retry. Some devices/emulators don't reliably emit a
+    // connectivity event on the offline→online transition, leaving the queue
+    // stuck until the user opens the app and (per old code) had to long-press
+    // the badge. This timer drains the queue automatically every 15 s as long
+    // as there's something pending.
+    _retryTimer?.cancel();
+    _retryTimer = Timer.periodic(_retryInterval, (_) {
+      if (_box.isOpen && _box.isNotEmpty && !_isSyncing) {
+        debugPrint('OfflineQueue: periodic retry (${_box.length} pending)');
         syncToFirestore();
       }
     });
 
     await syncToFirestore();
     debugPrint('OfflineQueue initialized (${_box.length} pending)');
+  }
+
+  void dispose() {
+    _retryTimer?.cancel();
+    _retryTimer = null;
   }
 
   void _refreshPendingCount() {

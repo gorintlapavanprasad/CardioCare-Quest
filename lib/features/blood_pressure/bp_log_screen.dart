@@ -43,25 +43,43 @@ class _BPLogScreenState extends State<BPLogScreen> {
       final int dia = int.parse(_diastolicController.text);
       String today = DateTime.now().toIso8601String().split('T')[0];
 
-      // All three writes go through OfflineQueue so they're durably backed
-      // up in Hive before Firestore is touched. The queue replays them as a
-      // single Firestore WriteBatch — atomicity preserved.
+      // Each reading gets its OWN doc under
+      //   userData/{uid}/dailyLogs/{today}/bpReadings/{auto-id}
+      // so logging multiple readings the same day does not overwrite prior
+      // ones. The daily-log doc keeps only summary fields for the dashboard.
       final eventId = const Uuid().v4();
+      final readingId = const Uuid().v4();
+
       await GetIt.instance<OfflineQueue>().enqueueBatch([
-        // 1. Save to daily logs
+        // 1. New per-reading doc — never overwrites existing entries.
         PendingOp.set(
-          '${FirestorePaths.userData}/$uid/${FirestorePaths.dailyLogs}/$today',
+          '${FirestorePaths.userData}/$uid/${FirestorePaths.dailyLogs}/$today/'
+          '${FirestorePaths.bpReadings}/$readingId',
           {
+            'id': readingId,
             'systolic': sys,
             'diastolic': dia,
             'mood': _selectedMood,
             'timestamp': OfflineFieldValue.nowTimestamp(),
             'date': today,
           },
+        ),
+
+        // 2. Daily-log summary doc — last reading + counters.
+        PendingOp.set(
+          '${FirestorePaths.userData}/$uid/${FirestorePaths.dailyLogs}/$today',
+          {
+            'date': today,
+            'lastSystolic': sys,
+            'lastDiastolic': dia,
+            'lastMood': _selectedMood,
+            'lastBPTimestamp': OfflineFieldValue.nowTimestamp(),
+            'dailyBPCount': OfflineFieldValue.increment(1),
+          },
           merge: true,
         ),
 
-        // 2. Update user stats
+        // 3. Lifetime user stats.
         PendingOp.update('${FirestorePaths.userData}/$uid', {
           'points': OfflineFieldValue.increment(50),
           'totalSessions': OfflineFieldValue.increment(1),
@@ -72,8 +90,7 @@ class _BPLogScreenState extends State<BPLogScreen> {
           'lastBPLogDate': today,
         }),
 
-        // 3. Log the event (also fired through LoggingService for badge
-        // visibility, but the durable copy lives here).
+        // 4. Event log (immutable per-event row).
         PendingOp.set(
           '${FirestorePaths.events}/$eventId',
           {
@@ -83,6 +100,7 @@ class _BPLogScreenState extends State<BPLogScreen> {
             'systolic': sys,
             'diastolic': dia,
             'mood': _selectedMood,
+            'bpReadingId': readingId,
             'timestamp': OfflineFieldValue.nowTimestamp(),
             'syncedAt': OfflineFieldValue.nowTimestamp(),
           },
@@ -90,9 +108,23 @@ class _BPLogScreenState extends State<BPLogScreen> {
       ]);
 
       if (mounted) {
-        await Provider.of<UserDataProvider>(context, listen: false).fetchUserData();
-        
-        if (mounted) Navigator.of(context).pop(50);
+        // Optimistic local update so the dashboard reflects the new points
+        // and stats IMMEDIATELY. Awaiting fetchUserData() here used to hang
+        // ~10s offline waiting for Firestore to time out before falling back
+        // to cache. The Hive write above is already durable.
+        Provider.of<UserDataProvider>(context, listen: false)
+          ..applyLocalIncrements(const {
+            'points': 50,
+            'totalSessions': 1,
+            'measurementsTaken': 1,
+          })
+          ..applyLocalSets({
+            'lastSystolic': sys,
+            'lastDiastolic': dia,
+            'lastLogDate': today,
+            'lastBPLogDate': today,
+          });
+        Navigator.of(context).pop(50);
       }
     } catch (e) {
       debugPrint('SAVE ERROR: $e');
@@ -100,18 +132,20 @@ class _BPLogScreenState extends State<BPLogScreen> {
     }
   }
 
-  // OPTIMIZATION: Use a Stream instead of a Future to prevent redundant reads on UI state changes
+  // 7-day trend reads the daily-log SUMMARY docs (one point per day, the most
+  // recent reading of that day). Individual readings live in the bpReadings
+  // sub-collection if a deeper drill-down is ever needed.
   Stream<QuerySnapshot> _getRecentReadingsStream() {
     final uid = Provider.of<UserDataProvider>(context, listen: false).uid;
     if (uid.isEmpty) return const Stream.empty();
-    
+
     return FirebaseFirestore.instance
         .collection(FirestorePaths.userData)
         .doc(uid)
         .collection(FirestorePaths.dailyLogs)
-        .orderBy('timestamp', descending: true)
+        .orderBy('lastBPTimestamp', descending: true)
         .limit(7)
-        .snapshots(); // Listen to real-time changes
+        .snapshots();
   }
 
   @override
@@ -254,20 +288,35 @@ class _BPLogScreenState extends State<BPLogScreen> {
                 return const Center(child: Text('No readings yet.'));
               }
 
-              final readings = snapshot.data!.docs.reversed.toList();
+              // Filter to docs that actually contain BP data (a daily-log doc
+              // can exist with only exercise/meal entries and no readings).
+              final readings = snapshot.data!.docs
+                  .where((d) {
+                    final m = d.data() as Map<String, dynamic>;
+                    return m['lastSystolic'] != null && m['lastDiastolic'] != null;
+                  })
+                  .toList()
+                  .reversed
+                  .toList();
+              if (readings.isEmpty) {
+                return const Center(child: Text('No readings yet.'));
+              }
+
               final spotsSys = <FlSpot>[];
               final spotsDia = <FlSpot>[];
 
               for (int i = 0; i < readings.length; i++) {
                 final reading = readings[i].data() as Map<String, dynamic>;
-                spotsSys.add(FlSpot(i.toDouble(), (reading['systolic'] as int).toDouble()));
-                spotsDia.add(FlSpot(i.toDouble(), (reading['diastolic'] as int).toDouble()));
+                spotsSys.add(FlSpot(
+                    i.toDouble(), (reading['lastSystolic'] as num).toDouble()));
+                spotsDia.add(FlSpot(
+                    i.toDouble(), (reading['lastDiastolic'] as num).toDouble()));
               }
 
               String formatReadingDate(int index) {
                 final reading = readings[index].data() as Map<String, dynamic>;
-                final timestampValue = reading['timestamp'];
-                
+                final timestampValue = reading['lastBPTimestamp'];
+
                 DateTime date;
                 if (timestampValue is Timestamp) {
                   date = timestampValue.toDate();

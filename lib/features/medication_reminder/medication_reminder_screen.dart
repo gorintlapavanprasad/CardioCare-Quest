@@ -85,7 +85,13 @@ class _MedicationReminderScreenState extends State<MedicationReminderScreen> {
       ]);
 
       if (mounted) {
-        await Provider.of<UserDataProvider>(context, listen: false).fetchUserData();
+        // Optimistic local update — see bp_log_screen for rationale.
+        Provider.of<UserDataProvider>(context, listen: false)
+          ..applyLocalIncrements({'points': taken ? 20 : 5})
+          ..applyLocalSets({
+            'medicationStreak': newStreak,
+            'lastLogDate': today,
+          });
         setState(() {
           _streak = newStreak;
           _takenToday = true;

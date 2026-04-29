@@ -39,16 +39,36 @@ class _DietLogScreenState extends State<DietLogScreen> {
 
     try {
       String today = DateTime.now().toIso8601String().split('T')[0];
+
+      // Each meal gets its OWN doc under
+      //   userData/{uid}/dailyLogs/{today}/meals/{auto-id}
+      // so logging multiple meals in the same day no longer overwrites prior
+      // ones. The daily-log doc keeps only a lightweight summary.
       final eventId = const Uuid().v4();
+      final mealEntryId = const Uuid().v4();
+
       await GetIt.instance<OfflineQueue>().enqueueBatch([
         PendingOp.set(
-          '${FirestorePaths.userData}/$uid/${FirestorePaths.dailyLogs}/$today',
+          '${FirestorePaths.userData}/$uid/${FirestorePaths.dailyLogs}/$today/'
+          '${FirestorePaths.meals}/$mealEntryId',
           {
+            'id': mealEntryId,
             'mealNotes': _mealNotesController.text,
             'mealRating': _mealRating,
             'hasMealPhoto': _image != null,
-            'mealTimestamp': OfflineFieldValue.nowTimestamp(),
+            'timestamp': OfflineFieldValue.nowTimestamp(),
             'date': today,
+          },
+        ),
+        PendingOp.set(
+          '${FirestorePaths.userData}/$uid/${FirestorePaths.dailyLogs}/$today',
+          {
+            'date': today,
+            'lastMealNotes': _mealNotesController.text,
+            'lastMealRating': _mealRating,
+            'lastMealHasPhoto': _image != null,
+            'lastMealTimestamp': OfflineFieldValue.nowTimestamp(),
+            'dailyMealCount': OfflineFieldValue.increment(1),
           },
           merge: true,
         ),
@@ -64,6 +84,7 @@ class _DietLogScreenState extends State<DietLogScreen> {
             'userId': uid,
             'event': 'meal_logged',
             'mealRating': _mealRating,
+            'mealEntryId': mealEntryId,
             'timestamp': OfflineFieldValue.nowTimestamp(),
             'syncedAt': OfflineFieldValue.nowTimestamp(),
           },
@@ -71,8 +92,14 @@ class _DietLogScreenState extends State<DietLogScreen> {
       ]);
 
       if (mounted) {
-        await Provider.of<UserDataProvider>(context, listen: false).fetchUserData();
-        if (mounted) Navigator.of(context).pop(25);
+        // Optimistic local update — see bp_log_screen for rationale.
+        Provider.of<UserDataProvider>(context, listen: false)
+          ..applyLocalIncrements(const {
+            'points': 25,
+            'mealsLogged': 1,
+          })
+          ..applyLocalSets({'lastLogDate': today});
+        Navigator.of(context).pop(25);
       }
     } catch (e) {
       debugPrint('SAVE ERROR: $e');

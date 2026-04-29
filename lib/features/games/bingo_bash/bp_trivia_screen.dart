@@ -76,11 +76,11 @@ class _BPTriviaScreenState extends State<BPTriviaScreen> {
     final uid = Provider.of<UserDataProvider>(context, listen: false).uid;
     if (uid.isNotEmpty) {
       try {
-        final xpEarned = (_questions.length - _score) * 10;
+        final pointsEarned = (_questions.length - _score) * 10;
         final eventId = const Uuid().v4();
         await GetIt.instance<OfflineQueue>().enqueueBatch([
           PendingOp.update('${FirestorePaths.userData}/$uid', {
-            'points': OfflineFieldValue.increment(xpEarned),
+            'points': OfflineFieldValue.increment(pointsEarned),
           }),
           PendingOp.set(
             '${FirestorePaths.events}/$eventId',
@@ -90,14 +90,16 @@ class _BPTriviaScreenState extends State<BPTriviaScreen> {
               'event': 'trivia_completed',
               'score': _score,
               'totalQuestions': _questions.length,
-              'xpEarned': xpEarned,
+              'pointsEarned': pointsEarned,
               'timestamp': OfflineFieldValue.nowTimestamp(),
               'syncedAt': OfflineFieldValue.nowTimestamp(),
             },
           ),
         ]);
         if (mounted) {
-          Provider.of<UserDataProvider>(context, listen: false).fetchUserData();
+          // Optimistic local update — dashboard reflects new points instantly.
+          Provider.of<UserDataProvider>(context, listen: false)
+              .applyLocalIncrements({'points': pointsEarned});
         }
       } catch (e) {
         debugPrint('Error saving trivia score: $e');
@@ -193,7 +195,7 @@ class _BPTriviaScreenState extends State<BPTriviaScreen> {
             }),
             const Spacer(),
             Text(
-              'XP Reward: ${(_questions.length - _score) * 10}',
+              'Points Reward: ${(_questions.length - _score) * 10}',
               style: const TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,

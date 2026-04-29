@@ -53,10 +53,10 @@ flutter:
     - assets/branding/icon.png
     - assets/branding/app_icon.png
     - assets/game/dog_quest.html
-    - assets/game/walk_buddy.html
     - assets/game/dog_quest/dog.png
     - assets/game/dog_quest/
     - assets/game/fonts/
+    - assets/game/ccq_bridge.js
 
 flutter_icons:
   android: true

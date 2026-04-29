@@ -52,7 +52,7 @@ void main() async {
         // Your Cardio Care onboarding/auth state
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         
-        // The Netgauge Brain (Telemetry, XP, Firebase sync)
+        // The Netgauge Brain (Telemetry, Points, Firebase sync)
         ChangeNotifierProvider(create: (_) => UserDataProvider()),
       ],
       child: const CardioCareQuest(),

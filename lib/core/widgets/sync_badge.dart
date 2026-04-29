@@ -65,20 +65,16 @@ class SyncBadge extends StatelessWidget {
   }) {
     final IconData icon;
     final Color color;
-    final String label;
 
     if (syncing) {
       icon = Icons.sync;
       color = AppColors.viridis2;
-      label = 'Syncing $total';
     } else if (total == 0) {
       icon = Icons.cloud_done_outlined;
       color = AppColors.viridis2;
-      label = 'Synced';
     } else {
       icon = Icons.cloud_off_outlined;
       color = AppColors.accent;
-      label = '$total pending';
     }
 
     return Semantics(
@@ -98,7 +94,7 @@ class SyncBadge extends StatelessWidget {
         ),
         onLongPress: () => _triggerManualSync(context),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
           decoration: BoxDecoration(
             color: color.withValues(alpha: 0.14),
             borderRadius: BorderRadius.circular(14),
@@ -109,24 +105,26 @@ class SyncBadge extends StatelessWidget {
             children: [
               if (syncing)
                 SizedBox(
-                  width: 14,
-                  height: 14,
+                  width: 16,
+                  height: 16,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
                     valueColor: AlwaysStoppedAnimation<Color>(color),
                   ),
                 )
               else
-                Icon(icon, color: color, size: 16),
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: color,
+                Icon(icon, color: color, size: 18),
+              if (total > 0) ...[
+                const SizedBox(width: 4),
+                Text(
+                  '$total',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: color,
+                  ),
                 ),
-              ),
+              ],
             ],
           ),
         ),

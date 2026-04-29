@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
@@ -41,10 +43,14 @@ class LoggingService {
   static const int _maxQueueSize = 500;
   static const int _batchSize = 100;
 
+  /// Safety-net retry interval — see OfflineQueue for rationale.
+  static const Duration _retryInterval = Duration(seconds: 15);
+
   final FirebaseFirestore _firestore;
   final Uuid _uuid = const Uuid();
   late Box _box;
   bool _isSyncing = false;
+  Timer? _retryTimer;
 
   /// Live count of events queued locally and not yet synced to Firestore.
   /// Driven by the underlying Hive box length. UI components (e.g. the sync
@@ -64,13 +70,31 @@ class LoggingService {
     _refreshPendingCount();
 
     Connectivity().onConnectivityChanged.listen((result) {
+      debugPrint('LoggingService: connectivity event $result');
       if (_hasConnection(result)) {
+        syncToFirestore();
+      }
+    });
+
+    // Periodic safety-net — connectivity events are sometimes missed on the
+    // Android emulator (and occasionally on real devices) when toggling
+    // airplane mode. The badge would otherwise sit at a non-zero count until
+    // the user manually long-pressed it. This keeps the queue draining.
+    _retryTimer?.cancel();
+    _retryTimer = Timer.periodic(_retryInterval, (_) {
+      if (_box.isOpen && _box.isNotEmpty && !_isSyncing) {
+        debugPrint('LoggingService: periodic retry (${_box.length} pending)');
         syncToFirestore();
       }
     });
 
     await syncToFirestore();
     debugPrint('LoggingService initialized');
+  }
+
+  void dispose() {
+    _retryTimer?.cancel();
+    _retryTimer = null;
   }
 
   void _refreshPendingCount() {

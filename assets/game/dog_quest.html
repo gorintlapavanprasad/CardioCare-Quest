@@ -188,6 +188,12 @@
         .info-list li { color: #2c3e50; font-weight: 700; font-size: 0.95rem; display: flex; align-items: center; gap: 12px; }
         .info-list li::before { content: '✓'; display: inline-block; width: 14px; height: 14px; font-size: 1.2rem; line-height: 1; text-align: center; color: var(--progress-fill); flex-shrink: 0; }
     </style>
+    <!--
+      CardioCare Quest Twine bridge shim. Exposes `window.CCQ` with friendly
+      wrappers for the Flutter host's bridge messages. Loaded relative to
+      this HTML file (resolves under `assets/game/ccq_bridge.js`).
+    -->
+    <script src="ccq_bridge.js"></script>
 </head>
 <body>
 
@@ -326,12 +332,12 @@
             <!-- Stats Container -->
             <div style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 20px; padding: 28px 24px; margin-bottom: 40px; width: 90%; max-width: 400px; box-sizing: border-box; animation: fadeUp 0.6s ease-out 0.2s both;">
                 
-                <!-- XP Reward -->
+                <!-- Points Reward -->
                 <div style="text-align: center; margin-bottom: 24px; padding-bottom: 24px; border-bottom: 1px solid rgba(255,255,255,0.1);">
                     <div style="font-size: 14px; color: var(--cloud-purple); text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 12px; font-weight: 700;">
                         Points Earned
                     </div>
-                    <div id="final-xp-text" style="font-size: 56px; font-weight: 900; color: var(--accent-yellow); line-height: 1;">
+                    <div id="final-points-text" style="font-size: 56px; font-weight: 900; color: var(--accent-yellow); line-height: 1;">
                         +0 points
                     </div>
                 </div>
@@ -392,14 +398,10 @@
         }
 
         // --- Flutter Bridge ---
-        function bridge(payload) {
-            if (window.FlutterBridge) {
-                console.log('🎮 DogQuest: Sending bridge message:', payload);
-                window.FlutterBridge.postMessage(JSON.stringify(payload));
-            } else {
-                console.log("Mock Bridge:", payload);
-            }
-        }
+        // The CCQ shim (loaded from assets/game/ccq_bridge.js in the
+        // <head>) provides `window.CCQ.*` wrappers around the host's
+        // FlutterBridge.postMessage(...) JSON protocol. Use those instead
+        // of constructing payloads by hand.
 
         // --- Page Navigation ---
         function showPage(pageId) {
@@ -446,7 +448,7 @@
                     if (activeDesc) activeDesc.innerText = desc;
 
                     updateGameProgress(0, distance);
-                    bridge({ type: 'START_TRACKING', distance });
+                    CCQ.startTracking(distance);
                     showPage('scene3');
                 });
             });
@@ -456,10 +458,10 @@
             if(endBtn) {
                 endBtn.addEventListener('click', () => {
                     console.log('🎮 DogQuest: End walk clicked');
-                    endBtn.innerText = 'Saving...'; 
-                    // Tell Dart to stop GPS and save to Firestore. 
+                    endBtn.innerText = 'Saving...';
+                    // Tell Dart to stop GPS and save to Firestore.
                     // Dart will automatically call onQuestFinished() when done.
-                    bridge({ type: 'FINISH_QUEST_DATA' });
+                    CCQ.finishQuest();
                 });
             }
 
@@ -470,7 +472,7 @@
                 if(btn) {
                     btn.addEventListener('click', () => {
                         console.log('🎮 DogQuest: Home button clicked');
-                        bridge({ type: 'GO_HOME' });
+                        CCQ.goHome();
                     });
                 }
             });
@@ -523,10 +525,36 @@
             gameState.currentBuddyName = name;
         }
 
-        // Restores the walk if the user closes and reopens the app
+        // Restores the walk if the user closes and reopens the app.
+        // Recovers the quest difficulty title/description by matching against
+        // the original quest buttons via their data-distance attribute, so the
+        // resumed walk shows e.g. "EASY - Quick walk - 500 steps - 30 pts"
+        // instead of the placeholder "--".
         function resumeWalk(currentDistance, targetDistance) {
             showPage('scene3');
             updateGameProgress(currentDistance, targetDistance);
+
+            const matchingBtn = document.querySelector(
+                '.quest-btn[data-distance="' + Math.round(targetDistance) + '"]'
+            );
+            const activeTitle = document.getElementById('active-title');
+            const activeDesc = document.getElementById('active-desc');
+            if (matchingBtn) {
+                const title =
+                    matchingBtn.querySelector('.quest-title')?.innerText || 'Dog Walk';
+                const desc =
+                    matchingBtn.querySelector('.quest-desc')?.innerText ||
+                    'Walk with your buddy.';
+                gameState.currentTitle = title;
+                gameState.targetDistance = targetDistance;
+                if (activeTitle) activeTitle.innerText = title;
+                if (activeDesc) activeDesc.innerText = desc;
+            } else {
+                // Fall back so the user at least sees something readable.
+                if (activeTitle) activeTitle.innerText = 'Dog Walk';
+                if (activeDesc)
+                    activeDesc.innerText = 'Resuming your walk in progress.';
+            }
         }
 
         // Triggered automatically by Dart when the distance is reached OR when "End Walk" data saves
@@ -540,9 +568,9 @@
             }
 
             // Update completion scene with stats
-            const finalXpText = document.getElementById('final-xp-text');
-            if (finalXpText && pointsGained !== undefined) {
-                finalXpText.innerText = '+' + pointsGained + ' points';
+            const finalPointsText = document.getElementById('final-points-text');
+            if (finalPointsText && pointsGained !== undefined) {
+                finalPointsText.innerText = '+' + pointsGained + ' points';
             }
             
             const dogNameEl = document.getElementById('completion-dog-name');

@@ -98,7 +98,7 @@ class UserDataProvider extends ChangeNotifier {
   Map<String, dynamic>? get userData => _userData;
   bool get isLoading => _isLoading;
 
-  int get xp => _userData?['points'] ?? _userData?['totalXP'] ?? 0;
+  int get points => _userData?['points'] ?? 0;
   String get firstName => _userData?['basicInfo']?['firstName'] ?? 'Explorer';
   String get uid => _userData?['uid'] ?? '';
   String get phone => _userData?['phone'] ?? '1111111111';
@@ -109,6 +109,35 @@ class UserDataProvider extends ChangeNotifier {
   int get totalRadiusGyration =>
       _userData?['radGyration'] ?? _userData?['totalRadiusGyration'] ?? 0;
   List<dynamic> get dataPoints => _userData?['dataPoints'] ?? [];
+
+  /// Apply optimistic increments to local userData WITHOUT touching Firestore.
+  ///
+  /// Used by log screens after [OfflineQueue.enqueueBatch] returns: the queue
+  /// has already durably saved the write to Hive, but Firestore's local cache
+  /// (which Provider reads from) hasn't seen the change yet. This nudges the
+  /// in-memory map so the dashboard reflects the new points/counters
+  /// immediately, instead of forcing the user to wait for a real `.get()`
+  /// round-trip that hangs ~10 s offline.
+  ///
+  /// Eventually consistent: the next successful [fetchUserData] reconciles
+  /// against the server-resolved values.
+  void applyLocalIncrements(Map<String, num> increments) {
+    if (_userData == null) return;
+    for (final entry in increments.entries) {
+      final current = (_userData![entry.key] as num?) ?? 0;
+      _userData![entry.key] = current + entry.value;
+    }
+    notifyListeners();
+  }
+
+  /// Apply optimistic field overwrites to local userData. Use for
+  /// "last X" / "last Y" fields and any non-counter values you want the
+  /// dashboard to show immediately after a log save.
+  void applyLocalSets(Map<String, dynamic> values) {
+    if (_userData == null) return;
+    _userData!.addAll(values);
+    notifyListeners();
+  }
 
   Future<void> fetchUserData({String? participantId}) async {
     final user = FirebaseAuth.instance.currentUser;

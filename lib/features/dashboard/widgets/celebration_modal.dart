@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
 
-void showCelebrationModal(BuildContext context, {required String message, required int xpGained}) {
+void showCelebrationModal(BuildContext context, {required String message, required int pointsGained}) {
   showGeneralDialog(
     context: context,
     barrierDismissible: true,
@@ -18,7 +18,7 @@ void showCelebrationModal(BuildContext context, {required String message, requir
             backgroundColor: Colors.transparent,
             contentPadding: EdgeInsets.zero,
             elevation: 0,
-            content: _CelebrationModalContent(message: message, xpGained: xpGained),
+            content: _CelebrationModalContent(message: message, pointsGained: pointsGained),
           ),
         ),
       );
@@ -28,9 +28,9 @@ void showCelebrationModal(BuildContext context, {required String message, requir
 
 class _CelebrationModalContent extends StatefulWidget {
   final String message;
-  final int xpGained;
+  final int pointsGained;
 
-  const _CelebrationModalContent({required this.message, required this.xpGained});
+  const _CelebrationModalContent({required this.message, required this.pointsGained});
   @override
   State<_CelebrationModalContent> createState() => _CelebrationModalContentState();
 }
@@ -128,7 +128,7 @@ class _CelebrationModalContentState extends State<_CelebrationModalContent> with
               ),
               const SizedBox(height: 32),
               
-              // ─── NEW: XP PILL (Clean & High Contrast) ───
+              // ─── NEW: POINTS PILL (Clean & High Contrast) ───
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
                 decoration: BoxDecoration(
@@ -142,7 +142,7 @@ class _CelebrationModalContentState extends State<_CelebrationModalContent> with
                     const Icon(Icons.add_task_rounded, color: AppColors.primary, size: 22),
                     const SizedBox(width: 10),
                     Text(
-                      "${widget.xpGained} XP GAINED", 
+                      "${widget.pointsGained} POINTS GAINED",
                       style: const TextStyle(
                         fontSize: 16, 
                         fontWeight: FontWeight.w900, 

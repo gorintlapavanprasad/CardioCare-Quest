@@ -23,7 +23,7 @@ class FamilyCircleScreen extends StatelessWidget {
           int totalSteps = 0;
           for (var doc in users) {
             final data = doc.data() as Map<String, dynamic>;
-            totalPoints += (data['points'] as num?)?.toInt() ?? (data['totalXP'] as num?)?.toInt() ?? 0;
+            totalPoints += (data['points'] as num?)?.toInt() ?? 0;
             totalSteps += (data['totalSteps'] as num?)?.toInt() ?? 0;
           }
 

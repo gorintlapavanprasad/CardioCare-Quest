@@ -151,7 +151,7 @@ class _HomeTabState extends State<HomeTab> {
 
         // ─── THE FIX: Use the Provider getters instead of raw map keys ───
         final name = provider.firstName;
-        final xp = provider.xp;
+        final points = provider.points;
         final logs = provider.totalSessions;
 
         // Data retention fields from Deep Sync
@@ -171,7 +171,7 @@ class _HomeTabState extends State<HomeTab> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildPremiumHeader(context, name, xp),
+                _buildPremiumHeader(context, name, points),
                 _buildResearchStatsBar(logs, avgBp),
 
                 Padding(
@@ -288,9 +288,9 @@ class _HomeTabState extends State<HomeTab> {
           MaterialPageRoute(builder: (_) => screen),
         );
         if (result is int && context.mounted) {
-          showCelebrationModal(context, message: "Goal Met!", xpGained: result);
+          showCelebrationModal(context, message: "Goal Met!", pointsGained: result);
         } else if (result == true && context.mounted) {
-          showCelebrationModal(context, message: "Goal Met!", xpGained: 25);
+          showCelebrationModal(context, message: "Goal Met!", pointsGained: 25);
         }
       },
     );
@@ -434,7 +434,7 @@ class _HomeTabState extends State<HomeTab> {
     );
   }
 
-  Widget _buildPremiumHeader(BuildContext context, String name, int xp) {
+  Widget _buildPremiumHeader(BuildContext context, String name, int points) {
     return Container(
       width: double.infinity,
       padding: EdgeInsets.only(
@@ -487,7 +487,7 @@ class _HomeTabState extends State<HomeTab> {
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Text(
-                  "$xp pts",
+                  "$points pts",
                   style: const TextStyle(
                     fontWeight: FontWeight.bold,
                     color: AppColors.viridis0,
@@ -697,9 +697,9 @@ class _HomeTabState extends State<HomeTab> {
         );
         if (!context.mounted) return;
         if (result is int) {
-          showCelebrationModal(context, message: "Goal Met!", xpGained: result);
+          showCelebrationModal(context, message: "Goal Met!", pointsGained: result);
         } else if (result == true) {
-          showCelebrationModal(context, message: "Goal Met!", xpGained: 50);
+          showCelebrationModal(context, message: "Goal Met!", pointsGained: 50);
         }
       },
     );
