@@ -46,12 +46,22 @@ class LoggingService {
   late Box _box;
   bool _isSyncing = false;
 
+  /// Live count of events queued locally and not yet synced to Firestore.
+  /// Driven by the underlying Hive box length. UI components (e.g. the sync
+  /// badge in the dashboard header) listen to this to surface queue health.
+  final ValueNotifier<int> pendingCount = ValueNotifier<int>(0);
+
+  /// Whether a sync attempt is currently in flight. Useful for animating the
+  /// sync badge.
+  final ValueNotifier<bool> isSyncing = ValueNotifier<bool>(false);
+
   LoggingService({FirebaseFirestore? firestore})
       : _firestore = firestore ?? FirebaseFirestore.instance;
 
   Future<void> init() async {
     await Hive.initFlutter();
     _box = await Hive.openBox(_boxName);
+    _refreshPendingCount();
 
     Connectivity().onConnectivityChanged.listen((result) {
       if (_hasConnection(result)) {
@@ -61,6 +71,11 @@ class LoggingService {
 
     await syncToFirestore();
     debugPrint('LoggingService initialized');
+  }
+
+  void _refreshPendingCount() {
+    if (!_box.isOpen) return;
+    pendingCount.value = _box.length;
   }
 
   Future<void> logEvent(
@@ -86,6 +101,7 @@ class LoggingService {
     );
 
     await _box.put(event.id, event.toMap());
+    _refreshPendingCount();
     debugPrint('Queued log event: $name');
     await syncToFirestore();
   }
@@ -93,6 +109,7 @@ class LoggingService {
   Future<void> syncToFirestore() async {
     if (_isSyncing || _box.isEmpty) return;
     _isSyncing = true;
+    isSyncing.value = true;
 
     try {
       final keys = _box.keys.toList();
@@ -117,11 +134,14 @@ class LoggingService {
 
         await batch.commit();
         await _box.deleteAll(batchKeys);
+        _refreshPendingCount();
       }
     } catch (e) {
       debugPrint('Activity log sync failed: $e');
     } finally {
       _isSyncing = false;
+      isSyncing.value = false;
+      _refreshPendingCount();
     }
   }
 
@@ -133,6 +153,7 @@ class LoggingService {
   Future<void> clearLogs() async {
     if (_box.isOpen) {
       await _box.clear();
+      _refreshPendingCount();
     }
   }
 

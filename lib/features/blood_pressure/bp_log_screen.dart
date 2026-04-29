@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:get_it/get_it.dart';
 import 'package:provider/provider.dart';
+import 'package:uuid/uuid.dart';
 import '../../../core/theme/app_colors.dart';
 import 'package:cardio_care_quest/core/providers/user_data_manager.dart';
 import 'package:cardio_care_quest/core/constants/firestore_paths.dart';
+import 'package:cardio_care_quest/core/services/offline_queue.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 
@@ -40,45 +43,51 @@ class _BPLogScreenState extends State<BPLogScreen> {
       final int dia = int.parse(_diastolicController.text);
       String today = DateTime.now().toIso8601String().split('T')[0];
 
-      final firestore = FirebaseFirestore.instance;
-      final batch = firestore.batch();
-      final userRef = firestore.collection(FirestorePaths.userData).doc(uid);
+      // All three writes go through OfflineQueue so they're durably backed
+      // up in Hive before Firestore is touched. The queue replays them as a
+      // single Firestore WriteBatch — atomicity preserved.
+      final eventId = const Uuid().v4();
+      await GetIt.instance<OfflineQueue>().enqueueBatch([
+        // 1. Save to daily logs
+        PendingOp.set(
+          '${FirestorePaths.userData}/$uid/${FirestorePaths.dailyLogs}/$today',
+          {
+            'systolic': sys,
+            'diastolic': dia,
+            'mood': _selectedMood,
+            'timestamp': OfflineFieldValue.nowTimestamp(),
+            'date': today,
+          },
+          merge: true,
+        ),
 
-      // 1. Save to daily logs
-      final logRef = userRef.collection(FirestorePaths.dailyLogs).doc(today);
-      batch.set(logRef, {
-        'systolic': sys,
-        'diastolic': dia,
-        'mood': _selectedMood,
-        'timestamp': FieldValue.serverTimestamp(),
-        'date': today,
-      }, SetOptions(merge: true));
+        // 2. Update user stats
+        PendingOp.update('${FirestorePaths.userData}/$uid', {
+          'points': OfflineFieldValue.increment(50),
+          'totalSessions': OfflineFieldValue.increment(1),
+          'measurementsTaken': OfflineFieldValue.increment(1),
+          'lastSystolic': sys,
+          'lastDiastolic': dia,
+          'lastLogDate': today,
+          'lastBPLogDate': today,
+        }),
 
-      // 2. Update user stats
-      batch.update(userRef, {
-        'points': FieldValue.increment(50),
-        'totalSessions': FieldValue.increment(1),
-        'measurementsTaken': FieldValue.increment(1),
-        'lastSystolic': sys,
-        'lastDiastolic': dia,
-        'lastLogDate': today, // Keep this as a general "Last Active" tracker
-        'lastBPLogDate': today, // ADD THIS specific tracker just for the BP quest
-      });
-
-      // 3. Log the event
-      final eventRef = firestore.collection(FirestorePaths.events).doc();
-      batch.set(eventRef, {
-        'id': eventRef.id,
-        'userId': uid,
-        'event': 'bp_reading_logged',
-        'systolic': sys,
-        'diastolic': dia,
-        'mood': _selectedMood,
-        'timestamp': FieldValue.serverTimestamp(),
-        'syncedAt': FieldValue.serverTimestamp(),
-      });
-
-      await batch.commit();
+        // 3. Log the event (also fired through LoggingService for badge
+        // visibility, but the durable copy lives here).
+        PendingOp.set(
+          '${FirestorePaths.events}/$eventId',
+          {
+            'id': eventId,
+            'userId': uid,
+            'event': 'bp_reading_logged',
+            'systolic': sys,
+            'diastolic': dia,
+            'mood': _selectedMood,
+            'timestamp': OfflineFieldValue.nowTimestamp(),
+            'syncedAt': OfflineFieldValue.nowTimestamp(),
+          },
+        ),
+      ]);
 
       if (mounted) {
         await Provider.of<UserDataProvider>(context, listen: false).fetchUserData();

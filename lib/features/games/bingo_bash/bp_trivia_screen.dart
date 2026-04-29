@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:get_it/get_it.dart';
 import 'package:provider/provider.dart';
+import 'package:uuid/uuid.dart';
 import 'package:cardio_care_quest/core/providers/user_data_manager.dart';
 import 'package:cardio_care_quest/core/constants/firestore_paths.dart';
+import 'package:cardio_care_quest/core/services/offline_queue.dart';
 
 import 'package:cardio_care_quest/core/theme/app_colors.dart';
 
@@ -74,29 +76,26 @@ class _BPTriviaScreenState extends State<BPTriviaScreen> {
     final uid = Provider.of<UserDataProvider>(context, listen: false).uid;
     if (uid.isNotEmpty) {
       try {
-        final firestore = FirebaseFirestore.instance;
-        final batch = firestore.batch();
-        final userRef = firestore.collection(FirestorePaths.userData).doc(uid);
-        
         final xpEarned = (_questions.length - _score) * 10;
-        
-        batch.update(userRef, {
-          'points': FieldValue.increment(xpEarned),
-        });
-
-        final eventRef = firestore.collection(FirestorePaths.events).doc();
-        batch.set(eventRef, {
-          'id': eventRef.id,
-          'userId': uid,
-          'event': 'trivia_completed',
-          'score': _score,
-          'totalQuestions': _questions.length,
-          'xpEarned': xpEarned,
-          'timestamp': FieldValue.serverTimestamp(),
-          'syncedAt': FieldValue.serverTimestamp(),
-        });
-
-        await batch.commit();
+        final eventId = const Uuid().v4();
+        await GetIt.instance<OfflineQueue>().enqueueBatch([
+          PendingOp.update('${FirestorePaths.userData}/$uid', {
+            'points': OfflineFieldValue.increment(xpEarned),
+          }),
+          PendingOp.set(
+            '${FirestorePaths.events}/$eventId',
+            {
+              'id': eventId,
+              'userId': uid,
+              'event': 'trivia_completed',
+              'score': _score,
+              'totalQuestions': _questions.length,
+              'xpEarned': xpEarned,
+              'timestamp': OfflineFieldValue.nowTimestamp(),
+              'syncedAt': OfflineFieldValue.nowTimestamp(),
+            },
+          ),
+        ]);
         if (mounted) {
           Provider.of<UserDataProvider>(context, listen: false).fetchUserData();
         }

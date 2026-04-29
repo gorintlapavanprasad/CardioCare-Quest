@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:get_it/get_it.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/constants/firestore_paths.dart';
+import '../../core/services/offline_queue.dart';
 
 class AuthProvider extends ChangeNotifier {
   int _currentStep = 0;
@@ -45,44 +47,15 @@ class AuthProvider extends ChangeNotifier {
 
   Future<String?> submitQuest() async {
     try {
-      UserCredential userCredential = await FirebaseAuth.instance.signInAnonymously();
+      // signInAnonymously requires network; without an internet connection
+      // Firebase Auth cannot mint a new UID. We let it throw — caller decides
+      // how to surface that to the participant. (Workshop guidance: register
+      // participants while connected to the registration-table Wi-Fi.)
+      UserCredential userCredential =
+          await FirebaseAuth.instance.signInAnonymously();
       String uid = userCredential.user!.uid;
-      String displayId = 'CCQ-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}';
-
-      final firestore = FirebaseFirestore.instance;
-      final batch = firestore.batch();
-
-      final userRef = firestore.collection(FirestorePaths.userData).doc(uid);
-      batch.set(userRef, {
-        'uid': uid,
-        'email': userCredential.user!.email ?? 'guest_${uid.substring(0, 5)}@demo.com',
-        'participantId': displayId,
-        'status': 'active',
-        'measurementsTaken': 0,
-        'distanceTraveled': 0,
-        'dataPoints': [],
-        'radGyration': 0,
-        'createdAt': FieldValue.serverTimestamp(),
-        'basicInfo': {
-          'firstName': formData['firstName'] ?? 'Explorer',
-          'lastName': formData['lastName'] ?? '',
-          'zipCode': formData['zipCode'] ?? '',
-          'state': formData['state'] ?? '',
-          'city': formData['city'] ?? '',
-        },
-        'demographics': {
-          'gender': formData['gender'],
-          'ethnicity': formData['ethnicity'],
-          'race': formData['race'],
-          'education': formData['education'],
-          'foodTracking': formData['foodTracking'],
-          'takingMedication': formData['takingMedication'],
-        },
-        'points': 0,
-        'totalDistance': 0,
-        'totalSessions': 0,
-        'totalSteps': 0,
-      });
+      String displayId =
+          'CCQ-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}';
 
       final excludedKeys = [
         'firstName',
@@ -122,25 +95,70 @@ class AuthProvider extends ChangeNotifier {
         }
       });
 
-      final surveyDocRef = firestore.collection(FirestorePaths.surveys).doc(FirestorePaths.baselineSurvey);
-      batch.set(surveyDocRef, {
-        'questions': surveyQuestions,
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-
-      final surveyResponseRef = firestore
+      // Auto-id for the submission doc; generated client-side so OfflineQueue
+      // can replay deterministically.
+      final firestore = FirebaseFirestore.instance;
+      final submissionDocId = firestore
           .collection(FirestorePaths.responses)
           .doc(FirestorePaths.baselineSurvey)
           .collection('submissions')
-          .doc();
+          .doc()
+          .id;
 
-      batch.set(surveyResponseRef, {
-        'ID': uid,
-        'responses': surveyResponses,
-        'timestamp': FieldValue.serverTimestamp(),
-      });
+      await GetIt.instance<OfflineQueue>().enqueueBatch([
+        PendingOp.set(
+          '${FirestorePaths.userData}/$uid',
+          {
+            'uid': uid,
+            'email': userCredential.user!.email ??
+                'guest_${uid.substring(0, 5)}@demo.com',
+            'participantId': displayId,
+            'status': 'active',
+            'measurementsTaken': 0,
+            'distanceTraveled': 0,
+            'dataPoints': [],
+            'radGyration': 0,
+            'createdAt': OfflineFieldValue.nowTimestamp(),
+            'basicInfo': {
+              'firstName': formData['firstName'] ?? 'Explorer',
+              'lastName': formData['lastName'] ?? '',
+              'zipCode': formData['zipCode'] ?? '',
+              'state': formData['state'] ?? '',
+              'city': formData['city'] ?? '',
+            },
+            'demographics': {
+              'gender': formData['gender'],
+              'ethnicity': formData['ethnicity'],
+              'race': formData['race'],
+              'education': formData['education'],
+              'foodTracking': formData['foodTracking'],
+              'takingMedication': formData['takingMedication'],
+            },
+            'points': 0,
+            'totalDistance': 0,
+            'totalSessions': 0,
+            'totalSteps': 0,
+          },
+        ),
+        PendingOp.set(
+          '${FirestorePaths.surveys}/${FirestorePaths.baselineSurvey}',
+          {
+            'questions': surveyQuestions,
+            'updatedAt': OfflineFieldValue.nowTimestamp(),
+          },
+          merge: true,
+        ),
+        PendingOp.set(
+          '${FirestorePaths.responses}/${FirestorePaths.baselineSurvey}/'
+          'submissions/$submissionDocId',
+          {
+            'ID': uid,
+            'responses': surveyResponses,
+            'timestamp': OfflineFieldValue.nowTimestamp(),
+          },
+        ),
+      ]);
 
-      await batch.commit();
       return uid;
     } catch (e) {
       debugPrint('Onboarding sync error: $e');

@@ -3,10 +3,13 @@ import 'package:cardio_care_quest/features/dashboard/screens/main_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart'; // ─── ADDED: Official Netgauge Auth
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:get_it/get_it.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/constants/firestore_paths.dart';
+import '../../core/services/offline_queue.dart';
 // import 'auth_screen.dart'; // Uncomment if you still need this route
 // Routing to the HomeTab
 
@@ -60,67 +63,104 @@ class _LoginScreenState extends State<LoginScreen> {
 
     try {
       final firestore = FirebaseFirestore.instance;
+      const storage = FlutterSecureStorage();
+      final queue = GetIt.instance<OfflineQueue>();
 
-      // Authenticate first so Firestore reads use the signed-in anonymous user.
-      await FirebaseAuth.instance.signOut();
-      final credential = await FirebaseAuth.instance.signInAnonymously();
-      final authUid = credential.user?.uid;
-
-      if (authUid == null) {
-        throw Exception('Unable to log in right now.');
+      // Best-effort anonymous sign-in. Required for first-time auth, but if
+      // the device is offline we may still be able to log in a returning
+      // participant via Firestore's local cache (case 9).
+      String? authUid;
+      bool authedOnline = false;
+      try {
+        await FirebaseAuth.instance.signOut();
+        final credential = await FirebaseAuth.instance.signInAnonymously();
+        authUid = credential.user?.uid;
+        authedOnline = authUid != null;
+      } catch (e) {
+        debugPrint('Login: anonymous auth failed (likely offline): $e');
       }
 
       DocumentSnapshot<Map<String, dynamic>>? matchedDoc;
 
       // First check for a document whose ID matches the entered unique ID.
-      final directDoc = await firestore
-          .collection(FirestorePaths.userData)
-          .doc(uniqueId)
-          .get();
-      if (directDoc.exists) {
-        matchedDoc = directDoc;
-      }
+      // .get() uses Source.serverAndCache by default — falls back to cache
+      // if the device is offline, but only if the doc was previously fetched.
+      try {
+        final directDoc = await firestore
+            .collection(FirestorePaths.userData)
+            .doc(uniqueId)
+            .get();
+        if (directDoc.exists) {
+          matchedDoc = directDoc;
+        }
+      } catch (_) {/* offline + uncached → try query next */}
 
       if (matchedDoc == null) {
-        final query = await firestore
-            .collection(FirestorePaths.userData)
-            .where('participantId', isEqualTo: uniqueId)
-            .limit(1)
-            .get();
-
-        if (query.docs.isNotEmpty) {
-          matchedDoc = query.docs.first;
-        }
+        try {
+          final query = await firestore
+              .collection(FirestorePaths.userData)
+              .where('participantId', isEqualTo: uniqueId)
+              .limit(1)
+              .get();
+          if (query.docs.isNotEmpty) {
+            matchedDoc = query.docs.first;
+          }
+        } catch (_) {/* offline + uncached query → fall through */}
       }
 
-      if (matchedDoc == null || !matchedDoc.exists) {
-        final newDoc = firestore
-            .collection(FirestorePaths.userData)
-            .doc(uniqueId);
-        await newDoc.set({
-          'uid': uniqueId,
-          'participantId': uniqueId,
-          'basicInfo': {'firstName': 'Explorer'},
-          'measurementsTaken': 0,
-          'distanceTraveled': 0,
-          'dataPoints': [],
-          'radGyration': 0,
-          'points': 0,
-          'totalSessions': 0,
-          'totalDistance': 0,
-          'createdAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
-        matchedDoc = await newDoc.get();
+      // Brand-new participant on a brand-new device. We need to be ONLINE for
+      // this branch because there's no cached doc to fall back to. If we
+      // succeeded with anonymous auth above, attempt the create.
+      if ((matchedDoc == null || !matchedDoc.exists) && authedOnline) {
+        await queue.enqueue(PendingOp.set(
+          '${FirestorePaths.userData}/$uniqueId',
+          {
+            'uid': uniqueId,
+            'participantId': uniqueId,
+            'basicInfo': {'firstName': 'Explorer'},
+            'measurementsTaken': 0,
+            'distanceTraveled': 0,
+            'dataPoints': [],
+            'radGyration': 0,
+            'points': 0,
+            'totalSessions': 0,
+            'totalDistance': 0,
+            'createdAt': OfflineFieldValue.nowTimestamp(),
+          },
+          merge: true,
+        ));
+        // Re-fetch from cache now that the queue applied locally as well.
+        try {
+          matchedDoc = await firestore
+              .collection(FirestorePaths.userData)
+              .doc(uniqueId)
+              .get();
+        } catch (_) {/* ignore */}
       }
 
-      _currentUserDocId = matchedDoc.id;
-      await firestore
-          .collection(FirestorePaths.userData)
-          .doc(matchedDoc.id)
-          .set({
-            'authUid': authUid,
-            'lastLoginAt': FieldValue.serverTimestamp(),
-          }, SetOptions(merge: true));
+      if (matchedDoc == null && !authedOnline) {
+        // Truly stuck — offline and no cached match for this ID.
+        throw Exception(
+          "Can't reach the network and we don't have a cached record for "
+          'this ID on this device. Connect to Wi-Fi and retry.',
+        );
+      }
+
+      _currentUserDocId = matchedDoc?.id ?? uniqueId;
+
+      // Always queue the auth/login update — it's idempotent and will sync
+      // whenever the device next has connectivity.
+      await queue.enqueue(PendingOp.set(
+        '${FirestorePaths.userData}/${_currentUserDocId!}',
+        {
+          'authUid': ?authUid,
+          'lastLoginAt': OfflineFieldValue.nowTimestamp(),
+        },
+        merge: true,
+      ));
+
+      // Cache the participant ID for offline-friendly relaunches.
+      await storage.write(key: 'participant_id', value: uniqueId);
 
       if (!mounted) return;
       final userDataProvider = Provider.of<UserDataProvider>(
@@ -258,17 +298,17 @@ class _LoginScreenState extends State<LoginScreen> {
                   return;
                 }
                 final bmi = weight / ((height / 100) * (height / 100));
-                final firestore = FirebaseFirestore.instance;
                 final docId = _currentUserDocId ?? currentData['uid'];
                 if (docId != null) {
-                  await firestore
-                      .collection(FirestorePaths.userData)
-                      .doc(docId)
-                      .set({
-                        'heightCm': height,
-                        'weightKg': weight,
-                        'bmi': double.parse(bmi.toStringAsFixed(1)),
-                      }, SetOptions(merge: true));
+                  await GetIt.instance<OfflineQueue>().enqueue(PendingOp.set(
+                    '${FirestorePaths.userData}/$docId',
+                    {
+                      'heightCm': height,
+                      'weightKg': weight,
+                      'bmi': double.parse(bmi.toStringAsFixed(1)),
+                    },
+                    merge: true,
+                  ));
                 }
                 if (!mounted) return;
                 dialogNavigator.pop(true);

@@ -4,6 +4,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:cardio_care_quest/core/providers/user_data_manager.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cardio_care_quest/core/constants/firestore_paths.dart';
+import 'package:cardio_care_quest/core/widgets/sync_badge.dart';
 import '../../../core/theme/app_colors.dart';
 import '../widgets/daily_task_card.dart';
 import '../widgets/health_pillar_tile.dart';
@@ -473,19 +474,27 @@ class _HomeTabState extends State<HomeTab> {
               ],
             ),
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: AppColors.viridis4.withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Text(
-              "$xp pts",
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                color: AppColors.viridis0,
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SyncBadge(),
+              const SizedBox(width: 8),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: AppColors.viridis4.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Text(
+                  "$xp pts",
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.viridis0,
+                  ),
+                ),
               ),
-            ),
+            ],
           ),
         ],
       ),

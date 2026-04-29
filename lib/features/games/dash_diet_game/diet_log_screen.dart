@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:get_it/get_it.dart';
 import 'package:provider/provider.dart';
+import 'package:uuid/uuid.dart';
 import 'package:cardio_care_quest/core/theme/app_colors.dart';
 import 'package:cardio_care_quest/core/providers/user_data_manager.dart';
 import 'package:cardio_care_quest/core/constants/firestore_paths.dart';
+import 'package:cardio_care_quest/core/services/offline_queue.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 
@@ -37,36 +39,36 @@ class _DietLogScreenState extends State<DietLogScreen> {
 
     try {
       String today = DateTime.now().toIso8601String().split('T')[0];
-      final firestore = FirebaseFirestore.instance;
-      final batch = firestore.batch();
-      final userRef = firestore.collection(FirestorePaths.userData).doc(uid);
-
-      final logRef = userRef.collection(FirestorePaths.dailyLogs).doc(today);
-      batch.set(logRef, {
-        'mealNotes': _mealNotesController.text,
-        'mealRating': _mealRating,
-        'hasMealPhoto': _image != null,
-        'mealTimestamp': FieldValue.serverTimestamp(),
-        'date': today,
-      }, SetOptions(merge: true));
-
-      batch.update(userRef, {
-        'points': FieldValue.increment(25),
-        'mealsLogged': FieldValue.increment(1),
-        'lastLogDate': today,
-      });
-
-      final eventRef = firestore.collection(FirestorePaths.events).doc();
-      batch.set(eventRef, {
-        'id': eventRef.id,
-        'userId': uid,
-        'event': 'meal_logged',
-        'mealRating': _mealRating,
-        'timestamp': FieldValue.serverTimestamp(),
-        'syncedAt': FieldValue.serverTimestamp(),
-      });
-
-      await batch.commit();
+      final eventId = const Uuid().v4();
+      await GetIt.instance<OfflineQueue>().enqueueBatch([
+        PendingOp.set(
+          '${FirestorePaths.userData}/$uid/${FirestorePaths.dailyLogs}/$today',
+          {
+            'mealNotes': _mealNotesController.text,
+            'mealRating': _mealRating,
+            'hasMealPhoto': _image != null,
+            'mealTimestamp': OfflineFieldValue.nowTimestamp(),
+            'date': today,
+          },
+          merge: true,
+        ),
+        PendingOp.update('${FirestorePaths.userData}/$uid', {
+          'points': OfflineFieldValue.increment(25),
+          'mealsLogged': OfflineFieldValue.increment(1),
+          'lastLogDate': today,
+        }),
+        PendingOp.set(
+          '${FirestorePaths.events}/$eventId',
+          {
+            'id': eventId,
+            'userId': uid,
+            'event': 'meal_logged',
+            'mealRating': _mealRating,
+            'timestamp': OfflineFieldValue.nowTimestamp(),
+            'syncedAt': OfflineFieldValue.nowTimestamp(),
+          },
+        ),
+      ]);
 
       if (mounted) {
         await Provider.of<UserDataProvider>(context, listen: false).fetchUserData();

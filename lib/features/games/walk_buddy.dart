@@ -11,8 +11,10 @@ import 'package:cardio_care_quest/core/providers/user_data_manager.dart';
 import 'package:cardio_care_quest/core/constants/firestore_paths.dart';
 import 'package:cardio_care_quest/core/services/session_manager.dart';
 import 'package:cardio_care_quest/core/services/activity_logs.dart';
+import 'package:cardio_care_quest/core/services/offline_queue.dart';
 
 final loggingService = GetIt.instance<LoggingService>();
+OfflineQueue get _queue => GetIt.instance<OfflineQueue>();
 
 class LocationGame extends StatefulWidget {
   final double targetDistance;
@@ -222,22 +224,22 @@ class _LocationGameState extends State<LocationGame> {
     final uid = Provider.of<UserDataProvider>(context, listen: false).uid;
     if (uid.isNotEmpty) {
       setState(() => _currentBuddyName = newName);
-      await FirebaseFirestore.instance
-          .collection(FirestorePaths.userData)
-          .doc(uid)
-          .update({'dogName': newName, 'buddyName': newName});
+      await _queue.enqueue(PendingOp.update(
+        '${FirestorePaths.userData}/$uid',
+        {'dogName': newName, 'buddyName': newName},
+      ));
     }
   }
 
   Future<void> _saveGameState(String stateJson) async {
     final uid = Provider.of<UserDataProvider>(context, listen: false).uid;
     if (uid.isNotEmpty) {
-      await FirebaseFirestore.instance
-          .collection(FirestorePaths.userData)
-          .doc(uid)
-          .collection(FirestorePaths.gameStates)
-          .doc('walk_buddy')
-          .set({'gameState': stateJson}, SetOptions(merge: true));
+      await _queue.enqueue(PendingOp.set(
+        '${FirestorePaths.userData}/$uid/'
+        '${FirestorePaths.gameStates}/walk_buddy',
+        {'gameState': stateJson},
+        merge: true,
+      ));
     }
   }
 
@@ -298,62 +300,72 @@ class _LocationGameState extends State<LocationGame> {
           _writeCount++;
 
           if (_writeCount % 5 == 0 && _sessionId != null) {
-            final firestore = FirebaseFirestore.instance;
-            final batch = firestore.batch();
-            final point = GeoPoint(position.latitude, position.longitude);
             final geohash = _geohashFor(position.latitude, position.longitude);
-
-            final sessionRef = firestore
-                .collection(FirestorePaths.movementData)
-                .doc(_sessionId);
-            batch.set(sessionRef, {
-              'sessionId': _sessionId,
-              'created': FieldValue.serverTimestamp(),
-              'test': false,
-              'userId': uid,
-              'game': 'walk_buddy',
-            }, SetOptions(merge: true));
-
-            final locationRef = firestore
+            final firestore = FirebaseFirestore.instance;
+            final locationDocId = firestore
                 .collection(FirestorePaths.movementData)
                 .doc(_sessionId)
                 .collection(FirestorePaths.locationData)
-                .doc();
-            batch.set(locationRef, {
-              'datetime': FieldValue.serverTimestamp(),
-              'game': 'walk_buddy',
-              'geopoint': point,
-              'geohash': geohash,
-              'latitude': position.latitude,
-              'longitude': position.longitude,
-              'test': false,
-            });
+                .doc()
+                .id;
+            final geoDocId =
+                firestore.collection(FirestorePaths.dataPoints).doc().id;
 
-            final geoRef = firestore
-                .collection(FirestorePaths.dataPoints)
-                .doc();
-            batch.set(geoRef, {
-              'location': {'geopoint': point},
-              'userId': uid,
-              'sessionId': _sessionId,
-              'game': 'walk_buddy',
-              'geohash': geohash,
-              'timestamp': FieldValue.serverTimestamp(),
-            });
-
-            final stateRef = firestore
-                .collection(FirestorePaths.userData)
-                .doc(uid)
-                .collection(FirestorePaths.gameStates)
-                .doc('walk_buddy');
-            batch.set(stateRef, {
-              'ongoingDistance': _distanceWalked,
-              'ongoingTarget': _targetDistance,
-              'ongoingSessionId': _sessionId,
-              'ongoingPath': _pathCoordinates,
-            }, SetOptions(merge: true));
-
-            await batch.commit(); // Push all data points at once safely
+            await _queue.enqueueBatch([
+              PendingOp.set(
+                '${FirestorePaths.movementData}/$_sessionId',
+                {
+                  'sessionId': _sessionId,
+                  'created': OfflineFieldValue.nowTimestamp(),
+                  'test': false,
+                  'userId': uid,
+                  'game': 'walk_buddy',
+                },
+                merge: true,
+              ),
+              PendingOp.set(
+                '${FirestorePaths.movementData}/$_sessionId/'
+                '${FirestorePaths.locationData}/$locationDocId',
+                {
+                  'datetime': OfflineFieldValue.nowTimestamp(),
+                  'game': 'walk_buddy',
+                  'geopoint': OfflineFieldValue.geopoint(
+                      position.latitude, position.longitude),
+                  'geohash': geohash,
+                  'latitude': position.latitude,
+                  'longitude': position.longitude,
+                  'test': false,
+                },
+              ),
+              PendingOp.set(
+                '${FirestorePaths.dataPoints}/$geoDocId',
+                {
+                  'location': {
+                    'geopoint': OfflineFieldValue.geopoint(
+                        position.latitude, position.longitude),
+                  },
+                  'userId': uid,
+                  'sessionId': _sessionId,
+                  'game': 'walk_buddy',
+                  'geohash': geohash,
+                  'timestamp': OfflineFieldValue.nowTimestamp(),
+                },
+              ),
+              PendingOp.set(
+                '${FirestorePaths.userData}/$uid/'
+                '${FirestorePaths.gameStates}/walk_buddy',
+                {
+                  'ongoingDistance': _distanceWalked,
+                  'ongoingTarget': _targetDistance,
+                  'ongoingSessionId': _sessionId,
+                  'ongoingPath': _pathCoordinates
+                      .map((c) =>
+                          OfflineFieldValue.geopoint(c.latitude, c.longitude))
+                      .toList(),
+                },
+                merge: true,
+              ),
+            ]);
           }
 
           setState(() {
@@ -405,68 +417,71 @@ class _LocationGameState extends State<LocationGame> {
 
     try {
       final firestore = FirebaseFirestore.instance;
-      final batch = firestore.batch(); // Batch for ultimate safety
-
-      final userRef = firestore
-          .collection(FirestorePaths.userData)
-          .doc(uid);
-      final sessionRef = firestore
+      final checkDocId = firestore
           .collection(FirestorePaths.movementData)
-          .doc(_sessionId);
-      final checkRef = sessionRef.collection(FirestorePaths.checkData).doc();
-      final stateRef = userRef
-          .collection(FirestorePaths.gameStates)
-          .doc('walk_buddy');
+          .doc(_sessionId)
+          .collection(FirestorePaths.checkData)
+          .doc()
+          .id;
 
-      // 1. Root Profile Sync (Using Netgauge Naming conventions)
-      batch.update(userRef, {
-        'points': FieldValue.increment(pointsGained),
-        'totalDistance': FieldValue.increment(_distanceWalked.toInt()),
-        'totalSessions': FieldValue.increment(1),
-        'distanceTraveled': FieldValue.increment(_distanceWalked.toInt()),
-        'measurementsTaken': FieldValue.increment(1),
-        'lastPlayedAt': FieldValue.serverTimestamp(),
-      });
-
-      batch.set(sessionRef, {
-        'sessionId': _sessionId,
-        'created': FieldValue.serverTimestamp(),
-        'test': false,
-        'game': 'walk_buddy',
-        'gameType': 'walk_buddy',
-        'targetQuest': '${_targetDistance.toInt()}m',
-        'totalDistance': _distanceWalked,
-        'dogName': _currentBuddyName,
-        'buddyName': _currentBuddyName,
-        'endedAt': FieldValue.serverTimestamp(),
-        'pointsEarned': pointsGained,
-      }, SetOptions(merge: true));
-
-      batch.set(checkRef, {
-        'event': 'walk_buddy_completed',
-        'latitude': _pathCoordinates.isNotEmpty
-            ? _pathCoordinates.last.latitude
-            : null,
-        'longitude': _pathCoordinates.isNotEmpty
-            ? _pathCoordinates.last.longitude
-            : null,
-        'sessionID': _sessionId,
-        'sessionId': _sessionId,
-        'downloadSpeed': 0,
-        'uploadSpeed': 0,
-        'latency': 0,
-        'timestamp': FieldValue.serverTimestamp(),
-      });
-
-      batch.set(stateRef, {
-        'ongoingDistance': FieldValue.delete(),
-        'ongoingTarget': FieldValue.delete(),
-        'ongoingSessionId': FieldValue.delete(),
-        'ongoingPath': FieldValue.delete(),
-      }, SetOptions(merge: true));
-
-      // Execute the batch!
-      await batch.commit();
+      await _queue.enqueueBatch([
+        PendingOp.update('${FirestorePaths.userData}/$uid', {
+          'points': OfflineFieldValue.increment(pointsGained),
+          'totalDistance': OfflineFieldValue.increment(_distanceWalked.toInt()),
+          'totalSessions': OfflineFieldValue.increment(1),
+          'distanceTraveled':
+              OfflineFieldValue.increment(_distanceWalked.toInt()),
+          'measurementsTaken': OfflineFieldValue.increment(1),
+          'lastPlayedAt': OfflineFieldValue.nowTimestamp(),
+        }),
+        PendingOp.set(
+          '${FirestorePaths.movementData}/$_sessionId',
+          {
+            'sessionId': _sessionId,
+            'created': OfflineFieldValue.nowTimestamp(),
+            'test': false,
+            'game': 'walk_buddy',
+            'gameType': 'walk_buddy',
+            'targetQuest': '${_targetDistance.toInt()}m',
+            'totalDistance': _distanceWalked,
+            'dogName': _currentBuddyName,
+            'buddyName': _currentBuddyName,
+            'endedAt': OfflineFieldValue.nowTimestamp(),
+            'pointsEarned': pointsGained,
+          },
+          merge: true,
+        ),
+        PendingOp.set(
+          '${FirestorePaths.movementData}/$_sessionId/'
+          '${FirestorePaths.checkData}/$checkDocId',
+          {
+            'event': 'walk_buddy_completed',
+            'latitude': _pathCoordinates.isNotEmpty
+                ? _pathCoordinates.last.latitude
+                : null,
+            'longitude': _pathCoordinates.isNotEmpty
+                ? _pathCoordinates.last.longitude
+                : null,
+            'sessionID': _sessionId,
+            'sessionId': _sessionId,
+            'downloadSpeed': 0,
+            'uploadSpeed': 0,
+            'latency': 0,
+            'timestamp': OfflineFieldValue.nowTimestamp(),
+          },
+        ),
+        PendingOp.set(
+          '${FirestorePaths.userData}/$uid/'
+          '${FirestorePaths.gameStates}/walk_buddy',
+          {
+            'ongoingDistance': OfflineFieldValue.delete(),
+            'ongoingTarget': OfflineFieldValue.delete(),
+            'ongoingSessionId': OfflineFieldValue.delete(),
+            'ongoingPath': OfflineFieldValue.delete(),
+          },
+          merge: true,
+        ),
+      ]);
 
       setState(() {
         _distanceWalked = 0.0;
@@ -514,17 +529,20 @@ class _LocationGameState extends State<LocationGame> {
             if (_isPlaying && _distanceWalked > 0 && _sessionId != null) {
               final uid = Provider.of<UserDataProvider>(context, listen: false).uid;
               if (uid.isNotEmpty) {
-                await FirebaseFirestore.instance
-                    .collection(FirestorePaths.userData)
-                    .doc(uid)
-                    .collection(FirestorePaths.gameStates)
-                    .doc('walk_buddy')
-                    .set({
-                      'ongoingDistance': _distanceWalked,
-                      'ongoingTarget': _targetDistance,
-                      'ongoingSessionId': _sessionId,
-                      'ongoingPath': _pathCoordinates,
-                    }, SetOptions(merge: true));
+                await _queue.enqueue(PendingOp.set(
+                  '${FirestorePaths.userData}/$uid/'
+                  '${FirestorePaths.gameStates}/walk_buddy',
+                  {
+                    'ongoingDistance': _distanceWalked,
+                    'ongoingTarget': _targetDistance,
+                    'ongoingSessionId': _sessionId,
+                    'ongoingPath': _pathCoordinates
+                        .map((c) => OfflineFieldValue.geopoint(
+                            c.latitude, c.longitude))
+                        .toList(),
+                  },
+                  merge: true,
+                ));
               }
             }
             if (context.mounted) Navigator.of(context).pop();

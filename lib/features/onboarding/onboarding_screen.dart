@@ -1,10 +1,11 @@
 import 'package:cardio_care_quest/core/providers/user_data_manager.dart';
+import 'package:get_it/get_it.dart';
 import 'package:provider/provider.dart';
 import 'package:cardio_care_quest/features/dashboard/screens/main_layout.dart';
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/constants/firestore_paths.dart';
+import '../../core/services/offline_queue.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -47,15 +48,16 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     try {
       final uid = Provider.of<UserDataProvider>(context, listen: false).uid;
       if (uid.isNotEmpty) {
-        await FirebaseFirestore.instance
-            .collection(FirestorePaths.userData)
-            .doc(uid)
-            .set({
-          'onboarding': {
-            'play_message': true,
-            'completedAt': FieldValue.serverTimestamp(),
+        await GetIt.instance<OfflineQueue>().enqueue(PendingOp.set(
+          '${FirestorePaths.userData}/$uid',
+          {
+            'onboarding': {
+              'play_message': true,
+              'completedAt': OfflineFieldValue.nowTimestamp(),
+            },
           },
-        }, SetOptions(merge: true));
+          merge: true,
+        ));
       }
     } catch (_) {}
 

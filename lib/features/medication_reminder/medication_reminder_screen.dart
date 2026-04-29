@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:get_it/get_it.dart';
 import 'package:provider/provider.dart';
+import 'package:uuid/uuid.dart';
 import 'package:cardio_care_quest/core/theme/app_colors.dart';
 import 'package:cardio_care_quest/core/providers/user_data_manager.dart';
 import 'package:cardio_care_quest/core/constants/firestore_paths.dart';
+import 'package:cardio_care_quest/core/services/offline_queue.dart';
 
 class MedicationReminderScreen extends StatefulWidget {
   const MedicationReminderScreen({super.key});
@@ -50,36 +53,36 @@ class _MedicationReminderScreenState extends State<MedicationReminderScreen> {
 
     try {
       String today = DateTime.now().toIso8601String().split('T')[0];
-      final firestore = FirebaseFirestore.instance;
-      final batch = firestore.batch();
-      final userRef = firestore.collection(FirestorePaths.userData).doc(uid);
-
-      final logRef = userRef.collection(FirestorePaths.dailyLogs).doc(today);
-      batch.set(logRef, {
-        'medicationTaken': taken,
-        'medicationTimestamp': FieldValue.serverTimestamp(),
-        'date': today,
-      }, SetOptions(merge: true));
-
       int newStreak = taken ? _streak + 1 : 0;
-      
-      batch.update(userRef, {
-        'points': FieldValue.increment(taken ? 20 : 5),
-        'medicationStreak': newStreak,
-        'lastLogDate': today,
-      });
+      final eventId = const Uuid().v4();
 
-      final eventRef = firestore.collection(FirestorePaths.events).doc();
-      batch.set(eventRef, {
-        'id': eventRef.id,
-        'userId': uid,
-        'event': 'medication_logged',
-        'taken': taken,
-        'timestamp': FieldValue.serverTimestamp(),
-        'syncedAt': FieldValue.serverTimestamp(),
-      });
-
-      await batch.commit();
+      await GetIt.instance<OfflineQueue>().enqueueBatch([
+        PendingOp.set(
+          '${FirestorePaths.userData}/$uid/${FirestorePaths.dailyLogs}/$today',
+          {
+            'medicationTaken': taken,
+            'medicationTimestamp': OfflineFieldValue.nowTimestamp(),
+            'date': today,
+          },
+          merge: true,
+        ),
+        PendingOp.update('${FirestorePaths.userData}/$uid', {
+          'points': OfflineFieldValue.increment(taken ? 20 : 5),
+          'medicationStreak': newStreak,
+          'lastLogDate': today,
+        }),
+        PendingOp.set(
+          '${FirestorePaths.events}/$eventId',
+          {
+            'id': eventId,
+            'userId': uid,
+            'event': 'medication_logged',
+            'taken': taken,
+            'timestamp': OfflineFieldValue.nowTimestamp(),
+            'syncedAt': OfflineFieldValue.nowTimestamp(),
+          },
+        ),
+      ]);
 
       if (mounted) {
         await Provider.of<UserDataProvider>(context, listen: false).fetchUserData();

@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:geoflutterfire_plus/geoflutterfire_plus.dart';
+import 'package:get_it/get_it.dart';
 import 'package:latlong2/latlong.dart';
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart' as firestore;
 import 'package:cardio_care_quest/core/constants/firestore_paths.dart';
+import 'package:cardio_care_quest/core/services/offline_queue.dart';
 
 class SessionData {
   final DateTime date;
@@ -160,9 +162,11 @@ class UserDataProvider extends ChangeNotifier {
       if (doc != null && doc.exists) {
         _userData = doc.data() as Map<String, dynamic>;
         if (user != null) {
-          await firestore.collection(FirestorePaths.userData).doc(doc.id).set({
-            'authUid': user.uid,
-          }, SetOptions(merge: true));
+          await GetIt.instance<OfflineQueue>().enqueue(PendingOp.set(
+            '${FirestorePaths.userData}/${doc.id}',
+            {'authUid': user.uid},
+            merge: true,
+          ));
         }
         debugPrint('Data loaded successfully for document: ${doc.id}');
       } else if (user != null) {
@@ -201,23 +205,24 @@ class UserDataProvider extends ChangeNotifier {
   }
 
   Future<void> createUserDocument(User user) async {
-    final firestore = FirebaseFirestore.instance;
-    final userRef = firestore.collection(FirestorePaths.userData).doc(user.uid);
-
-    await userRef.set({
-      'uid': user.uid,
-      'email': user.email ?? 'guest_${user.uid.substring(0, 5)}@demo.com',
-      'measurementsTaken': 0,
-      'distanceTraveled': 0,
-      'dataPoints': [],
-      'radGyration': 0,
-      'createdAt': FieldValue.serverTimestamp(),
-      'totalSessions': 0,
-      'totalSteps': 0,
-      'totalDistance': 0,
-      'points': 0,
-      'basicInfo': {'firstName': 'Explorer'},
-    }, SetOptions(merge: true));
+    await GetIt.instance<OfflineQueue>().enqueue(PendingOp.set(
+      '${FirestorePaths.userData}/${user.uid}',
+      {
+        'uid': user.uid,
+        'email': user.email ?? 'guest_${user.uid.substring(0, 5)}@demo.com',
+        'measurementsTaken': 0,
+        'distanceTraveled': 0,
+        'dataPoints': [],
+        'radGyration': 0,
+        'createdAt': OfflineFieldValue.nowTimestamp(),
+        'totalSessions': 0,
+        'totalSteps': 0,
+        'totalDistance': 0,
+        'points': 0,
+        'basicInfo': {'firstName': 'Explorer'},
+      },
+      merge: true,
+    ));
 
     debugPrint('User profile created in userData for UID: ${user.uid}');
   }

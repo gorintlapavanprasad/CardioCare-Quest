@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:get_it/get_it.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/constants/firestore_paths.dart';
+import '../../core/services/offline_queue.dart';
 import 'quest_complete_screen.dart'; // Make sure this is imported!
 
 class CreatePinScreen extends StatefulWidget {
@@ -21,10 +22,10 @@ Future<void> _savePin() async {
     setState(() => _isSaving = true);
     
     try {
-      // ─── CHANGED 'userData' TO 'users' ───
-      await FirebaseFirestore.instance.collection(FirestorePaths.userData).doc(widget.participantId).update({
-        'transferPin': _pin,
-      });
+      await GetIt.instance<OfflineQueue>().enqueue(PendingOp.update(
+        '${FirestorePaths.userData}/${widget.participantId}',
+        {'transferPin': _pin},
+      ));
 
       if (mounted) {
         Navigator.of(context).pushReplacement(
