@@ -13,4 +13,5 @@ export 'daily_log_hooks.dart';
 export 'movement_hooks.dart';
 export 'points_hooks.dart';
 export 'profile_hooks.dart';
+export 'survey_hooks.dart';
 export 'telemetry_hooks.dart';

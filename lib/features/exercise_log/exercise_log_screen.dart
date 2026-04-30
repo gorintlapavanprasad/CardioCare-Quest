@@ -1,11 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:get_it/get_it.dart';
 import 'package:provider/provider.dart';
-import 'package:uuid/uuid.dart';
 import 'package:cardio_care_quest/core/theme/app_colors.dart';
 import 'package:cardio_care_quest/core/providers/user_data_manager.dart';
-import 'package:cardio_care_quest/core/constants/firestore_paths.dart';
-import 'package:cardio_care_quest/core/services/offline_queue.dart';
+import 'package:cardio_care_quest/core/hooks/hooks.dart';
 
 class ExerciseLogScreen extends StatefulWidget {
   const ExerciseLogScreen({super.key});
@@ -54,81 +51,25 @@ class _ExerciseLogScreenState extends State<ExerciseLogScreen> {
 
     try {
       final int minutes = int.parse(_timeController.text);
-      String today = DateTime.now().toIso8601String().split('T')[0];
+      final String today = DateTime.now().toIso8601String().split('T')[0];
 
-      // Each exercise gets its OWN doc under
-      //   userData/{uid}/dailyLogs/{today}/exercises/{auto-id}
-      // so logging multiple exercises in the same day no longer overwrites
-      // prior entries. The daily-log doc itself just keeps a lightweight
-      // summary (last activity, last timestamp, daily totals) for the
-      // dashboard.
-      final eventId = const Uuid().v4();
-      final exerciseEntryId = const Uuid().v4();
-
-      await GetIt.instance<OfflineQueue>().enqueueBatch([
-        // 1. New per-exercise doc — never overwrites existing entries.
-        PendingOp.set(
-          '${FirestorePaths.userData}/$uid/${FirestorePaths.dailyLogs}/$today/'
-          '${FirestorePaths.exercises}/$exerciseEntryId',
-          {
-            'id': exerciseEntryId,
-            'activity': _selectedActivity,
-            'minutes': minutes,
-            'timestamp': OfflineFieldValue.nowTimestamp(),
-            'date': today,
-          },
-        ),
-
-        // 2. Daily-log summary doc — keep only fields we want as
-        //    "most recent / aggregate" for the dashboard.
-        PendingOp.set(
-          '${FirestorePaths.userData}/$uid/${FirestorePaths.dailyLogs}/$today',
-          {
-            'date': today,
-            'lastExerciseActivity': _selectedActivity,
-            'lastExerciseMinutes': minutes,
-            'lastExerciseTimestamp': OfflineFieldValue.nowTimestamp(),
-            'dailyExerciseMinutes': OfflineFieldValue.increment(minutes),
-            'dailyExerciseCount': OfflineFieldValue.increment(1),
-          },
-          merge: true,
-        ),
-
-        // 3. Lifetime user stats.
-        PendingOp.update('${FirestorePaths.userData}/$uid', {
-          'points': OfflineFieldValue.increment(50),
-          'exercisesLogged': OfflineFieldValue.increment(1),
-          'totalExerciseMinutes': OfflineFieldValue.increment(minutes),
-          'lastLogDate': today,
-        }),
-
-        // 4. Event log (immutable per-event row).
-        PendingOp.set(
-          '${FirestorePaths.events}/$eventId',
-          {
-            'id': eventId,
-            'userId': uid,
-            'event': 'exercise_logged',
-            'activity': _selectedActivity,
-            'durationMinutes': minutes,
-            'exerciseEntryId': exerciseEntryId,
-            'timestamp': OfflineFieldValue.nowTimestamp(),
-            'syncedAt': OfflineFieldValue.nowTimestamp(),
-          },
-        ),
-      ]);
+      // Durable write through the hooks library (per-exercise sub-doc, daily
+      // summary, lifetime counters and immutable event row are all batched
+      // inside the hook).
+      await DailyLogHooks.logExercise(
+        uid: uid,
+        activity: _selectedActivity!,
+        minutes: minutes,
+      );
 
       if (mounted) {
-        // Optimistic local update — see bp_log_screen for rationale. The
-        // OfflineQueue write above is already durable; no need to block on a
-        // Firestore round-trip that hangs ~10 s offline.
-        Provider.of<UserDataProvider>(context, listen: false)
-          ..applyLocalIncrements({
-            'points': 50,
-            'exercisesLogged': 1,
-            'totalExerciseMinutes': minutes,
-          })
-          ..applyLocalSets({'lastLogDate': today});
+        // Optimistic local update — see bp_log_screen for rationale.
+        PointsHooks.applyIncrements(context, {
+          'points': 50,
+          'exercisesLogged': 1,
+          'totalExerciseMinutes': minutes,
+        });
+        PointsHooks.applySets(context, {'lastLogDate': today});
         Navigator.of(context).pop(50);
       }
     } catch (e) {

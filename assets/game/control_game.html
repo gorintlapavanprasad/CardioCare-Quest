@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Daily Check-In</title>
+
+  <!-- CardioCare Quest <-> Flutter bridge shim. Provides window.CCQ.* -->
+  <script src="ccq_bridge.js"></script>
+
+  <style>
+    /* Locally bundled Nunito so the page works offline at the workshop. */
+    @font-face {
+      font-family: 'Nunito';
+      font-style: normal;
+      font-weight: 600;
+      font-display: swap;
+      src: url('fonts/Nunito-SemiBold.ttf') format('truetype');
+    }
+    @font-face {
+      font-family: 'Nunito';
+      font-style: normal;
+      font-weight: 700;
+      font-display: swap;
+      src: url('fonts/Nunito-Bold.ttf') format('truetype');
+    }
+
+    :root {
+      --bg: #f4f5f7;
+      --card: #ffffff;
+      --border: #d8dadf;
+      --text: #2d3140;
+      --muted: #6b7280;
+      --accent: #4a5b80;
+      --accent-light: #e7ecf6;
+    }
+
+    body, html {
+      margin: 0;
+      padding: 0;
+      font-family: 'Nunito', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      -webkit-text-size-adjust: 100%;
+    }
+
+    /* Single column, generous padding for older eyes / motor accuracy. */
+    .scene {
+      max-width: 480px;
+      margin: 0 auto;
+      padding: 28px 24px 80px;
+      box-sizing: border-box;
+    }
+
+    h1 {
+      font-size: 26px;
+      font-weight: 700;
+      margin: 0 0 12px;
+    }
+
+    p.lead {
+      font-size: 18px;
+      color: var(--muted);
+      margin: 0 0 24px;
+      line-height: 1.45;
+    }
+
+    .progress-track {
+      height: 6px;
+      background: var(--border);
+      border-radius: 3px;
+      overflow: hidden;
+      margin-bottom: 24px;
+    }
+    .progress-fill {
+      height: 100%;
+      background: var(--accent);
+      width: 0%;
+      transition: width 0.25s ease;
+    }
+
+    .question {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+
+    .question-text {
+      font-size: 19px;
+      font-weight: 700;
+      margin: 0 0 16px;
+      line-height: 1.4;
+    }
+
+    .options {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .option-btn {
+      width: 100%;
+      text-align: left;
+      padding: 14px 16px;
+      background: var(--bg);
+      border: 2px solid var(--border);
+      border-radius: 10px;
+      font-family: inherit;
+      font-size: 17px;
+      font-weight: 600;
+      color: var(--text);
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .option-btn:hover {
+      border-color: var(--accent);
+    }
+    .option-btn.selected {
+      background: var(--accent-light);
+      border-color: var(--accent);
+    }
+
+    .nav-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 24px;
+      gap: 12px;
+    }
+
+    .btn {
+      flex: 1;
+      padding: 14px 18px;
+      border-radius: 12px;
+      font-family: inherit;
+      font-size: 17px;
+      font-weight: 700;
+      cursor: pointer;
+      border: none;
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+    }
+    .btn-primary:disabled {
+      background: var(--border);
+      color: var(--muted);
+      cursor: not-allowed;
+    }
+    .btn-secondary {
+      background: var(--card);
+      color: var(--text);
+      border: 2px solid var(--border);
+    }
+
+    .center-text {
+      text-align: center;
+    }
+
+    /* Hidden by default; shown by JS when active. */
+    .scene { display: none; }
+    .scene.active { display: block; }
+
+    .spinner {
+      display: inline-block;
+      width: 24px;
+      height: 24px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+  <!-- ── INTRO ── -->
+  <div id="scene-intro" class="scene active">
+    <h1>Daily Check-In</h1>
+    <p class="lead">
+      We have a few short questions about your day. There are no right or
+      wrong answers. Just answer the way it feels true to you.
+    </p>
+    <p class="lead">
+      The check-in takes about three minutes.
+    </p>
+    <button class="btn btn-primary" onclick="startCheckIn()">Start</button>
+  </div>
+
+  <!-- ── QUESTIONS (single dynamic scene) ── -->
+  <div id="scene-question" class="scene">
+    <div class="progress-track"><div id="progress" class="progress-fill"></div></div>
+    <div class="question">
+      <div id="qText" class="question-text"></div>
+      <div id="qOptions" class="options"></div>
+    </div>
+    <div class="nav-row">
+      <button id="btnBack" class="btn btn-secondary" onclick="prevQuestion()">Back</button>
+      <button id="btnNext" class="btn btn-primary" onclick="nextQuestion()" disabled>Next</button>
+    </div>
+  </div>
+
+  <!-- ── SUBMITTING ── -->
+  <div id="scene-submitting" class="scene center-text">
+    <h1>Saving your answers</h1>
+    <p class="lead">Just a moment…</p>
+    <div class="spinner" aria-label="Saving"></div>
+  </div>
+
+  <!-- ── DONE ── -->
+  <div id="scene-done" class="scene center-text">
+    <h1>Thank you</h1>
+    <p class="lead">
+      Your answers help us learn more about how the program is working
+      for people like you.
+    </p>
+    <button class="btn btn-primary" onclick="CCQ.goHome()">Back home</button>
+  </div>
+
+  <script>
+    // ─── QUESTIONNAIRE CONTENT ──────────────────────────────────────────
+    // Plain-language items reviewed for an IDD audience. Final wording and
+    // ordering are subject to research-team review (see the docs that the
+    // research developer is generating for goals #4, #5, #9).
+    const QUESTIONS = [
+      {
+        id: 'med_today',
+        text: 'Did you take your blood pressure medicine today?',
+        options: [
+          {value: 'yes',  label: 'Yes'},
+          {value: 'no',   label: 'No'},
+          {value: 'none', label: 'I do not take any'},
+        ],
+      },
+      {
+        id: 'moved_today',
+        text: 'Did you move your body today?',
+        options: [
+          {value: 'a_lot',   label: 'Yes, a lot'},
+          {value: 'a_little',label: 'A little'},
+          {value: 'no',      label: 'Not yet'},
+        ],
+      },
+      {
+        id: 'salty_food',
+        text: 'Did you eat any salty or fast food today?',
+        options: [
+          {value: 'no',     label: 'No'},
+          {value: 'some',   label: 'A little'},
+          {value: 'yes',    label: 'Yes, quite a bit'},
+        ],
+      },
+      {
+        id: 'water',
+        text: 'Did you drink water today?',
+        options: [
+          {value: 'lots',  label: 'Yes, lots'},
+          {value: 'some',  label: 'A little'},
+          {value: 'none',  label: 'Not yet'},
+        ],
+      },
+      {
+        id: 'sleep',
+        text: 'How well did you sleep last night?',
+        options: [
+          {value: 5, label: 'Very well'},
+          {value: 4, label: 'Pretty well'},
+          {value: 3, label: 'Okay'},
+          {value: 2, label: 'Not very well'},
+          {value: 1, label: 'Very badly'},
+        ],
+      },
+      {
+        id: 'mood',
+        text: 'How are you feeling right now?',
+        options: [
+          {value: 5, label: 'Great'},
+          {value: 4, label: 'Good'},
+          {value: 3, label: 'Okay'},
+          {value: 2, label: 'Not great'},
+          {value: 1, label: 'Bad'},
+        ],
+      },
+      {
+        id: 'know_bp',
+        text: 'Do you know what blood pressure is?',
+        options: [
+          {value: 'yes',     label: 'Yes'},
+          {value: 'sort_of', label: 'Sort of'},
+          {value: 'no',      label: 'Not really'},
+        ],
+      },
+      {
+        id: 'doctor_visit',
+        text: 'When did you last see a doctor about your heart?',
+        options: [
+          {value: 'recent', label: 'In the last few months'},
+          {value: 'ago',    label: 'A while ago'},
+          {value: 'never',  label: 'I have not'},
+        ],
+      },
+    ];
+
+    // ─── STATE ──────────────────────────────────────────────────────────
+    const answers = {};
+    let cursor = 0;
+
+    function showScene(id) {
+      document.querySelectorAll('.scene').forEach(s => s.classList.remove('active'));
+      document.getElementById(id).classList.add('active');
+    }
+
+    function startCheckIn() {
+      cursor = 0;
+      renderQuestion();
+      showScene('scene-question');
+      try { CCQ.telemetry('control_game_started', {questionCount: QUESTIONS.length}); } catch (_) {}
+    }
+
+    function renderQuestion() {
+      const q = QUESTIONS[cursor];
+      document.getElementById('qText').textContent = q.text;
+
+      const opts = document.getElementById('qOptions');
+      opts.innerHTML = '';
+      q.options.forEach(opt => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'option-btn';
+        btn.textContent = opt.label;
+        btn.dataset.value = String(opt.value);
+        if (answers[q.id] !== undefined && String(answers[q.id]) === String(opt.value)) {
+          btn.classList.add('selected');
+        }
+        btn.addEventListener('click', () => selectOption(q, opt));
+        opts.appendChild(btn);
+      });
+
+      // Progress bar.
+      const pct = Math.round(((cursor) / QUESTIONS.length) * 100);
+      document.getElementById('progress').style.width = pct + '%';
+
+      // Buttons.
+      document.getElementById('btnBack').disabled = (cursor === 0);
+      document.getElementById('btnNext').disabled = (answers[q.id] === undefined);
+      document.getElementById('btnNext').textContent =
+        (cursor === QUESTIONS.length - 1) ? 'Finish' : 'Next';
+    }
+
+    function selectOption(q, opt) {
+      answers[q.id] = opt.value;
+      // Refresh selection styling.
+      document.querySelectorAll('#qOptions .option-btn').forEach(b => {
+        b.classList.toggle('selected', b.dataset.value === String(opt.value));
+      });
+      document.getElementById('btnNext').disabled = false;
+    }
+
+    function prevQuestion() {
+      if (cursor > 0) {
+        cursor--;
+        renderQuestion();
+      }
+    }
+
+    function nextQuestion() {
+      if (cursor < QUESTIONS.length - 1) {
+        cursor++;
+        renderQuestion();
+      } else {
+        submit();
+      }
+    }
+
+    function submit() {
+      showScene('scene-submitting');
+      // Tag the submission so the research team can tell control vs active
+      // arms apart in Firestore.
+      try {
+        CCQ.submitResponse(answers, {
+          surveyId: 'control_daily_checkin',
+          // Boring on purpose — small token reward keeps the UX tolerable
+          // without changing the comparison condition meaningfully.
+          pointsEarned: 10,
+        });
+      } catch (e) {
+        console.error('CCQ.submitResponse failed:', e);
+      }
+      // Brief pause so users see the saving spinner; the bridge call
+      // returns immediately because OfflineQueue writes are fire-and-forget.
+      setTimeout(() => showScene('scene-done'), 700);
+    }
+  </script>
+</body>
+</html>

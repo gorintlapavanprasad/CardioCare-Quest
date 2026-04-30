@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:get_it/get_it.dart';
 import 'package:provider/provider.dart';
-import 'package:uuid/uuid.dart';
 import '../../../core/theme/app_colors.dart';
 import 'package:cardio_care_quest/core/providers/user_data_manager.dart';
 import 'package:cardio_care_quest/core/constants/firestore_paths.dart';
-import 'package:cardio_care_quest/core/services/offline_queue.dart';
+import 'package:cardio_care_quest/core/hooks/hooks.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 
@@ -41,89 +39,33 @@ class _BPLogScreenState extends State<BPLogScreen> {
     try {
       final int sys = int.parse(_systolicController.text);
       final int dia = int.parse(_diastolicController.text);
-      String today = DateTime.now().toIso8601String().split('T')[0];
+      final String today = DateTime.now().toIso8601String().split('T')[0];
 
-      // Each reading gets its OWN doc under
-      //   userData/{uid}/dailyLogs/{today}/bpReadings/{auto-id}
-      // so logging multiple readings the same day does not overwrite prior
-      // ones. The daily-log doc keeps only summary fields for the dashboard.
-      final eventId = const Uuid().v4();
-      final readingId = const Uuid().v4();
+      // Durable write through the hooks library — same Firestore shape as
+      // before, but the per-reading sub-doc, daily-log summary, lifetime
+      // counters and immutable event row are all batched inside the hook.
+      await DailyLogHooks.logBP(
+        uid: uid,
+        systolic: sys,
+        diastolic: dia,
+        mood: _selectedMood,
+      );
 
-      await GetIt.instance<OfflineQueue>().enqueueBatch([
-        // 1. New per-reading doc — never overwrites existing entries.
-        PendingOp.set(
-          '${FirestorePaths.userData}/$uid/${FirestorePaths.dailyLogs}/$today/'
-          '${FirestorePaths.bpReadings}/$readingId',
-          {
-            'id': readingId,
-            'systolic': sys,
-            'diastolic': dia,
-            'mood': _selectedMood,
-            'timestamp': OfflineFieldValue.nowTimestamp(),
-            'date': today,
-          },
-        ),
-
-        // 2. Daily-log summary doc — last reading + counters.
-        PendingOp.set(
-          '${FirestorePaths.userData}/$uid/${FirestorePaths.dailyLogs}/$today',
-          {
-            'date': today,
-            'lastSystolic': sys,
-            'lastDiastolic': dia,
-            'lastMood': _selectedMood,
-            'lastBPTimestamp': OfflineFieldValue.nowTimestamp(),
-            'dailyBPCount': OfflineFieldValue.increment(1),
-          },
-          merge: true,
-        ),
-
-        // 3. Lifetime user stats.
-        PendingOp.update('${FirestorePaths.userData}/$uid', {
-          'points': OfflineFieldValue.increment(50),
-          'totalSessions': OfflineFieldValue.increment(1),
-          'measurementsTaken': OfflineFieldValue.increment(1),
+      if (mounted) {
+        // Optimistic local update so the dashboard reflects the new points
+        // and stats IMMEDIATELY (avoids a 10s Firestore-cache fallback wait
+        // when offline). The hook write above is already durable.
+        PointsHooks.applyIncrements(context, const {
+          'points': 50,
+          'totalSessions': 1,
+          'measurementsTaken': 1,
+        });
+        PointsHooks.applySets(context, {
           'lastSystolic': sys,
           'lastDiastolic': dia,
           'lastLogDate': today,
           'lastBPLogDate': today,
-        }),
-
-        // 4. Event log (immutable per-event row).
-        PendingOp.set(
-          '${FirestorePaths.events}/$eventId',
-          {
-            'id': eventId,
-            'userId': uid,
-            'event': 'bp_reading_logged',
-            'systolic': sys,
-            'diastolic': dia,
-            'mood': _selectedMood,
-            'bpReadingId': readingId,
-            'timestamp': OfflineFieldValue.nowTimestamp(),
-            'syncedAt': OfflineFieldValue.nowTimestamp(),
-          },
-        ),
-      ]);
-
-      if (mounted) {
-        // Optimistic local update so the dashboard reflects the new points
-        // and stats IMMEDIATELY. Awaiting fetchUserData() here used to hang
-        // ~10s offline waiting for Firestore to time out before falling back
-        // to cache. The Hive write above is already durable.
-        Provider.of<UserDataProvider>(context, listen: false)
-          ..applyLocalIncrements(const {
-            'points': 50,
-            'totalSessions': 1,
-            'measurementsTaken': 1,
-          })
-          ..applyLocalSets({
-            'lastSystolic': sys,
-            'lastDiastolic': dia,
-            'lastLogDate': today,
-            'lastBPLogDate': today,
-          });
+        });
         Navigator.of(context).pop(50);
       }
     } catch (e) {

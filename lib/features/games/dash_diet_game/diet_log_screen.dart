@@ -1,11 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:get_it/get_it.dart';
 import 'package:provider/provider.dart';
-import 'package:uuid/uuid.dart';
 import 'package:cardio_care_quest/core/theme/app_colors.dart';
 import 'package:cardio_care_quest/core/providers/user_data_manager.dart';
-import 'package:cardio_care_quest/core/constants/firestore_paths.dart';
-import 'package:cardio_care_quest/core/services/offline_queue.dart';
+import 'package:cardio_care_quest/core/hooks/hooks.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 
@@ -38,67 +35,22 @@ class _DietLogScreenState extends State<DietLogScreen> {
     setState(() => _isSaving = true);
 
     try {
-      String today = DateTime.now().toIso8601String().split('T')[0];
+      final String today = DateTime.now().toIso8601String().split('T')[0];
 
-      // Each meal gets its OWN doc under
-      //   userData/{uid}/dailyLogs/{today}/meals/{auto-id}
-      // so logging multiple meals in the same day no longer overwrites prior
-      // ones. The daily-log doc keeps only a lightweight summary.
-      final eventId = const Uuid().v4();
-      final mealEntryId = const Uuid().v4();
-
-      await GetIt.instance<OfflineQueue>().enqueueBatch([
-        PendingOp.set(
-          '${FirestorePaths.userData}/$uid/${FirestorePaths.dailyLogs}/$today/'
-          '${FirestorePaths.meals}/$mealEntryId',
-          {
-            'id': mealEntryId,
-            'mealNotes': _mealNotesController.text,
-            'mealRating': _mealRating,
-            'hasMealPhoto': _image != null,
-            'timestamp': OfflineFieldValue.nowTimestamp(),
-            'date': today,
-          },
-        ),
-        PendingOp.set(
-          '${FirestorePaths.userData}/$uid/${FirestorePaths.dailyLogs}/$today',
-          {
-            'date': today,
-            'lastMealNotes': _mealNotesController.text,
-            'lastMealRating': _mealRating,
-            'lastMealHasPhoto': _image != null,
-            'lastMealTimestamp': OfflineFieldValue.nowTimestamp(),
-            'dailyMealCount': OfflineFieldValue.increment(1),
-          },
-          merge: true,
-        ),
-        PendingOp.update('${FirestorePaths.userData}/$uid', {
-          'points': OfflineFieldValue.increment(25),
-          'mealsLogged': OfflineFieldValue.increment(1),
-          'lastLogDate': today,
-        }),
-        PendingOp.set(
-          '${FirestorePaths.events}/$eventId',
-          {
-            'id': eventId,
-            'userId': uid,
-            'event': 'meal_logged',
-            'mealRating': _mealRating,
-            'mealEntryId': mealEntryId,
-            'timestamp': OfflineFieldValue.nowTimestamp(),
-            'syncedAt': OfflineFieldValue.nowTimestamp(),
-          },
-        ),
-      ]);
+      await DailyLogHooks.logMeal(
+        uid: uid,
+        mealNotes: _mealNotesController.text,
+        mealRating: _mealRating,
+        hasMealPhoto: _image != null,
+      );
 
       if (mounted) {
         // Optimistic local update — see bp_log_screen for rationale.
-        Provider.of<UserDataProvider>(context, listen: false)
-          ..applyLocalIncrements(const {
-            'points': 25,
-            'mealsLogged': 1,
-          })
-          ..applyLocalSets({'lastLogDate': today});
+        PointsHooks.applyIncrements(context, const {
+          'points': 25,
+          'mealsLogged': 1,
+        });
+        PointsHooks.applySets(context, {'lastLogDate': today});
         Navigator.of(context).pop(25);
       }
     } catch (e) {

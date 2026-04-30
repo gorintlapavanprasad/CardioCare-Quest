@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../games/game_stories.dart';
 import '../../games/dog_quest.dart';
+import '../../games/control_game.dart';
+import '../../games/salt_sludge.dart';
 import 'coming_soon_screen.dart';
 
 class GameCatalogScreen extends StatelessWidget {
@@ -42,6 +44,20 @@ class GameCatalogScreen extends StatelessWidget {
                     context,
                     MaterialPageRoute(
                       builder: (_) => DogQuestGame(targetDistance: 500),
+                    ),
+                  );
+                } else if (game.id == 'control_daily_checkin') {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const ControlGame(),
+                    ),
+                  );
+                } else if (game.id == 'salt_sludge') {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const SaltSludgeGame(targetDistance: 500),
                     ),
                   );
                 } else {

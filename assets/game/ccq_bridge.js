@@ -105,6 +105,29 @@
     post({type: 'TELEMETRY', name: name, params: params || {}});
   }
 
+  /**
+   * Submit a completed questionnaire / survey response. Used by the
+   * non-movement `TwineQuestionnaireHost` (e.g. control game, post-play
+   * survey). The host writes one row to
+   * `surveys/{surveyId}/responses/{auto}` plus an immutable `events/*` row.
+   *
+   * @param {Object} answers       Plain object of {questionId: answer}.
+   * @param {Object} [opts]        Optional extras.
+   * @param {number} [opts.pointsEarned]  Override host's default points.
+   * @param {string} [opts.surveyId]      Override host's surveyId (rare).
+   */
+  function submitResponse(answers, opts) {
+    if (typeof answers !== 'object' || answers === null) return;
+    var payload = {type: 'SUBMIT_RESPONSE', answers: answers};
+    if (opts && typeof opts.pointsEarned === 'number') {
+      payload.pointsEarned = opts.pointsEarned;
+    }
+    if (opts && typeof opts.surveyId === 'string' && opts.surveyId) {
+      payload.surveyId = opts.surveyId;
+    }
+    post(payload);
+  }
+
   window.CCQ = {
     startTracking: startTracking,
     setBuddyName: setBuddyName,
@@ -112,5 +135,6 @@
     finishQuest: finishQuest,
     goHome: goHome,
     telemetry: telemetry,
+    submitResponse: submitResponse,
   };
 })();

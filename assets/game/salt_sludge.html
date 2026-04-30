@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Salt Sludge</title>
+
+  <!-- CardioCare Quest <-> Flutter bridge shim. Provides window.CCQ.* -->
+  <script src="ccq_bridge.js"></script>
+
+  <style>
+    @font-face {
+      font-family: 'Nunito';
+      font-style: normal;
+      font-weight: 600;
+      font-display: swap;
+      src: url('fonts/Nunito-SemiBold.ttf') format('truetype');
+    }
+    @font-face {
+      font-family: 'Nunito';
+      font-style: normal;
+      font-weight: 700;
+      font-display: swap;
+      src: url('fonts/Nunito-Bold.ttf') format('truetype');
+    }
+    @font-face {
+      font-family: 'Nunito';
+      font-style: normal;
+      font-weight: 800;
+      font-display: swap;
+      src: url('fonts/Nunito-ExtraBold.ttf') format('truetype');
+    }
+
+    :root {
+      --bg-deep: #1f2734;
+      --bg-mid: #36506b;
+      --bg-soft: #6c8ca6;
+      --salt: #f6f1e7;
+      --salt-grit: #e1d6b9;
+      --vessel: #b85c63;
+      --vessel-dark: #7a3338;
+      --accent: #f3c34a;
+      --text: #ffffff;
+      --text-soft: rgba(255,255,255,0.78);
+    }
+
+    body, html {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      font-family: 'Nunito', sans-serif;
+      overflow: hidden;
+      background: var(--bg-deep);
+      color: var(--text);
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-8px); }
+    }
+    @keyframes drift {
+      0% { transform: translateX(-30px) translateY(0) rotate(0deg); opacity: 0.0; }
+      30% { opacity: 0.85; }
+      100% { transform: translateX(110vw) translateY(20px) rotate(360deg); opacity: 0; }
+    }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .scene {
+      width: 100%;
+      height: 100vh;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      box-sizing: border-box;
+      padding: 28px 24px;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      background: linear-gradient(to bottom, var(--bg-deep) 0%, var(--bg-mid) 60%, var(--bg-soft) 100%);
+    }
+    .scene.active { display: flex; }
+
+    /* Floating salt grains in background of intro/choose scenes. */
+    .salt-bg {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+      overflow: hidden;
+      z-index: 0;
+    }
+    .salt-bg span {
+      position: absolute;
+      width: 8px; height: 8px;
+      background: var(--salt);
+      border-radius: 2px;
+      opacity: 0.7;
+      animation: drift 14s linear infinite;
+    }
+
+    .stage {
+      position: relative;
+      z-index: 1;
+      max-width: 480px;
+      width: 100%;
+      animation: fadeUp 0.5s ease;
+    }
+
+    h1 {
+      font-size: 30px;
+      font-weight: 800;
+      margin: 12px 0 6px;
+      letter-spacing: 0.5px;
+    }
+    h2 {
+      font-size: 22px;
+      font-weight: 700;
+      margin: 8px 0 14px;
+    }
+    p { font-size: 17px; line-height: 1.5; color: var(--text-soft); margin: 0 0 14px; }
+
+    .icon-hero {
+      font-size: 84px;
+      animation: float 3s ease-in-out infinite;
+      margin-bottom: 8px;
+    }
+
+    .quest-btn {
+      display: block;
+      width: 100%;
+      text-align: left;
+      background: rgba(255,255,255,0.08);
+      color: var(--text);
+      border: 2px solid rgba(255,255,255,0.18);
+      border-radius: 14px;
+      padding: 16px 18px;
+      margin-bottom: 12px;
+      font-family: inherit;
+      font-size: 17px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .quest-btn:hover, .quest-btn:active {
+      background: rgba(255,255,255,0.16);
+      border-color: var(--accent);
+    }
+    .quest-title {
+      display: block;
+      font-size: 18px;
+      font-weight: 800;
+      color: var(--accent);
+      margin-bottom: 4px;
+    }
+    .quest-desc {
+      display: block;
+      font-size: 15px;
+      color: var(--text-soft);
+      font-weight: 600;
+    }
+
+    .btn {
+      display: inline-block;
+      width: 100%;
+      padding: 16px;
+      border: none;
+      border-radius: 14px;
+      font-family: inherit;
+      font-size: 18px;
+      font-weight: 800;
+      cursor: pointer;
+      letter-spacing: 0.3px;
+    }
+    .btn-primary { background: var(--accent); color: var(--bg-deep); }
+    .btn-ghost {
+      background: transparent;
+      color: var(--text-soft);
+      border: 2px solid rgba(255,255,255,0.25);
+    }
+
+    /* ── Active scene (vessel + progress) ── */
+    .vessel-wrap {
+      width: 100%;
+      max-width: 380px;
+      aspect-ratio: 1.6 / 1;
+      background: linear-gradient(180deg, var(--vessel-dark) 0%, var(--vessel) 100%);
+      border-radius: 28px;
+      position: relative;
+      overflow: hidden;
+      margin: 14px auto 22px;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.35);
+    }
+    .vessel-sludge {
+      position: absolute;
+      top: 0; left: 0;
+      height: 100%;
+      width: 100%;
+      background: repeating-linear-gradient(
+        45deg,
+        var(--salt) 0 8px,
+        var(--salt-grit) 8px 16px
+      );
+      transition: width 0.4s ease, opacity 0.4s ease;
+    }
+
+    .stat-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+    .stat-card {
+      flex: 1;
+      background: rgba(0,0,0,0.25);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 14px;
+      padding: 12px 10px;
+      text-align: center;
+    }
+    .stat-label { font-size: 13px; color: var(--text-soft); margin-bottom: 4px; }
+    .stat-value { font-size: 22px; font-weight: 800; color: var(--accent); }
+
+    .name-input {
+      width: 100%;
+      padding: 14px;
+      background: rgba(255,255,255,0.10);
+      border: 2px solid rgba(255,255,255,0.20);
+      border-radius: 12px;
+      font-family: inherit;
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text);
+      box-sizing: border-box;
+      margin-bottom: 14px;
+    }
+    .name-input::placeholder { color: rgba(255,255,255,0.5); }
+
+    /* Completion */
+    #scene-done .icon-hero { font-size: 96px; }
+    .points-pill {
+      display: inline-block;
+      background: var(--accent);
+      color: var(--bg-deep);
+      padding: 10px 18px;
+      border-radius: 999px;
+      font-size: 22px;
+      font-weight: 800;
+      margin: 8px 0 18px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ── SCENE 1: INTRO + NAME ── -->
+  <div id="scene-intro" class="scene active">
+    <div class="salt-bg" id="salt-bg-intro"></div>
+    <div class="stage">
+      <div class="icon-hero">🧂</div>
+      <h1>Salt Sludge</h1>
+      <p>
+        Too much salt makes your blood vessels stiff, like sludge in a pipe.
+        The good news: every step you take helps your vessels relax and clear out.
+      </p>
+      <p style="margin-top:6px">What should we call your walking partner today?</p>
+      <input id="buddy-name" class="name-input" type="text" placeholder="A name" maxlength="24" />
+      <button class="btn btn-primary" onclick="confirmName()">Continue</button>
+      <p id="weekly-text" style="margin-top:18px; font-size:14px; opacity:0.7"></p>
+    </div>
+  </div>
+
+  <!-- ── SCENE 2: CHOOSE DISTANCE ── -->
+  <div id="scene-choose" class="scene">
+    <div class="salt-bg" id="salt-bg-choose"></div>
+    <div class="stage">
+      <h2>Pick today's quest</h2>
+      <p>Choose a distance that feels right for you. Any distance helps.</p>
+      <button class="quest-btn" data-distance="500"
+              data-title="EASY · Short stroll"
+              data-desc="500 m · about 5–10 minutes · 30 points"
+              onclick="startQuest(500)">
+        <span class="quest-title">EASY · Short stroll</span>
+        <span class="quest-desc">500 m · about 5–10 minutes · 30 points</span>
+      </button>
+      <button class="quest-btn" data-distance="1000"
+              data-title="MEDIUM · Steady walk"
+              data-desc="1000 m · about 10–20 minutes · 60 points"
+              onclick="startQuest(1000)">
+        <span class="quest-title">MEDIUM · Steady walk</span>
+        <span class="quest-desc">1000 m · about 10–20 minutes · 60 points</span>
+      </button>
+      <button class="quest-btn" data-distance="1500"
+              data-title="STRONG · Long walk"
+              data-desc="1500 m · about 20–30 minutes · 100 points"
+              onclick="startQuest(1500)">
+        <span class="quest-title">STRONG · Long walk</span>
+        <span class="quest-desc">1500 m · about 20–30 minutes · 100 points</span>
+      </button>
+      <button class="btn btn-ghost" style="margin-top:8px" onclick="CCQ.goHome()">Back</button>
+    </div>
+  </div>
+
+  <!-- ── SCENE 3: ACTIVE WALK ── -->
+  <div id="scene-active" class="scene">
+    <div class="stage">
+      <h2 id="active-title">Salt Sludge Walk</h2>
+      <p id="active-desc">Each step clears a bit of sludge from your vessels.</p>
+
+      <div class="vessel-wrap" aria-label="Salt sludge vessel">
+        <!-- Sludge starts at 100% width and shrinks as the user walks. -->
+        <div id="vessel-sludge" class="vessel-sludge"></div>
+      </div>
+
+      <div class="stat-row">
+        <div class="stat-card">
+          <div class="stat-label">Walked</div>
+          <div class="stat-value" id="stat-walked">0 m</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Remaining</div>
+          <div class="stat-value" id="stat-remaining">0 m</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Cleared</div>
+          <div class="stat-value" id="stat-percent">0%</div>
+        </div>
+      </div>
+
+      <button class="btn btn-ghost" onclick="CCQ.finishQuest()">End walk early</button>
+    </div>
+  </div>
+
+  <!-- ── SCENE 4: COMPLETION ── -->
+  <div id="scene-done" class="scene">
+    <div class="stage" style="text-align:center">
+      <div class="icon-hero">💧</div>
+      <h1>Vessels cleared!</h1>
+      <p>
+        Great work, <strong id="done-buddy">friend</strong>. You walked
+        <strong id="done-distance">0 m</strong> and helped your blood
+        vessels stay flexible.
+      </p>
+      <div class="points-pill" id="done-points">+0 points</div>
+      <button class="btn btn-primary" onclick="CCQ.goHome()">Back home</button>
+    </div>
+  </div>
+
+  <script>
+    'use strict';
+
+    // ─── State ───
+    const state = {
+      buddyName: 'friend',
+      currentDistance: 0,
+      targetDistance: 0,
+      currentTitle: '',
+      questStartTime: null,
+    };
+
+    function showScene(id) {
+      document.querySelectorAll('.scene').forEach(s => s.classList.remove('active'));
+      document.getElementById(id).classList.add('active');
+    }
+
+    function spawnSaltBg(containerId) {
+      const c = document.getElementById(containerId);
+      if (!c || c.dataset.spawned) return;
+      c.dataset.spawned = '1';
+      const count = 14;
+      for (let i = 0; i < count; i++) {
+        const s = document.createElement('span');
+        s.style.top = (Math.random() * 100) + '%';
+        s.style.animationDelay = (Math.random() * 14) + 's';
+        s.style.animationDuration = (10 + Math.random() * 8) + 's';
+        c.appendChild(s);
+      }
+    }
+    spawnSaltBg('salt-bg-intro');
+    spawnSaltBg('salt-bg-choose');
+
+    function confirmName() {
+      const v = (document.getElementById('buddy-name').value || '').trim();
+      if (v) {
+        state.buddyName = v;
+        try { CCQ.setBuddyName(v); } catch (_) {}
+      }
+      showScene('scene-choose');
+    }
+
+    function startQuest(distance) {
+      state.targetDistance = distance;
+      state.currentDistance = 0;
+      state.questStartTime = Date.now();
+
+      const matchingBtn = document.querySelector(
+        '.quest-btn[data-distance="' + distance + '"]'
+      );
+      if (matchingBtn) {
+        state.currentTitle = matchingBtn.dataset.title || 'Salt Sludge Walk';
+        document.getElementById('active-title').innerText = state.currentTitle;
+        document.getElementById('active-desc').innerText =
+          matchingBtn.dataset.desc || '';
+      }
+
+      // Reset vessel to fully sludged.
+      document.getElementById('vessel-sludge').style.width = '100%';
+      document.getElementById('vessel-sludge').style.opacity = '1';
+
+      try { CCQ.startTracking(distance); } catch (_) {}
+      showScene('scene-active');
+    }
+
+    // ─── Functions called BY Dart (TwineGameHost). All optional — host
+    //     calls each only if `typeof X === 'function'`. ───
+
+    function setBuddyName(name) {
+      if (typeof name === 'string' && name.trim()) {
+        state.buddyName = name.trim();
+        const inp = document.getElementById('buddy-name');
+        if (inp && !inp.value) inp.value = state.buddyName;
+      }
+    }
+
+    function setWeeklyQuestCount(n) {
+      const el = document.getElementById('weekly-text');
+      if (!el) return;
+      n = Number(n) || 0;
+      if (n <= 0) { el.innerText = ''; return; }
+      el.innerText = n + ' quest' + (n === 1 ? '' : 's') + ' completed so far this week';
+    }
+
+    function updateGameProgress(currentDistance, targetDistance) {
+      if (currentDistance < 0) currentDistance = 0;
+      if (targetDistance > 0 && currentDistance > targetDistance) currentDistance = targetDistance;
+
+      state.currentDistance = currentDistance;
+      state.targetDistance = targetDistance;
+
+      const pct = targetDistance > 0
+        ? Math.floor((currentDistance / targetDistance) * 100)
+        : 0;
+      const remaining = Math.max(0, Math.floor(targetDistance - currentDistance));
+
+      // Sludge-cleared visualization: sludge width shrinks as user walks.
+      const sludge = document.getElementById('vessel-sludge');
+      if (sludge) sludge.style.width = (100 - pct) + '%';
+
+      const walked = document.getElementById('stat-walked');
+      const rem = document.getElementById('stat-remaining');
+      const percentEl = document.getElementById('stat-percent');
+      if (walked) walked.innerText = Math.floor(currentDistance) + ' m';
+      if (rem) rem.innerText = remaining + ' m';
+      if (percentEl) percentEl.innerText = pct + '%';
+    }
+
+    function resumeWalk(currentDistance, targetDistance) {
+      // Recover the difficulty title/desc from data-* on the matching button.
+      const matchingBtn = document.querySelector(
+        '.quest-btn[data-distance="' + Math.round(targetDistance) + '"]'
+      );
+      const titleEl = document.getElementById('active-title');
+      const descEl = document.getElementById('active-desc');
+      if (matchingBtn) {
+        state.currentTitle = matchingBtn.dataset.title || 'Salt Sludge Walk';
+        if (titleEl) titleEl.innerText = state.currentTitle;
+        if (descEl) descEl.innerText = matchingBtn.dataset.desc || '';
+      } else {
+        if (titleEl) titleEl.innerText = 'Salt Sludge Walk';
+        if (descEl) descEl.innerText = 'Resuming your walk in progress.';
+      }
+      showScene('scene-active');
+      updateGameProgress(currentDistance, targetDistance);
+    }
+
+    function onQuestFinished(pointsGained) {
+      const distEl = document.getElementById('done-distance');
+      const buddyEl = document.getElementById('done-buddy');
+      const pointsEl = document.getElementById('done-points');
+      if (distEl) distEl.innerText = Math.round(state.currentDistance) + ' m';
+      if (buddyEl) buddyEl.innerText = state.buddyName;
+      if (pointsEl && pointsGained !== undefined) {
+        pointsEl.innerText = '+' + pointsGained + ' points';
+      }
+      showScene('scene-done');
+    }
+
+    // hydrateState is intentionally a no-op for this game — Salt Sludge
+    // doesn't persist any branch-specific Twine state beyond what the host
+    // already restores via `resumeWalk`.
+    function hydrateState(jsonString) {
+      try {
+        const s = JSON.parse(jsonString || '{}');
+        if (s && typeof s.buddyName === 'string' && s.buddyName) {
+          setBuddyName(s.buddyName);
+        }
+      } catch (_) {}
+    }
+  </script>
+</body>
+</html>

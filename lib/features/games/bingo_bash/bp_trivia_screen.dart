@@ -1,11 +1,8 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
-import 'package:get_it/get_it.dart';
 import 'package:provider/provider.dart';
-import 'package:uuid/uuid.dart';
 import 'package:cardio_care_quest/core/providers/user_data_manager.dart';
-import 'package:cardio_care_quest/core/constants/firestore_paths.dart';
-import 'package:cardio_care_quest/core/services/offline_queue.dart';
+import 'package:cardio_care_quest/core/hooks/hooks.dart';
 
 import 'package:cardio_care_quest/core/theme/app_colors.dart';
 
@@ -77,29 +74,15 @@ class _BPTriviaScreenState extends State<BPTriviaScreen> {
     if (uid.isNotEmpty) {
       try {
         final pointsEarned = (_questions.length - _score) * 10;
-        final eventId = const Uuid().v4();
-        await GetIt.instance<OfflineQueue>().enqueueBatch([
-          PendingOp.update('${FirestorePaths.userData}/$uid', {
-            'points': OfflineFieldValue.increment(pointsEarned),
-          }),
-          PendingOp.set(
-            '${FirestorePaths.events}/$eventId',
-            {
-              'id': eventId,
-              'userId': uid,
-              'event': 'trivia_completed',
-              'score': _score,
-              'totalQuestions': _questions.length,
-              'pointsEarned': pointsEarned,
-              'timestamp': OfflineFieldValue.nowTimestamp(),
-              'syncedAt': OfflineFieldValue.nowTimestamp(),
-            },
-          ),
-        ]);
+        await DailyLogHooks.logTrivia(
+          uid: uid,
+          score: _score,
+          totalQuestions: _questions.length,
+          pointsEarned: pointsEarned,
+        );
         if (mounted) {
           // Optimistic local update — dashboard reflects new points instantly.
-          Provider.of<UserDataProvider>(context, listen: false)
-              .applyLocalIncrements({'points': pointsEarned});
+          PointsHooks.applyIncrements(context, {'points': pointsEarned});
         }
       } catch (e) {
         debugPrint('Error saving trivia score: $e');

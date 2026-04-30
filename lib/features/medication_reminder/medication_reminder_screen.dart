@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:get_it/get_it.dart';
 import 'package:provider/provider.dart';
-import 'package:uuid/uuid.dart';
 import 'package:cardio_care_quest/core/theme/app_colors.dart';
 import 'package:cardio_care_quest/core/providers/user_data_manager.dart';
 import 'package:cardio_care_quest/core/constants/firestore_paths.dart';
-import 'package:cardio_care_quest/core/services/offline_queue.dart';
+import 'package:cardio_care_quest/core/hooks/hooks.dart';
 
 class MedicationReminderScreen extends StatefulWidget {
   const MedicationReminderScreen({super.key});
@@ -52,46 +50,22 @@ class _MedicationReminderScreenState extends State<MedicationReminderScreen> {
     });
 
     try {
-      String today = DateTime.now().toIso8601String().split('T')[0];
-      int newStreak = taken ? _streak + 1 : 0;
-      final eventId = const Uuid().v4();
+      final String today = DateTime.now().toIso8601String().split('T')[0];
+      final int newStreak = taken ? _streak + 1 : 0;
 
-      await GetIt.instance<OfflineQueue>().enqueueBatch([
-        PendingOp.set(
-          '${FirestorePaths.userData}/$uid/${FirestorePaths.dailyLogs}/$today',
-          {
-            'medicationTaken': taken,
-            'medicationTimestamp': OfflineFieldValue.nowTimestamp(),
-            'date': today,
-          },
-          merge: true,
-        ),
-        PendingOp.update('${FirestorePaths.userData}/$uid', {
-          'points': OfflineFieldValue.increment(taken ? 20 : 5),
-          'medicationStreak': newStreak,
-          'lastLogDate': today,
-        }),
-        PendingOp.set(
-          '${FirestorePaths.events}/$eventId',
-          {
-            'id': eventId,
-            'userId': uid,
-            'event': 'medication_logged',
-            'taken': taken,
-            'timestamp': OfflineFieldValue.nowTimestamp(),
-            'syncedAt': OfflineFieldValue.nowTimestamp(),
-          },
-        ),
-      ]);
+      await DailyLogHooks.logMedication(
+        uid: uid,
+        taken: taken,
+        currentStreak: _streak,
+      );
 
       if (mounted) {
         // Optimistic local update — see bp_log_screen for rationale.
-        Provider.of<UserDataProvider>(context, listen: false)
-          ..applyLocalIncrements({'points': taken ? 20 : 5})
-          ..applyLocalSets({
-            'medicationStreak': newStreak,
-            'lastLogDate': today,
-          });
+        PointsHooks.applyIncrements(context, {'points': taken ? 20 : 5});
+        PointsHooks.applySets(context, {
+          'medicationStreak': newStreak,
+          'lastLogDate': today,
+        });
         setState(() {
           _streak = newStreak;
           _takenToday = true;

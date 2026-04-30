@@ -1,20 +1,20 @@
 # CardioCare Quest — Feature Status
 
-A quick reference for developers picking up the project. Lists only **shipping features** — pages that render real UI and persist data. "Coming soon" stubs are intentionally excluded to keep this clean (see `lib/features/dashboard/screens/coming_soon_screen.dart` if you want the placeholder).
+A quick reference for developers picking up the project. Lists only **shipping features** — pages that render real UI and persist data. "Coming soon" stubs are intentionally excluded to keep this clean (see `lib/features/dashboard/screens/coming_soon_screen.dart` for the placeholder).
 
 ---
 
-## Authentication & Onboarding
+## Authentication
 
 | Feature | File | Saves to |
 |---|---|---|
-| QR / Barcode login | `lib/features/auth/login_screen.dart` | reads `userData/{uid}` |
-| PIN creation | `lib/features/auth/create_pin_screen.dart` | `userData/{uid}` (pin hash + signature) |
-| Onboarding survey | `lib/features/onboarding/onboarding_screen.dart` | `userData/{uid}` (basicInfo, demographics) |
-| Splash + Face ID re-entry | `lib/features/splash/splash_screen.dart` | local only (no Firestore write) |
-| Auth state provider | `lib/features/auth/auth_provider.dart` | session glue |
+| QR / Barcode login (offline-friendly) | `lib/features/auth/login_screen.dart` | reads `userData/{uid}`; caches `participantId` in `flutter_secure_storage` |
+| Splash + Face ID re-entry | `lib/features/splash/splash_screen.dart` | local only |
+| Auth state provider | `lib/features/auth/auth_provider.dart` | session glue; baseline-survey writes go through `OfflineQueue` |
 
-Each demo user gets a unique UID, encoded as a QR code, and scanned at login. After first login, biometrics (Face ID / fingerprint) gate re-entry locally.
+Each demo user gets a unique UID, encoded as a QR code, and scanned at login. After first login, biometrics (Face ID / fingerprint) gate re-entry locally. The cached `participantId` lets a participant re-enter the app while offline (login screen falls back to the cached id when `firebase_auth` cannot reach the server).
+
+The previous PIN creation, onboarding, and quest-complete onboarding screens have been removed.
 
 ---
 
@@ -22,79 +22,50 @@ Each demo user gets a unique UID, encoded as a QR code, and scanned at login. Af
 
 `lib/features/dashboard/screens/home_tab.dart`
 
-Reads `userData/{uid}` via `UserDataProvider` and live-streams it for:
-- Header (name, XP)
+Reads `userData/{uid}` via `UserDataProvider` for:
+
+- Header (name, **points**)
 - Latest BP reading + average
 - Daily BP quest completion check
-- Family snippet (aggregated steps stream)
+- Family snippet (aggregated steps)
 - Game catalog row + Health Pillar grid
+- **Sync badge** (`lib/core/widgets/sync_badge.dart`) — combines `LoggingService` and `OfflineQueue` pending counts into one indicator. Three states: green `cloud_done` (synced), green spinner (syncing), amber `cloud_off` (pending). Long-press triggers a manual sync.
 
 No writes from this screen — it's the orchestrator.
 
 ---
 
-## Daily Quest — Blood Pressure Logging
+## Hooks library (`lib/core/hooks/`)
 
-`lib/features/blood_pressure/bp_log_screen.dart`
+All persistent writes from feature screens and Twine games go through the
+hooks library. See `lib/core/hooks/README.md` for the full API.
 
-User enters systolic / diastolic + mood. **One tap fans out to three writes** in a single batch:
-
-| Path | Fields |
+| Module | Purpose |
 |---|---|
-| `userData/{uid}/dailyLogs/{YYYY-MM-DD}` | `systolic`, `diastolic`, `mood`, `timestamp`, `date` |
-| `userData/{uid}` (update) | `points +50`, `totalSessions +1`, `measurementsTaken +1`, `lastSystolic`, `lastDiastolic`, `lastBPLogDate`, `lastLogDate` |
-| `events/{auto}` | `event: 'bp_reading_logged'`, plus payload |
+| `DailyLogHooks` | BP / exercise / meal / medication / trivia day-logs (used by all 5 dashboard logging screens). |
+| `MovementHooks` | GPS-quest writes (used by `TwineGameHost`). |
+| `SurveyHooks` | Questionnaire / survey response writes (used by `TwineQuestionnaireHost`). |
+| `ProfileHooks` | User-profile field updates. |
+| `PointsHooks` | Optimistic in-memory updates on `UserDataProvider`. |
+| `TelemetryHooks` | `events/{uuid}` event rows via `LoggingService`. |
 
-**Reads (chart history):** streams the latest 7 entries from `userData/{uid}/dailyLogs` ordered by `timestamp desc`.
+Every write is enqueued through `OfflineQueue` first (Hive-backed) and replayed to Firestore when online — the app is fully usable offline.
 
 ---
 
-## Health Pillars (the 6-tile grid on home)
+## Daily logging screens
 
-All six tiles work and route to live screens.
+All five screens use `DailyLogHooks` directly (1-line write call) plus `PointsHooks.applyIncrements / applySets` for optimistic UI.
 
-### 1. Heart → `lib/features/statistics/heart_statistics_screen.dart`
-- **Reads only** — pulls `userData/{uid}/dailyLogs` and renders BP-over-time charts via `fl_chart`.
-- No writes.
+| Screen | File | Hook | Sub-collection |
+|---|---|---|---|
+| BP | `lib/features/blood_pressure/bp_log_screen.dart` | `DailyLogHooks.logBP` | `userData/{uid}/dailyLogs/{date}/bpReadings/{auto}` |
+| Exercise | `lib/features/exercise_log/exercise_log_screen.dart` | `DailyLogHooks.logExercise` | `userData/{uid}/dailyLogs/{date}/exercises/{auto}` |
+| Meal | `lib/features/games/dash_diet_game/diet_log_screen.dart` | `DailyLogHooks.logMeal` | `userData/{uid}/dailyLogs/{date}/meals/{auto}` |
+| Medication | `lib/features/medication_reminder/medication_reminder_screen.dart` | `DailyLogHooks.logMedication` | (summary fields on `dailyLogs/{date}` doc; lifetime streak on `userData/{uid}`) |
+| BP Trivia | `lib/features/games/bingo_bash/bp_trivia_screen.dart` | `DailyLogHooks.logTrivia` | (event-only; awards points) |
 
-### 2. Movement → `lib/features/exercise_log/exercise_log_screen.dart`
-Logs an exercise session (type + minutes). Three-write batch:
-
-| Path | Fields |
-|---|---|
-| `userData/{uid}/dailyLogs/{YYYY-MM-DD}` | `exercise`, `exerciseMinutes`, `exerciseTimestamp`, ... |
-| `userData/{uid}` (update) | `points +50`, `exercisesLogged +1`, `totalExerciseMinutes +N` |
-| `events/{auto}` | `event: 'exercise_logged'` |
-
-### 3. Plate → `lib/features/games/dash_diet_game/diet_log_screen.dart`
-> ⚠️ Despite living in the `dash_diet_game/` folder, this is the **working DASH-style meal logger** — NOT the coming-soon "DASH Diet Game" listed in the Game Catalog. Don't confuse them.
-
-Logs a meal (with optional photo via `image_picker`). Three-write batch:
-
-| Path | Fields |
-|---|---|
-| `userData/{uid}/dailyLogs/{YYYY-MM-DD}` | `meal`, `mealTimestamp`, optional photo metadata |
-| `userData/{uid}` (update) | `points +25`, `mealsLogged +1` |
-| `events/{auto}` | `event: 'meal_logged'` |
-
-### 4. Education → `lib/features/education/health_education_screen.dart`
-- **Read-only static content** (no Firestore writes).
-- Self-contained markdown-style hypertension education cards.
-
-### 5. Medicine → `lib/features/medication_reminder/medication_reminder_screen.dart`
-Marks medication as taken / not taken. Three-write batch:
-
-| Path | Fields |
-|---|---|
-| `userData/{uid}/dailyLogs/{YYYY-MM-DD}` | `medicationTaken`, `medicationTimestamp` |
-| `userData/{uid}` (update) | `points +20` (if taken) or `+5` (if not), updated streak |
-| `events/{auto}` | `event: 'medication_logged'` |
-
-Reads `userData/{uid}` to seed today's UI.
-
-### 6. Family → `lib/features/family_circle/family_circle_screen.dart`
-- **Read-only stream** of all `userData` docs to compute aggregate community steps.
-- No writes.
+Each hook fans out to: per-entry sub-doc, daily-log summary doc, lifetime counters on `userData/{uid}`, and an immutable `events/{uuid}` row — all in a single atomic batch through `OfflineQueue`. Multiple entries per day no longer overwrite (sub-collection pattern).
 
 ---
 
@@ -103,26 +74,50 @@ Reads `userData/{uid}` to seed today's UI.
 ### Game Catalog
 `lib/features/dashboard/screens/game_catalog_screen.dart`
 
-Square 2-column grid of game tiles. Pulls catalog metadata from `lib/features/games/game_stories.dart`.
+2-column grid of game tiles. Pulls catalog metadata from `lib/features/games/game_stories.dart`. Routes to:
 
-### Active game: Dog Walking (`dog_quest`)
-`lib/features/games/dog_quest.dart` + `assets/game/dog_quest.html`
+- `dog_quest` → `DogQuestGame`
+- `salt_sludge` → `SaltSludgeGame`
+- `control_daily_checkin` → `ControlGame`
+- everything else → `ComingSoonScreen`
 
-Hybrid Flutter + WebView game. Most complex feature. **Heavy Firestore integration** — every active walk performs incremental writes:
+### Generic Twine hosts (`lib/core/widgets/`)
 
-| Path | Trigger | Fields |
+| Host | File | Purpose |
 |---|---|---|
-| `Movement Data/{sessionId}` | every 5th GPS point + on `_endGame` | `sessionId`, `userId`, `game`, `created`, `endedAt`, `totalDistance`, `pointsEarned`, `dogName`/`buddyName` |
-| `Movement Data/{sessionId}/LocationData/{auto}` | every 5th GPS point | `geopoint`, `geohash`, `lat`, `lng`, `datetime` |
-| `Movement Data/{sessionId}/CheckData/{auto}` | on `_endGame` | `event: 'dog_quest_completed'`, location, session metadata |
-| `data_points/{auto}` | every 5th GPS point | `location.geopoint`, `geohash`, `userId`, `sessionId`, `game`, `timestamp` (heatmap feed) |
-| `userData/{uid}/gameStates/{game}` | every 5th GPS point | resume state: `ongoingDistance`, `ongoingTarget`, `ongoingSessionId`, `ongoingPath` |
-| `userData/{uid}` (update on completion) | on `_endGame` | `points +30/+60/+100`, `totalDistance +N`, `totalSessions +1`, `distanceTraveled +N`, `measurementsTaken +1`, `lastPlayedAt` |
-| `events/{auto}` | various | `dog_quest_opened`, `dog_quest_quest_started`, `dog_quest_quest_completed`, `dog_quest_closed` |
+| `TwineGameHost` | `twine_game_host.dart` | Movement-style Twine games. Handles WebView, GPS stream, accuracy filter, periodic `pushPing`, watchdog Timer, race-safe end-game with two-layer tombstone defense, resume validation, exit-confirm dialog, lifecycle telemetry. |
+| `TwineQuestionnaireHost` | `twine_questionnaire_host.dart` | Non-movement Twine pages (control game, surveys, education). Same `FlutterBridge` JS channel and `ccq_bridge.js` shim, but no GPS / no movement writes. Submissions land in `surveys/{surveyId}/responses/{auto}` via `SurveyHooks`. |
 
-Resume logic: if user exits mid-walk and confirms "save and exit", `gameStates` carries the in-progress walk; opening the game again hydrates and resumes seamlessly.
+The Twine ↔ Flutter bridge shim is `assets/game/ccq_bridge.js` (exposes `window.CCQ.startTracking / setBuddyName / saveState / finishQuest / goHome / telemetry / submitResponse`).
 
-Weekly quest count on scene 3 ("N quests completed so far this week!") queries `Movement Data` filtered by `userId == uid` (single-equality, no composite index required), then filters `game` and `endedAt >= ISO Monday 00:00` client-side.
+### Active games
+
+| Game | Wrapper | HTML | Host | Persists to |
+|---|---|---|---|---|
+| Dog Walking | `lib/features/games/dog_quest.dart` | `assets/game/dog_quest.html` | `TwineGameHost` | `Movement Data`, `data_points`, `userData/{uid}/gameStates/dog_quest` |
+| Salt Sludge | `lib/features/games/salt_sludge.dart` | `assets/game/salt_sludge.html` | `TwineGameHost` | `Movement Data`, `data_points`, `userData/{uid}/gameStates/salt_sludge` |
+| Daily Check-In *(control)* | `lib/features/games/control_game.dart` | `assets/game/control_game.html` | `TwineQuestionnaireHost` | `surveys/control_daily_checkin/responses/{auto}`, `events/{auto}` |
+
+Movement games share a single per-walk Firestore footprint (4 docs per periodic write, 4 docs per end-game batch) — see `MovementHooks.pushPing` / `endSession` for the full schema.
+
+The Daily Check-In is the **control condition** for the comparison arm of the study (work-plan goal #8). Intentionally minimalist — no animation, no gamification, no GPS.
+
+---
+
+## Health Pillars (the 6-tile grid on home)
+
+All six tiles route to live screens.
+
+| # | Tile | File | Writes |
+|---|---|---|---|
+| 1 | Heart | `lib/features/statistics/heart_statistics_screen.dart` | none (chart streams `userData/{uid}/dailyLogs`) |
+| 2 | Movement | `lib/features/exercise_log/exercise_log_screen.dart` | `DailyLogHooks.logExercise` |
+| 3 | Plate | `lib/features/games/dash_diet_game/diet_log_screen.dart` | `DailyLogHooks.logMeal` |
+| 4 | Education | `lib/features/education/health_education_screen.dart` | none (static content) |
+| 5 | Medicine | `lib/features/medication_reminder/medication_reminder_screen.dart` | `DailyLogHooks.logMedication` |
+| 6 | Family | `lib/features/family_circle/family_circle_screen.dart` | none (read-only stream) |
+
+> ⚠️ Despite living in the `dash_diet_game/` folder, the Plate screen is the **working DASH-style meal logger** — NOT the coming-soon "DASH Diet Game" listed in the catalog. Don't confuse them.
 
 ---
 
@@ -132,14 +127,18 @@ Mirrors the `netguage_firebase_structure.txt` reference architecture.
 
 | Collection | Path | Purpose |
 |---|---|---|
-| `userData` | `/userData/{uid}` | Profile + lifetime aggregates (points, totals, last readings) |
-| `userData/{uid}/dailyLogs` | sub | Per-day log per user (BP, meals, exercise, medication merged into one doc per day) |
-| `userData/{uid}/gameStates` | sub | Per-game resume state (currently only `dog_quest`) |
+| `userData` | `/userData/{uid}` | Profile + lifetime aggregates (`points`, `totalSessions`, `measurementsTaken`, last-readings, `medicationStreak`) |
+| `userData/{uid}/dailyLogs` | sub | Per-day summary doc with `last*` fields + `daily*Count` counters |
+| `userData/{uid}/dailyLogs/{date}/bpReadings` | sub-sub | One doc per BP reading |
+| `userData/{uid}/dailyLogs/{date}/exercises` | sub-sub | One doc per exercise entry |
+| `userData/{uid}/dailyLogs/{date}/meals` | sub-sub | One doc per meal entry |
+| `userData/{uid}/gameStates` | sub | Per-game resume state + `lastCompletedSessionId` tombstone |
 | `Movement Data` | `/Movement Data/{sessionId}` | Per-session walk metadata |
 | `Movement Data/{sessionId}/LocationData` | sub | GPS points |
-| `Movement Data/{sessionId}/CheckData` | sub | Network/event checkpoints |
-| `data_points` | `/data_points/{auto}` | Global geospatial heatmap feed (read by future map / community features) |
+| `Movement Data/{sessionId}/CheckData` | sub | Completion event checkpoints |
+| `data_points` | `/data_points/{auto}` | Global geospatial heatmap feed |
 | `events` | `/events/{auto}` | Telemetry / analytics events for every meaningful user action |
+| `surveys/{surveyId}/responses` | sub | One doc per questionnaire submission |
 
 Path constants live in `lib/core/constants/firestore_paths.dart`. Every screen uses these constants — never hardcode strings.
 
@@ -147,26 +146,34 @@ Path constants live in `lib/core/constants/firestore_paths.dart`. Every screen u
 
 ## Cross-cutting infrastructure
 
-- **`lib/core/providers/user_data_manager.dart`** — `UserDataProvider` (ChangeNotifier). Single source of truth for the logged-in user's `userData` doc. Call `provider.fetchUserData()` after any write that mutates user-level fields so the dashboard refreshes.
-- **`lib/core/services/activity_logs.dart`** — `LoggingService` registered via `get_it`. Use `loggingService.logEvent(name, parameters: ..., phone: ...)` to write to `events` collection.
+- **`lib/core/services/offline_queue.dart`** — generic Hive-backed write queue. `PendingOp.{set, update, delete}` with `OfflineFieldValue.{nowTimestamp, increment, delete, geopoint}`. 15s safety-net retry timer. All hooks write through this.
+- **`lib/core/services/activity_logs.dart`** — `LoggingService`. Hive `event_queue` box for `events/{uuid}` rows. `pendingCount` + `isSyncing` `ValueNotifier`s drive the dashboard sync badge.
+- **`lib/core/widgets/sync_badge.dart`** — dashboard sync indicator (combines both queue counts).
+- **`lib/core/providers/user_data_manager.dart`** — `UserDataProvider`. Adds `applyLocalIncrements` / `applyLocalSets` for optimistic UI (avoids a 10s Firestore-cache fallback wait when offline).
 - **`lib/core/services/session_manager.dart`** — tracks "current game" for telemetry context.
-- **`lib/core/services/location_service.dart`** — `LocationDispatcher.stream` is a single broadcast position stream all games subscribe to (avoids duplicate GPS subscriptions).
+- **`lib/core/services/location_service.dart`** — `LocationDispatcher.stream`, a single broadcast position stream.
+- **Firestore offline persistence** — `lib/main.dart` enables `CACHE_SIZE_UNLIMITED`. Combined with `OfflineQueue`, the app survives airplane mode + cold start without losing writes.
 
 ---
 
 ## Build & deploy notes
 
-- **Android**: `flutter build apk --release` — currently signed with debug keys (line 40 of `android/app/build.gradle.kts`); replace with a release keystore before Play Store.
-- **iOS**: requires `cd ios && pod install` + Xcode signing setup. Deployment target is iOS 14.0 (`mobile_scanner 7.x` requirement). Info.plist has all required permission strings (Camera, Photo Library, Face ID, Location When-In-Use / Always, Background Modes).
-- **CI**: `.github/workflows/build.yml` runs unsigned iOS + signed-with-debug-keys Android build on every push to `main`. Artifacts available for 7 days.
-- **Firestore**: `firestore.indexes.json` declares a composite index for the indexed-query variant of weekly quest count (currently using non-indexed fallback, kept for future scale).
+- **Android**: `flutter build apk --release` — currently signed with debug keys (`android/app/build.gradle.kts`); replace with a release keystore before Play Store.
+- **iOS**: requires `cd ios && pod install` + Xcode signing. Deployment target is iOS 14.0. Info.plist has all required permission strings (Camera, Photo Library, Face ID, Location When-In-Use / Always, Background Modes).
+- **CI**: `.github/workflows/build.yml` runs unsigned iOS + debug-keys Android build on every push to `main`. Artifacts available for 7 days.
+- **Firestore**: `firestore.indexes.json` declares a composite index for the indexed-query variant of weekly quest count (the production code uses a non-indexed single-equality fallback).
 
 ---
 
 ## When you add a new feature
 
 1. Add the screen file under `lib/features/<feature_name>/`.
-2. Add path constants to `lib/core/constants/firestore_paths.dart` if introducing a new collection.
-3. After any write that touches user-level fields, call `Provider.of<UserDataProvider>(context, listen: false).fetchUserData()` to refresh the dashboard.
-4. Log a telemetry event via `loggingService.logEvent(...)`.
-5. If the feature is a game, also add a `GameStory` entry in `lib/features/games/game_stories.dart` so it appears in the catalog grid.
+2. **Use the hooks library** — `DailyLogHooks` for log entries, `SurveyHooks` for questionnaires, `MovementHooks` only if your screen orchestrates a movement quest outside `TwineGameHost`. Never enqueue raw `PendingOp`s if a hook covers your case.
+3. Pair every durable write with `PointsHooks.applyIncrements / applySets` for optimistic UI — do **not** `await fetchUserData()` (it blocks ~10s offline).
+4. Log a telemetry event via `TelemetryHooks.logEvent(...)`.
+5. If the feature is a game, also add a `GameStory` entry in `lib/features/games/game_stories.dart` and route it from `game_catalog_screen.dart`.
+6. New collections → add a constant to `lib/core/constants/firestore_paths.dart`.
+
+## When you add a new Twine game
+
+See `lib/core/hooks/README.md` § "Adding a new Twine game". Short version: drop an `.html` into `assets/game/`, register the asset in `pubspec.yaml`, and write a 30-line wrapper around `TwineGameHost` (movement) or `TwineQuestionnaireHost` (questionnaire). Everything else — offline persistence, watchdog, resume, race-safe end-game, telemetry — is handled.

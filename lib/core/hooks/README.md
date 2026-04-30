@@ -80,9 +80,26 @@ keeps `last*` summary fields + `daily*Count` counters. Lifetime user stats
 (`points`, `totalSessions`, etc.) increment on `userData/{uid}`. An
 immutable `events/{uuid}` row records each entry.
 
-The dedicated dashboard screens (BP log, Exercise log, etc.) currently
-inline this logic; future refactors can swap them to use these hooks for
-identical behavior.
+The five dedicated dashboard screens (BP log, Exercise log, Diet log,
+Medication reminder, BP Trivia) all use these hooks directly — see the
+files under `lib/features/blood_pressure/`, `lib/features/exercise_log/`,
+`lib/features/games/dash_diet_game/`, `lib/features/medication_reminder/`,
+and `lib/features/games/bingo_bash/`. Any new dashboard log screen should
+do the same.
+
+### `SurveyHooks` — questionnaire / survey responses
+```dart
+await SurveyHooks.submitResponse(
+  uid: '...',
+  surveyId: 'control_daily_checkin',
+  answers: {'mood': 4, 'water': 'lots', 'med_today': 'yes'},
+  pointsEarned: 10,
+);
+```
+Writes one row to `surveys/{surveyId}/responses/{auto}`, increments
+lifetime counters (`points`, `surveysCompleted`, `lastSurveyAt`), and
+appends an immutable `events/{uuid}` event row. Used by the control
+game's [`TwineQuestionnaireHost`](../widgets/twine_questionnaire_host.dart).
 
 ## Twine ↔ Flutter bridge
 
@@ -104,7 +121,8 @@ directory, so this works as long as `ccq_bridge.js` is in `assets/game/`.)
 | `CCQ.saveState(stateJson)` | `SAVE_STATE` | Persist via `MovementHooks.saveGameStateJson`. |
 | `CCQ.finishQuest()` | `FINISH_QUEST_DATA` | Run end-game flow. |
 | `CCQ.goHome()` | `GO_HOME` | Pop back to dashboard. |
-| `CCQ.telemetry(name, params)` | `TELEMETRY` | Custom event — needs a `onCustomBridgeMessage` handler in your `TwineGameHost` that routes to `TelemetryHooks.logEvent`. |
+| `CCQ.telemetry(name, params)` | `TELEMETRY` | Custom event — needs a `onCustomBridgeMessage` handler in your `TwineGameHost` that routes to `TelemetryHooks.logEvent`. (Handled natively by `TwineQuestionnaireHost`.) |
+| `CCQ.submitResponse(answers, opts?)` | `SUBMIT_RESPONSE` | Persist a survey/questionnaire response via `SurveyHooks.submitResponse`. Handled natively by `TwineQuestionnaireHost`. |
 
 ### Calls FROM Flutter TO Twine (the host expects these globals)
 
@@ -150,6 +168,43 @@ All are optional — the host calls each only if `typeof X === 'function'`.
 
 That's it. Offline persistence, watchdog Timer, resume logic, race-safe
 end-game, telemetry — all handled.
+
+### Reference implementations
+
+| Game | Wrapper | HTML | Notes |
+|---|---|---|---|
+| Dog Walking | `lib/features/games/dog_quest.dart` | `assets/game/dog_quest.html` | Original / canonical movement quest. |
+| Salt Sludge | `lib/features/games/salt_sludge.dart` | `assets/game/salt_sludge.html` | Second movement quest — same wrapper, different HTML. Demonstrates that adding a new game is purely an HTML + thin-wrapper change. |
+| Daily Check-In | `lib/features/games/control_game.dart` | `assets/game/control_game.html` | Non-movement questionnaire. Uses `TwineQuestionnaireHost` instead. |
+
+## Non-movement (questionnaire / survey) Twine pages
+
+For pages with no GPS / no movement quest — control games, post-play
+surveys, baseline surveys, educational reading-only pages — use the
+sibling host **`TwineQuestionnaireHost`** (`lib/core/widgets/twine_questionnaire_host.dart`)
+instead of `TwineGameHost`:
+
+```dart
+return TwineQuestionnaireHost(
+  surveyId: 'control_daily_checkin',
+  title: 'Daily Check-In',
+  htmlAsset: 'assets/game/control_game.html',
+  defaultPointsPerResponse: 10,
+);
+```
+
+Differences vs `TwineGameHost`:
+
+* **No GPS.** No Geolocator subscription, no accuracy filter, no
+  position stream.
+* **No movement writes.** Submissions land in
+  `surveys/{surveyId}/responses/{auto}` via `SurveyHooks.submitResponse`,
+  not in `Movement Data`.
+* **No watchdog / no resume.** Questionnaires are stateless from the
+  host's perspective; `CCQ.saveState()` is still supported if your HTML
+  wants to persist branch state.
+* **`SUBMIT_RESPONSE` and `TELEMETRY` are handled natively** — you do not
+  need a custom `onCustomBridgeMessage` handler for these.
 
 ## Adding a custom bridge message
 

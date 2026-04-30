@@ -102,23 +102,47 @@ Learn to make smart food choices, create balanced meals, and build a heart-healt
     'salt_sludge': GameStory(
       id: 'salt_sludge',
       title: 'Salt Sludge',
-      shortDescription: 'Understand the impact of sodium on your body',
+      shortDescription: 'Walk to clear the salt from your vessels',
       narrative: '''
-Too much salt can be a sneaky enemy in your diet. In "Salt Sludge," you'll visualize how excess sodium affects your blood vessels and your heart.
+Too much salt makes your blood vessels stiff, like sludge in a pipe. Every step you take helps your vessels relax and clear out.
 
-This interactive story will help you become more mindful of your salt intake and empower you to make lower-sodium choices.
+Pick a distance, name your walking partner, and watch the sludge drain from the vessel as you move.
       ''',
       medicalContext:
-          'High sodium intake contributes to high blood pressure by causing the body to retain water, which puts extra strain on the heart and blood vessels. Reducing sodium is a critical component of hypertension management.',
+          'High sodium intake contributes to high blood pressure by causing the body to retain water, which puts extra strain on the heart and blood vessels. Walking is one of the most effective non-pharmacological interventions for hypertension management.',
       benefits: [
         'Visualize sodium\'s effects',
-        'Become mindful of salt intake',
-        'Make lower-sodium choices',
-        'Understand food labels',
+        'Movement clears vessels',
+        'Build a daily walking habit',
+        'Earn points for every step',
       ],
       emoji: '🧂',
       color: '#546e7a',
-      status: 'coming_soon',
+      status: 'active',
+    ),
+
+    // Control condition for the comparison arm of the study (work-plan
+    // goal #8). Intentionally minimal Twine page — boring by design.
+    'control_daily_checkin': GameStory(
+      id: 'control_daily_checkin',
+      title: 'Daily Check-In',
+      shortDescription: 'A short set of questions about your day',
+      narrative: '''
+A few short questions about how you are feeling today, what you ate, and how well you slept.
+
+There are no right or wrong answers. Your responses help the research team understand how the program is working for you.
+      ''',
+      medicalContext:
+          'A daily self-report check-in is a common research instrument for tracking adherence, mood, and self-care behaviors over time without requiring active participation in a structured game.',
+      benefits: [
+        'Quick to complete',
+        'Helps the research team',
+        'Plain language',
+        'No game pressure',
+      ],
+      emoji: '📋',
+      color: '#4a5b80',
+      status: 'active',
     ),
 
     'vascular_village': GameStory(
