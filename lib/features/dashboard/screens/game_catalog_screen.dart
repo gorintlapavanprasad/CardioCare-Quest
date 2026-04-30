@@ -4,6 +4,9 @@ import '../../games/game_stories.dart';
 import '../../games/dog_quest.dart';
 import '../../games/control_game.dart';
 import '../../games/salt_sludge.dart';
+import '../../games/bingo_bash_game.dart';
+import '../../games/dash_diet_twine_game.dart';
+import '../../games/vascular_village_game.dart';
 import 'coming_soon_screen.dart';
 
 class GameCatalogScreen extends StatelessWidget {
@@ -57,7 +60,28 @@ class GameCatalogScreen extends StatelessWidget {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => const SaltSludgeGame(targetDistance: 500),
+                      builder: (_) => const SaltSludgeGame(),
+                    ),
+                  );
+                } else if (game.id == 'bingo_bash') {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const BingoBashGame(),
+                    ),
+                  );
+                } else if (game.id == 'dash_diet_game') {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const DashDietTwineGame(),
+                    ),
+                  );
+                } else if (game.id == 'vascular_village') {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const VascularVillageGame(),
                     ),
                   );
                 } else {

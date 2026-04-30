@@ -74,7 +74,7 @@ Each square you mark off is a step towards a better understanding of your cardio
       ],
       emoji: '🅱️',
       color: '#d4a574',
-      status: 'coming_soon',
+      status: 'active',
     ),
 
     'dash_diet_game': GameStory(
@@ -96,25 +96,25 @@ Learn to make smart food choices, create balanced meals, and build a heart-healt
       ],
       emoji: '🥗',
       color: '#2d7d6d',
-      status: 'coming_soon',
+      status: 'active',
     ),
 
     'salt_sludge': GameStory(
       id: 'salt_sludge',
       title: 'Salt Sludge',
-      shortDescription: 'Walk to clear the salt from your vessels',
+      shortDescription: 'Five days of food choices inside your artery',
       narrative: '''
-Too much salt makes your blood vessels stiff, like sludge in a pipe. Every step you take helps your vessels relax and clear out.
+Watch what really happens inside your arteries when you eat. Each day you choose between two foods. Potassium-rich choices clear the sludge. High-sodium choices add to it.
 
-Pick a distance, name your walking partner, and watch the sludge drain from the vessel as you move.
+Five days. Five meals. One artery.
       ''',
       medicalContext:
-          'High sodium intake contributes to high blood pressure by causing the body to retain water, which puts extra strain on the heart and blood vessels. Walking is one of the most effective non-pharmacological interventions for hypertension management.',
+          'Sodium pulls water into the bloodstream, raising volume and pressure on artery walls; potassium helps the kidneys flush sodium back out. Salt Sludge dramatizes this trade-off using everyday foods so the mechanism is concrete instead of abstract.',
       benefits: [
-        'Visualize sodium\'s effects',
-        'Movement clears vessels',
-        'Build a daily walking habit',
-        'Earn points for every step',
+        'See how foods affect arteries',
+        'Learn which foods clear sodium',
+        'Practice quick food decisions',
+        'Make the science concrete',
       ],
       emoji: '🧂',
       color: '#546e7a',
@@ -164,7 +164,7 @@ Make choices about diet, exercise, and stress management to help your village th
       ],
       emoji: '🏘️',
       color: '#1b7373',
-      status: 'coming_soon',
+      status: 'active',
     ),
   };
 

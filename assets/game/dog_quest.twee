@@ -1,0 +1,438 @@
+:: StoryTitle
+Dog Walking
+
+:: StoryData
+{
+  "ifid": "F6A7B8C9-D0E1-2345-FABC-456789012345",
+  "format": "SugarCube",
+  "format-version": "2.37.3",
+  "start": "Welcome",
+  "zoom": 0.6
+}
+
+
+:: Story init [init]
+/*
+SYSTEM CODE: runs once at the very start.
+
+Variables:
+- $buddyName       : the player's walking-companion name (mirrors $dogName)
+- $targetDistance  : the chosen quest distance in meters (500 / 1000 / 1500)
+- $currentDistance : how far the player has walked in the active quest
+- $points          : points awarded on completion
+- $questTitle      : human label for the active quest
+- $questDesc       : descriptive subtext for the active quest
+- $duration        : minutes spent on the completed quest
+
+In Twine's preview these are plain story state. Inside CardioCare Quest
+the bridge calls (`<<run window.CCQ?.startTracking(...)>>`) hand control
+to the Flutter `TwineGameHost`, which writes GPS pings + completion
+docs to Firestore through `MovementHooks`.
+*/
+<<set $buddyName to "Buddy">>
+<<set $targetDistance to 0>>
+<<set $currentDistance to 0>>
+<<set $points to 0>>
+<<set $questTitle to "">>
+<<set $questDesc to "">>
+<<set $duration to 0>>
+
+
+:: Welcome
+/*
+SCENE 1: introduction. Mirrors `#scene1` in dog_quest.html.
+One button → choose-quest screen.
+*/
+
+<div class="scene-1">
+  <header class="header"><h1>Exercise</h1></header>
+  <div class="subtitle">Let's work towards healthy blood pressure today!</div>
+
+  <div class="cloud-row">
+    <div class="cloud">Complete Quests based on steps</div>
+    <div class="cloud">Bring along a furry team member to help</div>
+    <div class="cloud">Earn rewards to customize your buddy</div>
+  </div>
+
+  <div class="character">🐕‍🦺</div>
+</div>
+
+[[Step outside for a walk with a friend!|Choose Quest]]
+
+
+:: Choose Quest
+/*
+SCENE 2: pick a difficulty. Mirrors `#scene2` in dog_quest.html.
+Each button sets $targetDistance + $points + $questTitle/$questDesc,
+calls `CCQ.startTracking($targetDistance)` if the bridge is present
+(no-op in twinery.org preview), then navigates to Active Walk.
+*/
+
+<div class="scene-2">
+  <header class="header"><h1>Choose your quest</h1></header>
+  <div class="subtitle">Regular exercise lowers blood pressure and improves heart health.</div>
+  <div class="character">🐕‍🦺</div>
+</div>
+
+<<link "EASY · Quick walk · 500 m · 30 pts">>
+  <<set $targetDistance to 500>>
+  <<set $points to 30>>
+  <<set $questTitle to "Keep going">>
+  <<set $questDesc to "EASY · Quick walk · 500 steps">>
+  <<run if (window.CCQ) { CCQ.startTracking(500); }>>
+  <<goto "Active Walk">>
+<</link>>
+
+<<link "MEDIUM · Maintenance walk · 1000 m · 60 pts">>
+  <<set $targetDistance to 1000>>
+  <<set $points to 60>>
+  <<set $questTitle to "Travel to a village">>
+  <<set $questDesc to "MEDIUM · Maintenance walk · 1000 steps">>
+  <<run if (window.CCQ) { CCQ.startTracking(1000); }>>
+  <<goto "Active Walk">>
+<</link>>
+
+<<link "HARD · Challenge yourself · 1500 m · 100 pts">>
+  <<set $targetDistance to 1500>>
+  <<set $points to 100>>
+  <<set $questTitle to "Beat a boss!!">>
+  <<set $questDesc to "HARD · Challenge yourself · 1500 steps">>
+  <<run if (window.CCQ) { CCQ.startTracking(1500); }>>
+  <<goto "Active Walk">>
+<</link>>
+
+
+:: Active Walk
+/*
+SCENE 3: in-progress quest. Mirrors `#scene3` in dog_quest.html.
+
+Inside CardioCare Quest, this scene is updated FROM Flutter via the
+`updateGameProgress(currentDistance, targetDistance)` global the host
+calls every 5th GPS fix. The progress bar element here is what the
+runtime targets when overriding the in-page DOM.
+
+In Twine preview, GPS doesn't exist. The "Mark walk complete (preview
+only)" link below stands in for the real GPS-driven completion so
+authors can step through the story. CardioCare Quest's host ignores
+that link — it triggers completion based on real distance.
+*/
+
+<div class="scene-3">
+  <header class="header"><h1>$questTitle</h1></header>
+  <div class="quest-desc">$questDesc</div>
+  <div class="character">🐕‍🦺 $buddyName</div>
+
+  <div class="progress-container">
+    <div class="progress-fill" id="progress-bar-fill" style="width:0%"></div>
+    <div class="progress-overlay">
+      <span>Progress</span>
+      <span class="progress-percent" id="progress-percent-text">0%</span>
+      <span class="progress-remaining" id="progress-remaining-text">$targetDistance m</span>
+    </div>
+  </div>
+
+  <div class="info-section">
+    <div class="info-title">How does exercise help with blood pressure?</div>
+    <ul>
+      <li>Improves circulation</li>
+      <li>Reduces stress</li>
+      <li>Helps maintain healthy weight</li>
+    </ul>
+  </div>
+</div>
+
+<<link "End Walk Early">>
+  /* In the app: ask Flutter to stop GPS and write the session.
+     Flutter then calls back into onQuestFinished(points). */
+  <<run if (window.CCQ) { CCQ.finishQuest(); }>>
+  <<set $currentDistance to $targetDistance>>
+  <<set $duration to 5>>
+  <<goto "Quest Complete">>
+<</link>>
+
+<<link "Mark walk complete (preview only)">>
+  /* Twine-preview shortcut. CardioCare Quest's WebView never reaches
+     this link because the host's GPS watchdog hits the threshold
+     first and pushes the WebView straight to Quest Complete. */
+  <<set $currentDistance to $targetDistance>>
+  <<set $duration to 5>>
+  <<goto "Quest Complete">>
+<</link>>
+
+
+:: Quest Complete
+/*
+SCENE 4: celebration. Mirrors `#scene4` in dog_quest.html.
+Two paths:
+  • Do another quest → loop back to Welcome (state stays).
+  • Return to dashboard → Central Hub (the host intercepts and pops
+    back into the Flutter Navigator).
+*/
+
+<div class="scene-4">
+  <div class="celebrate">🎉</div>
+  <h1 class="big-title">Amazing Work!</h1>
+  <p class="finished-msg">
+    You and <strong>$buddyName</strong> completed the quest!
+  </p>
+
+  <div class="stats-card">
+    <div class="reward-label">Points Earned</div>
+    <div class="reward-value">+$points points</div>
+
+    <div class="stats-grid">
+      <div>
+        <div class="stat-label">Distance</div>
+        <div class="stat-value">$currentDistance m</div>
+      </div>
+      <div>
+        <div class="stat-label">Duration</div>
+        <div class="stat-value">$duration min</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="health-tip">
+    💓 <strong>Great for your heart!</strong><br/>
+    Regular walks help lower blood pressure and reduce
+    cardiovascular risk over time.
+  </div>
+</div>
+
+[[Do Another Quest|Welcome]]
+
+[[Return to Dashboard|Central Hub]]
+
+
+:: Central Hub
+/*
+EXIT HATCH. The CardioCare Quest host watches for navigation to a
+passage named "Central Hub" (case-insensitive) and calls
+`CCQ.goHome()` instead of rendering it. That pops the Flutter route
+back to the dashboard.
+
+In twinery.org's preview there's no host, so this passage actually
+renders. Use it to simulate the "back to app" transition.
+*/
+
+<p>Returning to CardioCareQuest…</p>
+
+[[Walk again|Welcome]]
+
+
+:: Story Stylesheet [stylesheet]
+/*
+Lightweight port of dog_quest.html's CSS for the Twine preview.
+The CardioCare Quest WebView does NOT use this — it loads the full
+hand-rolled CSS in dog_quest.html. This block exists so that when an
+author imports the .twee into twinery.org, the preview still feels
+like the real game instead of unstyled HTML.
+*/
+
+body {
+  font-family: 'Nunito', sans-serif;
+  background: linear-gradient(to bottom, #1e1b2e 0%, #3e6074 50%, #5e8c9c 100%);
+  color: #ffffff;
+  margin: 0;
+  padding: 0;
+}
+
+#passages {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.header h1 {
+  font-size: 28px;
+  font-weight: 800;
+  color: #ffffff;
+  margin: 0 0 8px;
+}
+
+.subtitle {
+  color: #9c88b1;
+  margin: 0 0 24px;
+  line-height: 1.5;
+}
+
+.cloud-row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 18px 0;
+}
+
+.cloud {
+  background: rgba(255, 255, 255, 0.92);
+  color: #3e4a59;
+  border-radius: 18px;
+  padding: 12px 18px;
+  font-weight: 700;
+  text-align: center;
+  font-size: 14px;
+}
+
+.character {
+  text-align: center;
+  font-size: 96px;
+  margin: 18px 0;
+}
+
+.quest-desc {
+  color: #9c88b1;
+  margin: -6px 0 18px;
+  font-weight: 600;
+  text-align: center;
+}
+
+a.macro-link, button.link, .passage a {
+  display: block;
+  width: 100%;
+  text-align: center;
+  background: #786187;
+  color: #ffffff !important;
+  border: none;
+  border-radius: 16px;
+  padding: 16px;
+  margin: 10px 0;
+  font-size: 16px;
+  font-weight: 800;
+  cursor: pointer;
+  text-decoration: none;
+  font-family: inherit;
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.2);
+}
+
+a.macro-link:hover, .passage a:hover { background: #8a73a0; }
+
+.progress-container {
+  position: relative;
+  background: #514f35;
+  border-radius: 14px;
+  padding: 14px 18px;
+  margin: 22px 0;
+  height: 64px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  position: absolute;
+  top: 0; left: 0; bottom: 0;
+  background: #786187;
+  transition: width 0.4s ease;
+}
+
+.progress-overlay {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: #ffffff;
+  font-weight: 800;
+}
+
+.progress-percent { font-size: 22px; }
+.progress-remaining { color: #e4aa24; }
+
+.info-section {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  padding: 16px 20px;
+  margin: 18px 0;
+}
+
+.info-title {
+  color: #e4aa24;
+  font-weight: 800;
+  margin-bottom: 8px;
+}
+
+.info-section ul {
+  margin: 0;
+  padding-left: 20px;
+  color: #d0c2dc;
+  line-height: 1.6;
+}
+
+.celebrate {
+  text-align: center;
+  font-size: 96px;
+  margin: 12px 0;
+}
+
+.big-title {
+  text-align: center;
+  font-size: 36px;
+  font-weight: 900;
+  color: #ffffff;
+  margin: 0 0 12px;
+}
+
+.finished-msg {
+  text-align: center;
+  color: #9c88b1;
+  font-size: 18px;
+  margin: 0 0 24px;
+}
+
+.finished-msg strong { color: #e4aa24; }
+
+.stats-card {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  padding: 24px;
+  margin-bottom: 18px;
+  text-align: center;
+}
+
+.reward-label {
+  color: #9c88b1;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+
+.reward-value {
+  color: #e4aa24;
+  font-size: 48px;
+  font-weight: 900;
+  margin-bottom: 18px;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding-top: 16px;
+}
+
+.stat-label {
+  color: #9c88b1;
+  font-size: 11px;
+  text-transform: uppercase;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.stat-value {
+  color: #ffffff;
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.health-tip {
+  background: rgba(156, 136, 177, 0.15);
+  border-left: 4px solid #9c88b1;
+  border-radius: 8px;
+  padding: 14px 18px;
+  color: #d0c2dc;
+  font-size: 14px;
+  line-height: 1.6;
+  margin: 18px 0;
+}

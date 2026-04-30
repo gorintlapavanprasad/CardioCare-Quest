@@ -57,8 +57,13 @@ flutter:
     - assets/game/dog_quest/
     - assets/game/fonts/
     - assets/game/ccq_bridge.js
+    - assets/game/ccq_twee.js
     - assets/game/control_game.html
     - assets/game/salt_sludge.html
+    - assets/game/bingo_bash.html
+    - assets/game/dash_diet_game.html
+    - assets/game/vascular_village.html
+    - assets/game/post_play_survey.html
 
 flutter_icons:
   android: true

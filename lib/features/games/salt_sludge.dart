@@ -1,30 +1,24 @@
 import 'package:flutter/material.dart';
 
-import 'package:cardio_care_quest/core/widgets/twine_game_host.dart';
+import 'package:cardio_care_quest/core/widgets/twine_questionnaire_host.dart';
 
-/// Salt Sludge — second movement quest, demonstrating that
-/// [TwineGameHost] handles arbitrary Twine HTML pages with no per-game
-/// engineering work beyond a thin wrapper. See
-/// `lib/core/widgets/twine_game_host.dart` for everything that's handled
-/// for free (GPS, OfflineQueue, watchdog, resume, race-safe end-game,
-/// telemetry).
-///
-/// To add another movement game, copy this file, change the four
-/// constructor arguments, drop a new HTML in `assets/game/`, register the
-/// asset in `pubspec.yaml`, and add the route in
-/// `game_catalog_screen.dart`.
+/// Salt Sludge — five-day food-choice narrative authored as a SugarCube
+/// Twee story (`assets/game/salt_sludge.twee`). The player picks one of
+/// two foods each day; high-potassium choices clear the artery's "sludge"
+/// counter, high-sodium choices add to it. Pure narrative game — no GPS,
+/// no movement tracking. Uses [TwineQuestionnaireHost] for the same
+/// reason the other Twee games do: the in-page `ccq_twee.js` runtime
+/// drives state and navigation, the host just provides the WebView and
+/// bridge.
 class SaltSludgeGame extends StatelessWidget {
-  final double targetDistance;
-
-  const SaltSludgeGame({super.key, required this.targetDistance});
+  const SaltSludgeGame({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return TwineGameHost(
-      gameId: 'salt_sludge',
-      gameTitle: 'Salt Sludge',
+    return const TwineQuestionnaireHost(
+      surveyId: 'salt_sludge',
+      title: 'Salt Sludge',
       htmlAsset: 'assets/game/salt_sludge.html',
-      targetDistance: targetDistance,
     );
   }
 }

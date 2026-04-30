@@ -18,6 +18,7 @@ import '../../medication_reminder/medication_reminder_screen.dart';
 import '../../family_circle/family_circle_screen.dart';
 import '../../statistics/heart_statistics_screen.dart';
 import '../../games/dash_diet_game/diet_log_screen.dart';
+import '../../survey/post_play_survey.dart';
 
 class HomeTab extends StatefulWidget {
   const HomeTab({super.key});
@@ -203,6 +204,11 @@ class _HomeTabState extends State<HomeTab> {
                         actionText: "Statistics",
                       ),
                       _buildHealthPillarsGrid(context),
+
+                      const SizedBox(height: 32),
+                      _buildSectionTitle("Feedback"),
+                      _buildPostPlaySurveyCard(context),
+                      const SizedBox(height: 24),
                     ],
                   ),
                 ),
@@ -211,6 +217,74 @@ class _HomeTabState extends State<HomeTab> {
           ),
         );
       },
+    );
+  }
+
+  /// Bottom-of-dashboard entry point for the post-play survey
+  /// (work-plan goal #9). Lives below the Health Pillars grid because
+  /// it's a once-per-session feedback prompt, not a daily quest.
+  Widget _buildPostPlaySurveyCard(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const PostPlaySurveyScreen(),
+            ),
+          );
+        },
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: AppColors.cardBorder),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Center(
+                  child: Text('💬', style: TextStyle(fontSize: 28)),
+                ),
+              ),
+              const SizedBox(width: 16),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'How was your experience?',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.title,
+                      ),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      'Five quick questions. Earns 25 points.',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: AppColors.subtitle,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right, color: AppColors.subtitle),
+            ],
+          ),
+        ),
+      ),
     );
   }
 

@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>How was your experience?</title>
+  <!-- Bridge + runtime live alongside this file under assets/game/. -->
+  <script src="ccq_bridge.js"></script>
+  <script src="ccq_twee.js"></script>
+  <style>
+    @font-face { font-family: 'Nunito'; font-style: normal; font-weight: 600; src: url('fonts/Nunito-SemiBold.ttf') format('truetype'); }
+    @font-face { font-family: 'Nunito'; font-style: normal; font-weight: 700; src: url('fonts/Nunito-Bold.ttf') format('truetype'); }
+    :root { --bg: #f4f6fb; --accent: #3498db; }
+    body, html { margin: 0; padding: 0; background: var(--bg); font-family: 'Nunito', system-ui, sans-serif; color: #2c3e50; min-height: 100vh; -webkit-text-size-adjust: 100%; }
+    .top-exit { position: fixed; top: 12px; right: 12px; z-index: 10; }
+    .top-exit button { background: rgba(255,255,255,0.9); border: 1px solid #ccd; border-radius: 8px; padding: 6px 12px; font-family: inherit; font-size: 13px; font-weight: 700; color: #555; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <div class="top-exit">
+    <button type="button" onclick="CCQ.goHome()">Back home</button>
+  </div>
+  <div id="twee-root"></div>
+  <script type="text/twee" id="twee-source">
+:: Survey Start
+<div class="survey-container">
+<div class="survey-header">
+    <h1>🎮 How was your experience?</h1>
+    <p>Just a few quick questions. There are no wrong answers!</p>
+</div>
+
+<<set $q1Answer = "">>
+<<set $q2Answer = "">>
+<<set $q3Answer = "">>
+<<set $q4Answer = "">>
+<<set $q5Answer = "">>
+<<set $gamesPlayed = ["Dog Walking", "Salt Sludge", "DASH Diet Game", "Vascular Village", "Bingo Bash"]>>
+
+[[Let's go! → Survey Q1]]
+</div>
+
+:: Survey Q1
+<div class="survey-container">
+<div class="progress-bar">
+    <div class="progress-fill" style="width: 20%"></div>
+</div>
+<p class="progress-text">Question 1 of 5</p>
+
+<h2>⭐ Which game was your favorite today?</h2>
+
+<div class="options-grid">
+<<for _game range $gamesPlayed>>
+    <button class="game-option" onclick="selectGame(this, '_game')">
+        <<print _game>>
+    </button>
+<</for>>
+</div>
+
+<div class="nav-buttons">
+    <button class="next-btn" id="q1next" disabled onclick="goNext()">Next →</button>
+</div>
+</div>
+
+<script>
+function selectGame(el, game) {
+    document.querySelectorAll('.game-option').forEach(b => b.classList.remove('selected'));
+    el.classList.add('selected');
+    SugarCube.State.variables.q1Answer = el.innerText;
+    document.getElementById('q1next').disabled = false;
+}
+function goNext() {
+    Engine.play('Survey Q2');
+}
+</script>
+
+:: Survey Q2
+<div class="survey-container">
+<div class="progress-bar">
+    <div class="progress-fill" style="width: 40%"></div>
+</div>
+<p class="progress-text">Question 2 of 5</p>
+
+<h2>✨ What made it fun for you?</h2>
+<p class="subtitle">Pick as many as you like</p>
+
+<div class="options-list">
+    <button class="option-btn multi" onclick="toggleOption(this, 'moving')">
+        🚶 I liked moving around
+    </button>
+    <button class="option-btn multi" onclick="toggleOption(this, 'story')">
+        📖 I liked the story
+    </button>
+    <button class="option-btn multi" onclick="toggleOption(this, 'progress')">
+        📈 I liked seeing my progress
+    </button>
+    <button class="option-btn multi" onclick="toggleOption(this, 'social')">
+        👥 I liked playing with others
+    </button>
+    <button class="option-btn multi" onclick="toggleOption(this, 'other')">
+        💡 Something else
+    </button>
+</div>
+
+<div id="other-input" style="display:none; margin-top:1rem;">
+    <input type="text" id="other-text" placeholder="Tell us more..." 
+           class="text-input"
+           oninput="SugarCube.State.variables.q2Other = this.value">
+</div>
+
+<div class="nav-buttons">
+    <button class="back-btn" onclick="Engine.play('Survey Q1')">← Back</button>
+    <button class="next-btn" onclick="saveQ2AndNext()">Next →</button>
+</div>
+</div>
+
+<script>
+var selectedOptions = [];
+
+function toggleOption(el, value) {
+    el.classList.toggle('selected');
+    if (el.classList.contains('selected')) {
+        selectedOptions.push(value);
+        if (value === 'other') {
+            document.getElementById('other-input').style.display = 'block';
+        }
+    } else {
+        selectedOptions = selectedOptions.filter(v => v !== value);
+        if (value === 'other') {
+            document.getElementById('other-input').style.display = 'none';
+        }
+    }
+}
+
+function saveQ2AndNext() {
+    SugarCube.State.variables.q2Answer = selectedOptions.join(', ');
+    Engine.play('Survey Q3');
+}
+</script>
+
+:: Survey Q3
+<div class="survey-container">
+<div class="progress-bar">
+    <div class="progress-fill" style="width: 60%"></div>
+</div>
+<p class="progress-text">Question 3 of 5</p>
+
+<h2>💭 How do you feel right now?</h2>
+
+<div class="emoji-grid">
+    <button class="emoji-btn" onclick="selectEmoji(this, 'Happy and energized')">
+        <span class="emoji">😄</span>
+        <span class="emoji-label">Happy and energized</span>
+    </button>
+    <button class="emoji-btn" onclick="selectEmoji(this, 'Pretty good')">
+        <span class="emoji">🙂</span>
+        <span class="emoji-label">Pretty good</span>
+    </button>
+    <button class="emoji-btn" onclick="selectEmoji(this, 'Same as before')">
+        <span class="emoji">😐</span>
+        <span class="emoji-label">Same as before</span>
+    </button>
+    <button class="emoji-btn" onclick="selectEmoji(this, 'A little tired')">
+        <span class="emoji">😕</span>
+        <span class="emoji-label">A little tired</span>
+    </button>
+</div>
+
+<div class="nav-buttons">
+    <button class="back-btn" onclick="Engine.play('Survey Q2')">← Back</button>
+    <button class="next-btn" id="q3next" disabled onclick="Engine.play('Survey Q4')">Next →</button>
+</div>
+</div>
+
+<script>
+function selectEmoji(el, value) {
+    document.querySelectorAll('.emoji-btn').forEach(b => b.classList.remove('selected'));
+    el.classList.add('selected');
+    SugarCube.State.variables.q3Answer = value;
+    document.getElementById('q3next').disabled = false;
+}
+</script>
+
+:: Survey Q4
+<div class="survey-container">
+<div class="progress-bar">
+    <div class="progress-fill" style="width: 80%"></div>
+</div>
+<p class="progress-text">Question 4 of 5</p>
+
+<h2>🔁 Would you play CardioCare Quest again?</h2>
+
+<div class="options-list">
+    <button class="option-btn single" onclick="selectSingle(this, 'Yes, I would play again', 'q4')">
+        ✅ Yes, I would play again
+    </button>
+    <button class="option-btn single" onclick="selectSingle(this, 'Maybe', 'q4')">
+        🤔 Maybe
+    </button>
+    <button class="option-btn single" onclick="selectSingle(this, 'I am not sure', 'q4')">
+        💭 I am not sure
+    </button>
+</div>
+
+<div class="nav-buttons">
+    <button class="back-btn" onclick="Engine.play('Survey Q3')">← Back</button>
+    <button class="next-btn" id="q4next" disabled onclick="Engine.play('Survey Q5')">Next →</button>
+</div>
+</div>
+
+<script>
+function selectSingle(el, value, qid) {
+    document.querySelectorAll('.option-btn.single').forEach(b => b.classList.remove('selected'));
+    el.classList.add('selected');
+    SugarCube.State.variables.q4Answer = value;
+    document.getElementById(qid + 'next').disabled = false;
+}
+</script>
+
+:: Survey Q5
+<div class="survey-container">
+<div class="progress-bar">
+    <div class="progress-fill" style="width: 100%"></div>
+</div>
+<p class="progress-text">Question 5 of 5 -- Last one!</p>
+
+<h2>💬 Is there anything you wish the game had?</h2>
+<p class="subtitle">This one is optional. Skip it if you want.</p>
+
+<textarea 
+    class="text-area" 
+    placeholder="Type your answer here, or skip..."
+    oninput="SugarCube.State.variables.q5Answer = this.value"
+    rows="4">
+</textarea>
+
+<div class="nav-buttons">
+    <button class="back-btn" onclick="Engine.play('Survey Q4')">← Back</button>
+    <button class="next-btn" onclick="submitSurvey()">Done! →</button>
+</div>
+</div>
+
+<script>
+function submitSurvey() {
+    var responses = {
+        favoriteGame:  SugarCube.State.variables.q1Answer,
+        whatMadeItFun: SugarCube.State.variables.q2Answer,
+        howYouFeel:    SugarCube.State.variables.q3Answer,
+        playAgain:     SugarCube.State.variables.q4Answer,
+        wishItHad:     SugarCube.State.variables.q5Answer,
+        timestamp:     new Date().toISOString()
+    };
+    // Persist via the CardioCare Quest bridge → SurveyHooks →
+    // surveys/post_play_v1/responses/{auto} + immutable events row.
+    try {
+        if (window.CCQ && typeof CCQ.submitResponse === 'function') {
+            CCQ.submitResponse(responses, {
+                surveyId: 'post_play_v1',
+                pointsEarned: 25
+            });
+        }
+    } catch (e) {
+        console.error('survey submit failed:', e);
+    }
+    console.log('Survey submitted:', responses);
+    Engine.play('Survey Thank You');
+}
+</script>
+
+:: Survey Thank You
+<div class="survey-container thank-you">
+    <div class="thank-you-icon">🎉</div>
+    <h1>Thank you!</h1>
+    <p>You did great today.</p>
+    <p>Your answers help us make CardioCare Quest better for everyone.</p>
+
+    <<if $q1Answer !== "">>
+        <div class="recap-box">
+            <p>Your favorite game was <strong><<print $q1Answer>></strong></p>
+            <p>You felt <strong><<print $q3Answer>></strong> after playing</p>
+        </div>
+    <</if>>
+
+    <button class="finish-btn" onclick="Engine.play('Start')">
+        🏠 Back to Home
+    </button>
+</div>
+
+:: Survey Styles [stylesheet]
+.survey-container {
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem;
+    font-family: 'Georgia', serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.survey-header h1 {
+    font-size: 1.8rem;
+    color: #2c3e50;
+    margin-bottom: 0.5rem;
+}
+
+.progress-bar {
+    width: 100%;
+    height: 8px;
+    background: #e0e0e0;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background: #3498db;
+    border-radius: 4px;
+    transition: width 0.3s ease;
+}
+
+.progress-text {
+    font-size: 0.85rem;
+    color: #888;
+    margin: 0;
+}
+
+h2 {
+    font-size: 1.5rem;
+    color: #2c3e50;
+    margin: 0;
+    line-height: 1.3;
+}
+
+.subtitle {
+    font-size: 0.95rem;
+    color: #666;
+    margin: -0.5rem 0 0 0;
+}
+
+.options-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.option-btn {
+    padding: 1rem 1.25rem;
+    font-size: 1.05rem;
+    text-align: left;
+    border: 2px solid #ddd;
+    border-radius: 12px;
+    background: white;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: #2c3e50;
+}
+
+.option-btn:hover {
+    border-color: #3498db;
+    background: #f0f8ff;
+}
+
+.option-btn.selected {
+    border-color: #3498db;
+    background: #3498db;
+    color: white;
+}
+
+.game-option {
+    padding: 0.85rem 1rem;
+    font-size: 1rem;
+    border: 2px solid #ddd;
+    border-radius: 12px;
+    background: white;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: #2c3e50;
+    text-align: center;
+}
+
+.game-option:hover {
+    border-color: #3498db;
+    background: #f0f8ff;
+}
+
+.game-option.selected {
+    border-color: #3498db;
+    background: #3498db;
+    color: white;
+}
+
+.options-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+}
+
+.emoji-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+
+.emoji-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 1.25rem 0.75rem;
+    border: 2px solid #ddd;
+    border-radius: 16px;
+    background: white;
+    cursor: pointer;
+    transition: all 0.2s;
+    gap: 0.5rem;
+}
+
+.emoji-btn:hover {
+    border-color: #3498db;
+    background: #f0f8ff;
+    transform: scale(1.02);
+}
+
+.emoji-btn.selected {
+    border-color: #3498db;
+    background: #3498db;
+}
+
+.emoji-btn.selected .emoji-label {
+    color: white;
+}
+
+.emoji {
+    font-size: 2.5rem;
+}
+
+.emoji-label {
+    font-size: 0.85rem;
+    color: #555;
+    text-align: center;
+    line-height: 1.3;
+}
+
+.text-input {
+    width: 100%;
+    padding: 0.85rem 1rem;
+    font-size: 1rem;
+    border: 2px solid #ddd;
+    border-radius: 12px;
+    font-family: inherit;
+    box-sizing: border-box;
+}
+
+.text-input:focus {
+    outline: none;
+    border-color: #3498db;
+}
+
+.text-area {
+    width: 100%;
+    padding: 0.85rem 1rem;
+    font-size: 1rem;
+    border: 2px solid #ddd;
+    border-radius: 12px;
+    font-family: inherit;
+    resize: none;
+    box-sizing: border-box;
+    line-height: 1.5;
+}
+
+.text-area:focus {
+    outline: none;
+    border-color: #3498db;
+}
+
+.nav-buttons {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: auto;
+    padding-top: 1rem;
+}
+
+.next-btn {
+    padding: 0.85rem 2rem;
+    font-size: 1.05rem;
+    background: #3498db;
+    color: white;
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: background 0.2s;
+    margin-left: auto;
+}
+
+.next-btn:hover {
+    background: #2980b9;
+}
+
+.next-btn:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+}
+
+.back-btn {
+    padding: 0.85rem 1.5rem;
+    font-size: 1rem;
+    background: transparent;
+    color: #888;
+    border: 2px solid #ddd;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.back-btn:hover {
+    border-color: #aaa;
+    color: #555;
+}
+
+.thank-you {
+    text-align: center;
+    justify-content: center;
+    align-items: center;
+}
+
+.thank-you-icon {
+    font-size: 4rem;
+}
+
+.thank-you h1 {
+    font-size: 2.2rem;
+    color: #2c3e50;
+}
+
+.recap-box {
+    background: #f0f8ff;
+    border: 2px solid #3498db;
+    border-radius: 16px;
+    padding: 1.25rem 1.5rem;
+    margin: 1rem 0;
+    text-align: left;
+}
+
+.recap-box p {
+    margin: 0.4rem 0;
+    color: #2c3e50;
+    font-size: 1rem;
+}
+
+.finish-btn {
+    padding: 1rem 2.5rem;
+    font-size: 1.1rem;
+    background: #27ae60;
+    color: white;
+    border: none;
+    border-radius: 16px;
+    cursor: pointer;
+    margin-top: 1rem;
+    transition: background 0.2s;
+}
+
+.finish-btn:hover {
+    background: #219a52;
+}
+  </script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      try {
+        CCQTwee.runFromScript('twee-source', 'Survey Start', {
+          htmlMode: true,
+          exitPassages: ['Start', 'Home'],
+          onExit: function () { try { CCQ.goHome(); } catch (e) { console.error(e); } }
+        });
+      } catch (e) {
+        console.error('CCQTwee survey boot failed:', e);
+        document.getElementById('twee-root').textContent = 'This survey could not load. Please go back and try again.';
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Vascular Village</title>
+  <script src="ccq_bridge.js"></script>
+  <script src="ccq_twee.js"></script>
+  <style>
+    @font-face {
+      font-family: 'Nunito';
+      font-style: normal;
+      font-weight: 600;
+      src: url('fonts/Nunito-SemiBold.ttf') format('truetype');
+    }
+    @font-face {
+      font-family: 'Nunito';
+      font-style: normal;
+      font-weight: 700;
+      src: url('fonts/Nunito-Bold.ttf') format('truetype');
+    }
+    :root {
+      --bg: #f4f5f7;
+      --card: #ffffff;
+      --border: #d8dadf;
+      --text: #2d3140;
+      --muted: #6b7280;
+      --accent: #1b7373;
+      --accent-light: #cfeae9;
+    }
+    body, html {
+      margin: 0;
+      padding: 0;
+      font-family: 'Nunito', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      -webkit-text-size-adjust: 100%;
+    }
+    .app {
+      max-width: 540px;
+      margin: 0 auto;
+      padding: 20px 22px 100px;
+      box-sizing: border-box;
+    }
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 0 18px 0;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 18px;
+    }
+    .topbar h1 {
+      font-size: 20px;
+      font-weight: 700;
+      margin: 0;
+      color: var(--accent);
+    }
+    .home-btn {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .passage {
+      animation: fadeIn 0.2s ease;
+    }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+    .passage p,
+    .passage > span {
+      font-size: 17px;
+      line-height: 1.55;
+      color: var(--text);
+      margin: 0 0 14px;
+      display: block;
+    }
+    .passage strong { color: var(--accent); font-weight: 800; }
+    button.twee-link {
+      display: block;
+      width: 100%;
+      text-align: left;
+      background: var(--card);
+      border: 2px solid var(--border);
+      border-radius: 12px;
+      padding: 14px 16px;
+      margin: 0 0 12px;
+      font-family: inherit;
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text);
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    button.twee-link:hover, button.twee-link:active {
+      background: var(--accent-light);
+      border-color: var(--accent);
+    }
+    .twee-textbox {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 12px 14px;
+      font-family: inherit;
+      font-size: 16px;
+      font-weight: 600;
+      background: #fff;
+      border: 2px solid var(--border);
+      border-radius: 10px;
+      color: var(--text);
+      margin: 0 0 12px;
+    }
+    .twee-textbox:focus { outline: none; border-color: var(--accent); }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="topbar">
+      <h1>Vascular Village</h1>
+      <button type="button" class="home-btn" onclick="CCQ.goHome()">Back home</button>
+    </div>
+    <div id="twee-root"></div>
+  </div>
+
+  <!-- Twee source embedded as text. type="text/twee" is non-executable. -->
+  <script type="text/twee" id="twee-source">
+::StoryTitle
+Vascular Village
+
+::StoryData
+{
+  "ifid": "D4E5F6A7-B8C9-0123-DEFA-234567890123",
+  "format": "SugarCube",
+  "format-version": "2.37.3",
+  "start": "Story innit",
+  "zoom": 0.6
+}
+
+::UserStylesheet [stylesheet]
+body { font-family: "Times New Roman", Times, serif; }
+#ui-bar { display: none; }
+
+::UserScript [script]
+
+
+::Story innit [Important/Needed]
+/*
+SYSTEM CODE: runs once at the very start.
+
+Variables:
+- $playerName   : pulled from sign-in
+- $pressure     : vessel pressure level 0 to 100, starts at 40 (healthy baseline)
+- $resources    : village resource level 0 to 100, starts at 60
+- $villageHealth: overall village condition 0 to 100, starts at 70
+- $streak       : days visited in a row
+- $day          : current quest day 1 to 5
+- $questChoice  : tracks what decision the player made
+
+You do not need to edit this.
+*/
+
+<<set $playerName to "Friend">>
+<<set $pressure to 40>>
+<<set $resources to 60>>
+<<set $villageHealth to 70>>
+<<set $streak to 0>>
+<<set $day to 1>>
+<<set $questChoice to "">>
+
+<<goto "Welcome">>
+
+
+::Welcome [Important/Needed]
+/*
+INCITING MOMENT: Personal greeting. Where we are going. One button.
+*/
+
+Hey $playerName. Welcome to Vascular Village.
+
+You are about to go somewhere most people never go. Inside a human artery. Not to look around. To govern it.
+
+[[What is an artery?|What Is An Artery]]
+
+
+::What Is An Artery [Important/Needed]
+/*
+RISING ACTION: Simple artery explanation. No assumptions.
+*/
+
+Your arteries carry blood from your heart to the rest of your body.
+
+They are not rigid pipes. They are living walls made of muscle and tissue that expand and contract with every heartbeat.
+
+When they are healthy, they stretch easily. Blood flows without resistance. Pressure stays low.
+
+When they are under stress, from too much sodium, too little movement, too many years of strain, those walls stiffen. They resist instead of stretch. Pressure climbs.
+
+[[What is my role in all of this?|Your Role]]
+
+
+::Your Role [Important/Needed]
+/*
+RISING ACTION: Introduce the Steward concept and the village.
+*/
+
+In Vascular Village, you are the Steward of a microscopic community living inside an artery wall.
+
+Your village depends on the health of the vessel it lives in. When the artery is healthy, your village thrives. Resources flow. Buildings stand. The community grows.
+
+When pressure rises, the vessel wall strains. Your village feels it. Structures weaken. Resources run low.
+
+Your job is to keep the Pressure Meter stable.
+
+[[How do I do that?|How It Works]]
+
+
+::How It Works [Important/Needed]
+/*
+EXPOSITION: Quest structure explained. Connection to real behaviors.
+*/
+
+Every day a quest arrives. A challenge from inside the vessel.
+
+Some quests ask you to manage resources, deciding how to distribute nutrients coming through the bloodstream.
+
+Some ask you to repair damage on the vessel wall before it spreads.
+
+Some ask you to respond to a pressure spike before it becomes a crisis.
+
+Each quest connects to a real behavior. Eating well sends better resources to your village. Moving regularly keeps the vessel walls flexible. Managing stress keeps the Pressure Meter from spiking without warning.
+
+[[What does the village look like right now?|Village Status]]
+
+
+::Village Status [Important/Needed]
+/*
+FIRST LOOK: Player sees their starting village status before quests begin.
+Sets the scene. Then moves to Day 1.
+*/
+
+Here is your village right now.
+
+Pressure Meter: $pressure out of 100. Healthy range is below 60.
+Resources: $resources out of 100.
+Village Health: $villageHealth out of 100.
+
+The vessel walls are stable. The community is calm. A delivery of nutrients just came through the bloodstream and the village is well stocked.
+
+But a message has arrived from the outer wall. Something needs your attention.
+
+[[Read the message.|Day Start]]
+
+
+::Day Start [Important/Needed]
+/*
+START OF EACH QUEST DAY.
+Shows current status and today's challenge.
+Sends player to that day's quest.
+*/
+
+''Day $day of 5''
+
+Pressure: $pressure. Resources: $resources. Village Health: $villageHealth.
+
+<<if $pressure lt 40>>The vessel walls are relaxed. Blood is moving freely. Your village is in excellent condition.
+<<elseif $pressure lt 60>>Pressure is in the healthy range. The village is stable. Stay consistent.
+<<elseif $pressure lt 80>>Pressure is rising. The vessel walls are starting to stiffen. Your village needs a good decision today.
+<<else>>Pressure is high. The vessel wall is under serious strain. Your community is depending on you right now.
+<</if>>
+
+Today's challenge:
+<<if $day is 1>>A sodium delivery has arrived at the vessel. More than the village needs. You have to decide what to do with it.
+<<elseif $day is 2>>The outer wall has developed a small area of stiffness from yesterday's pressure. It needs attention before it spreads.
+<<elseif $day is 3>>A pressure spike is building from outside the vessel. The cause is stress. You need to respond before it peaks.
+<<elseif $day is 4>>Resources are running low after three days of decisions. A nutrient shipment is coming through the bloodstream. You choose how to use it.
+<<else>>Final day. The vessel has been through four days of your stewardship. One last decision determines how your village finishes.
+<</if>>
+
+<<if $day is 1>>[[Face the challenge.|Quest 1]]
+<<elseif $day is 2>>[[Face the challenge.|Quest 2]]
+<<elseif $day is 3>>[[Face the challenge.|Quest 3]]
+<<elseif $day is 4>>[[Face the challenge.|Quest 4]]
+<<else>>[[Face the challenge.|Quest 5]]
+<</if>>
+
+
+::Quest 1 [Important/Needed]
+/*
+DAY 1 QUEST: Sodium delivery. Player decides how to handle excess sodium.
+Good choice reduces pressure. Bad choice increases it.
+*/
+
+A shipment has arrived at the vessel carrying three times the sodium your village needs.
+
+Excess sodium will pull more water into the bloodstream, increasing volume and raising pressure on the walls. Your village knows this. They are waiting for your decision.
+
+What do you do?
+
+<<link "Redirect the excess sodium out through the kidney channels.">>
+<<set $questChoice to "good">>
+<<set $pressure to Math.max(0, $pressure - 10)>>
+<<set $resources to Math.min(100, $resources + 10)>>
+<<goto "Quest Result">>
+<</link>>
+
+<<link "Accept the full shipment. The village can use the extra stores.">>
+<<set $questChoice to "bad">>
+<<set $pressure to Math.min(100, $pressure + 15)>>
+<<set $resources to Math.min(100, $resources + 5)>>
+<<goto "Quest Result">>
+<</link>>
+
+
+::Quest 2 [Important/Needed]
+/*
+DAY 2 QUEST: Vessel wall stiffness. Player decides how to address it.
+*/
+
+A section of the outer wall has lost flexibility from yesterday's pressure load.
+
+Stiff walls mean the vessel cannot expand properly when blood pushes through. This forces the heart to work harder and drives pressure higher. Left unaddressed, stiffness spreads.
+
+What do you do?
+
+<<link "Send a repair crew with potassium and magnesium from village stores.">>
+<<set $questChoice to "good">>
+<<set $pressure to Math.max(0, $pressure - 10)>>
+<<set $resources to Math.max(0, $resources - 10)>>
+<<set $villageHealth to Math.min(100, $villageHealth + 15)>>
+<<goto "Quest Result">>
+<</link>>
+
+<<link "Leave it for now. Resources are needed elsewhere.">>
+<<set $questChoice to "bad">>
+<<set $pressure to Math.min(100, $pressure + 10)>>
+<<set $villageHealth to Math.max(0, $villageHealth - 10)>>
+<<goto "Quest Result">>
+<</link>>
+
+
+::Quest 3 [Important/Needed]
+/*
+DAY 3 QUEST: Stress-driven pressure spike. Player chooses how to respond.
+*/
+
+A pressure spike is arriving from outside the vessel.
+
+The cause is not food or sodium. It is stress. When the body is under mental or emotional pressure, it releases hormones that constrict blood vessels and drive pressure up. Your village has fifteen minutes before the spike peaks.
+
+What do you do?
+
+<<link "Activate the vessel's relaxation response. Signal the walls to widen.">>
+<<set $questChoice to "good">>
+<<set $pressure to Math.max(0, $pressure - 15)>>
+<<set $villageHealth to Math.min(100, $villageHealth + 10)>>
+<<goto "Quest Result">>
+<</link>>
+
+<<link "Hold position and wait for the spike to pass on its own.">>
+<<set $questChoice to "bad">>
+<<set $pressure to Math.min(100, $pressure + 20)>>
+<<set $villageHealth to Math.max(0, $villageHealth - 15)>>
+<<goto "Quest Result">>
+<</link>>
+
+
+::Quest 4 [Important/Needed]
+/*
+DAY 4 QUEST: Nutrient shipment. Player allocates resources wisely.
+*/
+
+A nutrient shipment is moving through the bloodstream toward your village.
+
+It contains potassium, magnesium, and fiber. All three support vessel wall health and help keep pressure stable. You can use them now to repair and strengthen, or hold them in reserve for emergencies.
+
+What do you do?
+
+<<link "Use the nutrients now. Repair the walls and build up village health.">>
+<<set $questChoice to "good">>
+<<set $pressure to Math.max(0, $pressure - 10)>>
+<<set $resources to Math.min(100, $resources + 15)>>
+<<set $villageHealth to Math.min(100, $villageHealth + 20)>>
+<<goto "Quest Result">>
+<</link>>
+
+<<link "Hold the nutrients in reserve. Save them for later.">>
+<<set $questChoice to "neutral">>
+<<set $resources to Math.min(100, $resources + 20)>>
+<<goto "Quest Result">>
+<</link>>
+
+
+::Quest 5 [Important/Needed]
+/*
+DAY 5 QUEST: Final decision. Determines how the village finishes.
+*/
+
+Five days of decisions have shaped this vessel.
+
+The community has gathered at the center of the village. They know this is the last quest. They are looking at the Pressure Meter. It reads $pressure.
+
+One final action available to you. A rare compound has been found in the bloodstream. It can be used to permanently increase vessel wall flexibility, lowering baseline pressure for the long term. But it requires all remaining village resources to activate.
+
+What do you do?
+
+<<link "Use the compound. Invest everything in long-term vessel health.">>
+<<set $questChoice to "good">>
+<<set $pressure to Math.max(0, $pressure - 20)>>
+<<set $resources to 0>>
+<<set $villageHealth to Math.min(100, $villageHealth + 25)>>
+<<goto "Quest Result">>
+<</link>>
+
+<<link "Preserve the resources. Keep the village stable as it is.">>
+<<set $questChoice to "neutral">>
+<<set $villageHealth to Math.min(100, $villageHealth + 5)>>
+<<goto "Quest Result">>
+<</link>>
+
+
+::Quest Result [Important/Needed]
+/*
+RESULT OF EACH QUEST.
+Explains what happened and why.
+Moves to next day or final result after day 5.
+*/
+
+<<if $questChoice is "good">>Good decision.<<elseif $questChoice is "neutral">>A cautious choice.<<else>>That came at a cost.<</if>>
+
+<<if $day is 1 and $questChoice is "good">>Redirecting the excess sodium through the kidney channels was the right call. Sodium drives water into the bloodstream and increases pressure on the vessel walls. Less sodium means less volume, less volume means less pressure. The village is breathing easier.
+<<elseif $day is 1 and $questChoice is "bad">>Accepting the full sodium shipment increased blood volume in the vessel. More volume means more pressure on the walls. The Pressure Meter has climbed. The village can feel the difference.
+<<elseif $day is 2 and $questChoice is "good">>Sending the repair crew with potassium and magnesium was the right move. Both minerals help vessel walls stay flexible and responsive. The stiff section has been addressed. Pressure has eased.
+<<elseif $day is 2 and $questChoice is "bad">>Leaving the stiffness unaddressed allowed it to spread slightly. Stiff vessel walls resist blood flow and force the heart to push harder. Pressure climbed as a result.
+<<elseif $day is 3 and $questChoice is "good">>Activating the relaxation response widened the vessel walls and absorbed the pressure spike before it peaked. This is what regular movement and stress management do in a real artery. The walls relax. Pressure drops. The village is steady.
+<<elseif $day is 3 and $questChoice is "bad">>Waiting for the spike to pass on its own allowed it to peak fully. The vessel walls took the full force of the pressure surge. Village health dropped. The damage is not permanent but it will take a good decision tomorrow to recover.
+<<elseif $day is 4 and $questChoice is "good">>Using the nutrients immediately was the stronger choice. Potassium, magnesium, and fiber work best when they are active in the system, not stored. The vessel walls are more flexible now and the village is in the best condition it has been all week.
+<<elseif $day is 4 and $questChoice is "neutral">>Holding the nutrients in reserve keeps your options open but delays the benefits. The vessel walls did not improve today. The resources are there but the opportunity to use them passed.
+<<elseif $day is 5 and $questChoice is "good">>Investing everything in long-term vessel flexibility was the right decision for a healthy artery. Short-term resources matter less than the structural health of the vessel that houses your village. Pressure has dropped significantly.
+<<elseif $day is 5 and $questChoice is "neutral">>Preserving the resources kept the village stable. The vessel finished in the condition it was in. Steady is not nothing.
+<</if>>
+
+Pressure: $pressure. Resources: $resources. Village Health: $villageHealth.
+
+<<if $day lt 5>>
+<<set $day to $day + 1>>
+<<set $streak to $streak + 1>>
+[[Continue to Day $day.|Day Start]]
+<<else>>
+<<set $streak to $streak + 1>>
+[[See how your village finished.|Final Result]]
+<</if>>
+
+
+::Final Result [Important/Needed]
+/*
+DENOUEMENT: Five days done. Personalized ending based on pressure level.
+Village status revealed. Health message.
+*/
+
+Five days done, $playerName.
+
+Here is the state of your village.
+
+Pressure: $pressure out of 100.
+Resources: $resources out of 100.
+Village Health: $villageHealth out of 100.
+Days completed: $streak.
+
+<<if $pressure lt 40>>
+Vessel pressure is low. The walls are flexible and the blood is moving freely through a healthy artery.
+
+Your village is thriving. The community built something durable over these five days. Every good decision compounded into this result.
+
+This is what a well-managed artery looks like from the inside.
+<<elseif $pressure lt 60>>
+Vessel pressure is in the healthy range. The walls are holding. Blood is moving with reasonable ease.
+
+Your village is stable. Some decisions moved things in the right direction, others made the job harder. The vessel finished in good shape.
+
+Consistency over time is what turns a stable artery into a healthy one.
+<<elseif $pressure lt 80>>
+Vessel pressure is elevated. The walls are under more strain than is ideal.
+
+Your village is managing. The community has dealt with the conditions you gave them. But the Pressure Meter is telling you something. The vessel needs more consistent support to stay healthy long term.
+<<else>>
+Vessel pressure is high. The walls are stiff and the heart is working hard to push blood through.
+
+Your village survived but it did not thrive. High pressure sustained over time is what causes the damage that leads to heart disease and stroke in a real artery.
+
+The five days showed you exactly where the pressure climbed and why.
+<</if>>
+
+The choices that raised pressure in this game are the same choices that raise pressure in a real artery. The ones that lowered it work the same way outside the game too.
+
+[[Back to CardioCareQuest.|Central Hub]]
+
+
+::Central Hub [Important/Needed]
+/*
+Placeholder passage. In the full app this returns
+the player to the CardioCareQuest main hub.
+*/
+
+Returning to CardioCareQuest.
+  </script>
+
+  <script>
+    // Boot the runtime once the DOM is ready. The "Central Hub" passage is
+    // the canonical exit hatch in our authored stories; intercept it and
+    // route back to the Flutter app instead of rendering it.
+    document.addEventListener('DOMContentLoaded', function () {
+      try {
+        CCQTwee.runFromScript('twee-source', 'Story innit', {
+          onCentralHub: function () {
+            try { CCQ.goHome(); } catch (e) { console.error(e); }
+          }
+        });
+      } catch (e) {
+        console.error('CCQTwee boot failed:', e);
+        document.getElementById('twee-root').textContent =
+          'This game could not load. Please go back and try again.';
+      }
+    });
+  </script>
+</body>
+</html>
