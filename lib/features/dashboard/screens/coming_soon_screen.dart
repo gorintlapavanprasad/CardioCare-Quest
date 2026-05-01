@@ -20,17 +20,10 @@ class ComingSoonScreen extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Container(
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: AppColors.viridis2.withValues(alpha: 0.1), 
-                  shape: BoxShape.circle
-                ),
-                child: const Icon(
-                  Icons.auto_awesome_rounded, 
-                  size: 64, 
-                  color: AppColors.viridis2
-                ),
+              const Icon(
+                Icons.auto_awesome_rounded,
+                size: 64,
+                color: AppColors.primary,
               ),
               const SizedBox(height: 24),
               Text(

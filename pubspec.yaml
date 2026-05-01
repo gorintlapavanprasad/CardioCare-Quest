@@ -27,7 +27,6 @@ dependencies:
   web: ^1.1.1
   geoflutterfire_plus: ^0.0.34
   latlong2: ^0.9.1
-  mobile_scanner: ^7.2.0
   flutter_compass: ^0.8.0
   get_it: ^9.2.1
   hive_flutter: ^1.1.0
@@ -37,6 +36,13 @@ dependencies:
   fl_chart: ^0.68.0
   image_picker: ^1.0.8
   intl: ^0.20.2
+  # iOS HealthKit + Android Health Connect. Reads Apple Watch / wearable
+  # vitals (heart rate, steps, active energy, etc.) at BP prompt time and
+  # attaches them to the BP reading for research context. See
+  # IOS_HEALTHKIT_SETUP.md for the macOS/Xcode handoff steps.
+  # ^13.3.1 — earlier majors require intl <0.20.0 which conflicts with
+  # the project's intl ^0.20.2.
+  health: ^13.3.1
 
 dev_dependencies:
   flutter_test:
@@ -63,6 +69,7 @@ flutter:
     - assets/game/bingo_bash.html
     - assets/game/dash_diet_game.html
     - assets/game/vascular_village.html
+    - assets/game/quiet_minute.html
     - assets/game/post_play_survey.html
 
 flutter_icons:

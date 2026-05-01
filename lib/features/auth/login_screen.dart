@@ -5,7 +5,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart'; // ─── ADDED: Official Netgauge Auth
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:get_it/get_it.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/constants/firestore_paths.dart';
@@ -28,18 +27,6 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isLoginLoading = false;
   String? _currentUserDocId;
 
-  Future<void> _openScannerForUniqueId() async {
-    final navigator = Navigator.of(context);
-    final result = await navigator.push<String?>(
-      MaterialPageRoute(builder: (_) => const UniqueIdScannerScreen()),
-    );
-
-    if (!mounted) return;
-    if (result != null && result.trim().isNotEmpty) {
-      _uniqueIdController.text = result.trim();
-    }
-  }
-
   @override
   void dispose() {
     _uniqueIdController.dispose();
@@ -54,7 +41,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
     if (uniqueId.isEmpty) {
       messenger.showSnackBar(
-        const SnackBar(content: Text("Please enter or scan your Unique ID.")),
+        const SnackBar(content: Text("Please enter your Unique ID.")),
       );
       return;
     }
@@ -171,9 +158,6 @@ class _LoginScreenState extends State<LoginScreen> {
       await userDataProvider.fetchUserData(participantId: uniqueId);
 
       if (!mounted) return;
-      await _showBmiDialogIfNeeded(context);
-
-      if (!mounted) return;
       navigator.pushReplacement(
         MaterialPageRoute(builder: (_) => const MainLayout()),
       );
@@ -186,147 +170,6 @@ class _LoginScreenState extends State<LoginScreen> {
         messenger.showSnackBar(SnackBar(content: Text(message)));
         setState(() => _isLoginLoading = false);
       }
-    }
-  }
-
-  Future<void> _showBmiDialogIfNeeded(BuildContext localContext) async {
-    final userDataProvider = Provider.of<UserDataProvider>(
-      localContext,
-      listen: false,
-    );
-    final currentData = userDataProvider.userData ?? {};
-    if (currentData['heightCm'] != null ||
-        currentData['weightKg'] != null ||
-        currentData['bmi'] != null) {
-      return;
-    }
-
-    final TextEditingController heightController = TextEditingController();
-    final TextEditingController weightController = TextEditingController();
-
-    final result = await showDialog<bool>(
-      context: localContext,
-      barrierDismissible: false,
-      builder: (context) {
-        final messenger = ScaffoldMessenger.of(context);
-        final dialogNavigator = Navigator.of(context);
-        return AlertDialog(
-          backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(24),
-          ),
-          title: const Text(
-            'Tell us about you',
-            style: TextStyle(fontWeight: FontWeight.bold),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'Enter height and weight to personalize your experience.',
-                style: TextStyle(color: AppColors.subtitle, fontSize: 14),
-              ),
-              const SizedBox(height: 20),
-              TextField(
-                controller: heightController,
-                keyboardType: TextInputType.number,
-                decoration: InputDecoration(
-                  labelText: 'Height (cm)',
-                  filled: true,
-                  fillColor: AppColors.background,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: weightController,
-                keyboardType: TextInputType.number,
-                decoration: InputDecoration(
-                  labelText: 'Weight (kg)',
-                  filled: true,
-                  fillColor: AppColors.background,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          actionsPadding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-          actions: [
-            TextButton(
-              style: TextButton.styleFrom(
-                backgroundColor: AppColors.background,
-                minimumSize: const Size(120, 52),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-              ),
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text(
-                'Skip for now',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.subtitle,
-                ),
-              ),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.viridis4,
-                minimumSize: const Size(120, 52),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-              ),
-              onPressed: () async {
-                final height = int.tryParse(heightController.text.trim());
-                final weight = double.tryParse(weightController.text.trim());
-                if (height == null ||
-                    height <= 0 ||
-                    weight == null ||
-                    weight <= 0) {
-                  messenger.showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        'Please enter valid height and weight or tap Skip.',
-                      ),
-                    ),
-                  );
-                  return;
-                }
-                final bmi = weight / ((height / 100) * (height / 100));
-                final docId = _currentUserDocId ?? currentData['uid'];
-                if (docId != null) {
-                  await GetIt.instance<OfflineQueue>().enqueue(PendingOp.set(
-                    '${FirestorePaths.userData}/$docId',
-                    {
-                      'heightCm': height,
-                      'weightKg': weight,
-                      'bmi': double.parse(bmi.toStringAsFixed(1)),
-                    },
-                    merge: true,
-                  ));
-                }
-                if (!mounted) return;
-                dialogNavigator.pop(true);
-              },
-              child: const Text(
-                'Save',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (result == true) {
-      await userDataProvider.fetchUserData(
-        participantId: _uniqueIdController.text.trim(),
-      );
     }
   }
 
@@ -452,17 +295,11 @@ class _LoginScreenState extends State<LoginScreen> {
       textInputAction: TextInputAction.done,
       decoration: InputDecoration(
         labelText: 'Unique ID',
-        hintText: 'Enter or scan your badge',
+        hintText: 'Enter your badge',
         labelStyle: const TextStyle(fontWeight: FontWeight.w600),
         prefixIcon: Icon(
           Icons.badge_outlined,
           color: AppColors.viridis1.withValues(alpha: 0.6),
-        ),
-        suffixIcon: IconButton(
-          icon: const Icon(Icons.qr_code_scanner),
-          color: AppColors.viridis4,
-          tooltip: 'Scan QR/Barcode',
-          onPressed: _openScannerForUniqueId,
         ),
         filled: true,
         fillColor: Colors.white,
@@ -531,40 +368,6 @@ class _LoginScreenState extends State<LoginScreen> {
             AppColors.viridis4,
           ],
         ),
-      ),
-    );
-  }
-}
-
-class UniqueIdScannerScreen extends StatelessWidget {
-  const UniqueIdScannerScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(
-        backgroundColor: Colors.black,
-        elevation: 0,
-        title: const Text(
-          'Scan QR/Barcode',
-          style: TextStyle(color: Colors.white),
-        ),
-        leading: IconButton(
-          icon: const Icon(Icons.close, color: Colors.white),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-      ),
-      body: MobileScanner(
-        onDetect: (capture) {
-          final List<Barcode> barcodes = capture.barcodes;
-          if (barcodes.isNotEmpty) {
-            final code = barcodes.first.rawValue;
-            if (code != null && code.trim().isNotEmpty) {
-              Navigator.of(context).pop(code.trim());
-            }
-          }
-        },
       ),
     );
   }

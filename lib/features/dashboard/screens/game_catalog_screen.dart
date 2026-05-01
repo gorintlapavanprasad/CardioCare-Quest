@@ -6,6 +6,7 @@ import '../../games/control_game.dart';
 import '../../games/salt_sludge.dart';
 import '../../games/bingo_bash_game.dart';
 import '../../games/dash_diet_twine_game.dart';
+import '../../games/quiet_minute.dart';
 import '../../games/vascular_village_game.dart';
 import 'coming_soon_screen.dart';
 
@@ -84,6 +85,13 @@ class GameCatalogScreen extends StatelessWidget {
                       builder: (_) => const VascularVillageGame(),
                     ),
                   );
+                } else if (game.id == 'quiet_minute') {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const QuietMinuteGame(),
+                    ),
+                  );
                 } else {
                   Navigator.push(
                     context,
@@ -109,9 +117,6 @@ class _GameSquareCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Color cardColor =
-        Color(int.parse(game.color.replaceFirst('#', '0xFF')));
-
     return Material(
       color: Colors.white,
       borderRadius: BorderRadius.circular(20),
@@ -125,7 +130,7 @@ class _GameSquareCard extends StatelessWidget {
             border: Border.all(color: AppColors.cardBorder),
             boxShadow: [
               BoxShadow(
-                color: cardColor.withValues(alpha: 0.08),
+                color: AppColors.accent.withValues(alpha: 0.08),
                 blurRadius: 12,
                 offset: const Offset(0, 4),
               ),
@@ -135,7 +140,7 @@ class _GameSquareCard extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text(game.emoji, style: const TextStyle(fontSize: 44)),
+                Icon(game.iconData, color: AppColors.primary, size: 44),
                 const SizedBox(height: 12),
                 Text(
                   game.title,

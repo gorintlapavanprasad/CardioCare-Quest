@@ -10,6 +10,7 @@
 library;
 
 export 'daily_log_hooks.dart';
+export 'health_hooks.dart';
 export 'movement_hooks.dart';
 export 'points_hooks.dart';
 export 'profile_hooks.dart';

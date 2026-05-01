@@ -542,6 +542,20 @@
       console.warn("[twee] missing passage:", name);
       return;
     }
+    // Auto-telemetry: every passage entry fires a `passage_entered` event
+    // through the bridge, snapshotting the current Twee state.vars at
+    // entry time. Lets researchers see the full path the player took
+    // through the story plus key in-game variables (e.g. $sludge, $score,
+    // $day) without modifying the .tw source. Best-effort, swallows
+    // errors so the runtime never breaks rendering.
+    try {
+      if (window.CCQ && typeof window.CCQ.telemetry === "function") {
+        window.CCQ.telemetry("passage_entered", {
+          passage: name,
+          vars: Object.assign({}, State.vars),
+        });
+      }
+    } catch (e) { /* swallow */ }
     State.rootEl.innerHTML = "";
     const wrapper = document.createElement("div");
     wrapper.className = "passage";

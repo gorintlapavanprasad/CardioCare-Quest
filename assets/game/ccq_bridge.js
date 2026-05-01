@@ -128,6 +128,46 @@
     post(payload);
   }
 
+  /**
+   * Log a blood-pressure reading captured inside the game (e.g. the Quiet
+   * Minute calm-state BP form). The host routes this to
+   * `DailyLogHooks.logBP` which writes the reading to
+   * `userData/{uid}/dailyLogs/{today}/bpReadings/{auto}` and bumps the
+   * dashboard's lifetime counters. Mood defaults to 2 (neutral) if not
+   * provided — the post-game prompt intentionally skips mood capture.
+   *
+   * @param {number} systolic   top number, mmHg
+   * @param {number} diastolic  bottom number, mmHg
+   * @param {number} [mood=2]   0..4, 2 is neutral
+   */
+  function logBP(systolic, diastolic, mood) {
+    var sys = Number(systolic);
+    var dia = Number(diastolic);
+    if (!isFinite(sys) || !isFinite(dia) || sys <= 0 || dia <= 0) return;
+    var m = (typeof mood === 'number' && isFinite(mood)) ? mood : 2;
+    post({type: 'LOG_BP', systolic: sys, diastolic: dia, mood: m});
+  }
+
+  /**
+   * Launch another catalog game on top of the current one as a sub-flow.
+   * The host pushes a new route for the target game. When that game's
+   * GO_HOME fires, the route pops back to this game with control where it
+   * left off. If the sub-game logged BP via CCQ.logBP, the host injects
+   * the values into THIS game's SugarCube state so the parent picks up
+   * the fresh reading without needing shared localStorage:
+   *   SugarCube.State.variables.lastSys
+   *   SugarCube.State.variables.lastDia
+   *
+   * Used by Vascular Village to route the player through Quiet Minute
+   * for a calm-state BP reading mid-story.
+   *
+   * @param {string} gameId  Catalog id of the target game (e.g. 'quiet_minute').
+   */
+  function launchGame(gameId) {
+    if (typeof gameId !== 'string' || !gameId) return;
+    post({type: 'LAUNCH_GAME', gameId: gameId});
+  }
+
   window.CCQ = {
     startTracking: startTracking,
     setBuddyName: setBuddyName,
@@ -136,5 +176,7 @@
     goHome: goHome,
     telemetry: telemetry,
     submitResponse: submitResponse,
+    logBP: logBP,
+    launchGame: launchGame,
   };
 })();

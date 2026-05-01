@@ -1,0 +1,1170 @@
+::StoryTitle
+DASH Diet Game
+
+::StoryData
+{
+  "ifid": "C3D4E5F6-A7B8-4012-9DEF-123456789012",
+  "format": "SugarCube",
+  "format-version": "2.37.3",
+  "start": "Story innit",
+  "zoom": 1
+}
+
+
+::UserStylesheet [stylesheet]
+/* ============================================================
+   DASH DIET GAME — visual stylesheet
+   Phone-frame UI, viridis dark gradient (purple-blue-teal-green-yellow),
+   large emoji food cards. Sister game to Salt Sludge.
+   ============================================================ */
+
+* { box-sizing: border-box; }
+
+body {
+  font-family: "Times New Roman", Times, serif;
+  background-color: #c8ccd1;
+  margin: 0;
+  padding: 1.5em 0;
+}
+
+#ui-bar { display: none; }
+
+#story {
+  margin: 0 auto;
+  max-width: 380px;
+  padding: 0;
+}
+
+.passage {
+  padding: 0;
+  margin: 0;
+  font-size: 1em;
+  line-height: 1.5;
+}
+
+/* Phone frame — viridis purple-blue gradient */
+.phone {
+  background: linear-gradient(180deg, #1a1232 0%, #2c2256 50%, #3b528b 100%);
+  border-radius: 32px;
+  overflow: hidden;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.18);
+  color: #ffffff;
+  position: relative;
+  min-height: 660px;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 100%;
+}
+
+.phone *, .phone *::before, .phone *::after {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Force ALL paragraphs and divs inside .phone to wrap — defends against any
+   SugarCube default styles that might force overflow on text content */
+.phone p, .phone div {
+  word-wrap: break-word !important;
+  overflow-wrap: break-word !important;
+  white-space: normal !important;
+  max-width: 100% !important;
+}
+
+/* Header */
+.header {
+  padding: 16px 22px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: bold;
+  color: #ffffff;
+  font-size: 16px;
+  background-color: rgba(0,0,0,0.25);
+  flex: 0 0 auto;
+}
+.header .round-label {
+  opacity: 0.75;
+  font-size: 14px;
+  letter-spacing: 0.04em;
+}
+
+/* Twin meter section — correct (green) and wrong (purple) */
+.meters-wrap {
+  padding: 10px 22px 6px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.meter-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.meter-label {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.85;
+  width: 72px;
+  flex-shrink: 0;
+}
+.meter-bar {
+  flex: 1;
+  height: 10px;
+  background-color: #ffffff;
+  border-radius: 6px;
+  overflow: hidden;
+}
+.meter-bar-fill {
+  height: 100%;
+  border-radius: 6px;
+  transition: width 0.4s ease;
+  width: 0%;
+}
+.meter-bar-fill.correct {
+  background: linear-gradient(90deg, #21918c 0%, #5ec962 100%);
+}
+.meter-bar-fill.wrong {
+  background: linear-gradient(90deg, #440154 0%, #3b528b 100%);
+}
+
+/* Single score bar for meal builder */
+.score-bar-wrap {
+  padding: 12px 22px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.score-label {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.85;
+  width: 80px;
+  flex-shrink: 0;
+}
+.score-bar {
+  flex: 1;
+  height: 12px;
+  background-color: #ffffff;
+  border-radius: 6px;
+  overflow: hidden;
+}
+.score-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #21918c 0%, #5ec962 100%);
+  border-radius: 6px;
+  transition: width 0.4s ease;
+  width: 0%;
+}
+
+/* Content area */
+.content {
+  padding: 12px 20px 20px 20px;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+}
+.spacer { flex: 1 1 auto; min-height: 6px; }
+
+/* Title for narrative screens */
+.intro-title {
+  text-align: center;
+  font-size: 32px;
+  font-weight: normal;
+  margin: 0 0 16px 0;
+  letter-spacing: 0.02em;
+  word-wrap: break-word !important;
+  overflow-wrap: break-word !important;
+}
+
+/* Hero emoji */
+.hero-emoji {
+  font-size: 90px;
+  line-height: 1;
+  text-align: center;
+  display: block;
+  margin: 8px auto 16px auto;
+}
+
+/* Narrative body */
+.narrative {
+  font-size: 17px;
+  line-height: 1.55;
+  margin: 0 0 12px 0;
+  text-align: left;
+  word-wrap: break-word !important;
+  overflow-wrap: break-word !important;
+  color: #ffffff !important;
+}
+.narrative.center { text-align: center; }
+.narrative:last-of-type { margin-bottom: 0; }
+
+/* Round Start screen */
+.round-status {
+  text-align: center;
+  font-size: 17px;
+  line-height: 1.55;
+  margin: 6px 0 14px 0;
+  opacity: 0.88;
+}
+
+/* Quiz card — single big food in white card */
+.quiz-card {
+  background-color: #ffffff;
+  border-radius: 18px;
+  padding: 28px 22px;
+  color: #1a1a1a;
+  text-align: center;
+  margin-bottom: 14px;
+  min-height: 240px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+.quiz-emoji {
+  font-size: 90px;
+  line-height: 1;
+  margin-bottom: 12px;
+  display: block;
+}
+.quiz-name {
+  font-size: 26px;
+  font-weight: bold;
+  margin: 0 0 10px 0;
+  color: #1a1a1a;
+}
+.quiz-desc {
+  font-size: 15px;
+  line-height: 1.5;
+  color: #555;
+  margin: 0;
+  word-wrap: break-word !important;
+  overflow-wrap: break-word !important;
+  white-space: normal !important;
+  max-width: 100% !important;
+  hyphens: auto;
+}
+
+.question-prompt {
+  text-align: center;
+  font-size: 14px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0.8;
+  margin-bottom: 12px;
+}
+
+/* Quiz choice buttons — green for lowers, purple for raises */
+.choice-row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.choice-btn,
+.phone a.choice-btn,
+.phone a.choice-btn.macro-link,
+.phone a.choice-btn.link-internal {
+  display: block !important;
+  width: 100% !important;
+  padding: 16px 14px !important;
+  border-radius: 14px !important;
+  font-weight: bold !important;
+  font-size: 15px !important;
+  letter-spacing: 0.08em !important;
+  text-align: center !important;
+  text-decoration: none !important;
+  font-family: "Times New Roman", Times, serif !important;
+  cursor: pointer !important;
+  border: 2px solid !important;
+  box-sizing: border-box !important;
+}
+.choice-btn.lowers,
+.phone a.choice-btn.lowers,
+.phone a.choice-btn.lowers.macro-link {
+  background-color: #5ec962 !important;
+  color: #0a3d12 !important;
+  border-color: #5ec962 !important;
+}
+.choice-btn.raises,
+.phone a.choice-btn.raises,
+.phone a.choice-btn.raises.macro-link {
+  background-color: #6b3d80 !important;
+  color: #ffffff !important;
+  border-color: #6b3d80 !important;
+}
+
+/* Result card on Food Result screen */
+.result-card {
+  background-color: #ffffff;
+  border-radius: 18px;
+  padding: 22px 20px;
+  color: #1a1a1a;
+  text-align: center;
+  margin-bottom: 14px;
+  min-height: 320px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+.result-emoji {
+  font-size: 70px;
+  line-height: 1;
+  margin-bottom: 10px;
+  display: block;
+}
+.result-verdict {
+  font-size: 26px;
+  font-weight: bold;
+  margin: 0 0 14px 0;
+}
+.result-verdict.correct { color: #21918c; }
+.result-verdict.wrong { color: #6b3d80; }
+.result-explain {
+  font-size: 16px;
+  line-height: 1.6;
+  color: #444;
+  margin: 0;
+  word-wrap: break-word !important;
+  overflow-wrap: break-word !important;
+  white-space: normal !important;
+  max-width: 100% !important;
+  hyphens: auto;
+}
+
+/* Meal builder ingredients */
+.section-label {
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  opacity: 0.85;
+  margin: 14px 0 8px 0;
+  font-weight: bold;
+}
+.section-label:first-of-type { margin-top: 4px; }
+
+.ingredients-grid {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: wrap !important;
+  width: 100% !important;
+  justify-content: flex-start !important;
+  align-items: stretch !important;
+  margin: 0 -5px !important;
+}
+
+/* Each ingredient wrapper is the visible card */
+.ingredients-grid .ing-wrap {
+  background-color: #ffffff !important;
+  color: #1a1a1a !important;
+  border: 2px solid transparent !important;
+  border-radius: 14px !important;
+  padding: 16px 8px !important;
+  cursor: pointer !important;
+  text-align: center !important;
+  font-family: "Times New Roman", Times, serif !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-height: 120px !important;
+  width: calc(50% - 10px) !important;
+  flex-grow: 0 !important;
+  flex-shrink: 0 !important;
+  flex-basis: calc(50% - 10px) !important;
+  max-width: calc(50% - 10px) !important;
+  box-sizing: border-box !important;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1) !important;
+  margin: 5px !important;
+  text-decoration: none !important;
+  transition: all 0.25s ease !important;
+}
+
+/* Selected state — added via <<run>> jQuery call when user taps */
+.ingredients-grid .ing-wrap.selected {
+  background-color: #5ec962 !important;
+  border-color: #21918c !important;
+  box-shadow: 0 4px 12px rgba(33, 145, 140, 0.35) !important;
+}
+.ingredients-grid .ing-wrap.selected .ing-name,
+.ingredients-grid .ing-wrap .added-name {
+  color: #0a3d12 !important;
+  font-weight: bold !important;
+}
+.ingredients-grid .ing-wrap.selected .ing-emoji {
+  filter: brightness(1.1);
+}
+
+/* Inner linkreplace span — transparent, fills the wrapper */
+.ingredients-grid .ing-wrap .macro-linkreplace {
+  background-color: transparent !important;
+  color: inherit !important;
+  border: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  box-shadow: none !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 100% !important;
+  text-decoration: none !important;
+}
+.ingredients-grid .ing-wrap .macro-linkreplace a {
+  color: inherit !important;
+  text-decoration: none !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 100% !important;
+  cursor: pointer !important;
+}
+
+/* Fallback for the .added-name text — readable even without .selected */
+.added-name {
+  color: #0a3d12 !important;
+  font-weight: bold !important;
+}
+
+.ing-emoji {
+  font-size: 50px !important;
+  line-height: 1 !important;
+  margin-bottom: 8px !important;
+  display: block !important;
+  text-align: center !important;
+  width: 100% !important;
+}
+.ing-name {
+  font-size: 14px !important;
+  font-weight: bold !important;
+  line-height: 1.2 !important;
+  color: #1a1a1a !important;
+  display: block !important;
+  text-align: center !important;
+  width: 100% !important;
+}
+
+/* Meal result list */
+.meal-list-card {
+  background-color: #ffffff;
+  border-radius: 18px;
+  padding: 20px;
+  color: #1a1a1a;
+  margin-bottom: 14px;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+.meal-list-card .list-title {
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #888;
+  margin-bottom: 12px;
+  text-align: center;
+}
+.meal-list-card .meal-emojis {
+  text-align: center;
+  font-size: 36px;
+  line-height: 1.2;
+  margin-bottom: 10px;
+}
+.meal-list-card .meal-verdict {
+  font-size: 24px;
+  font-weight: bold;
+  text-align: center;
+  margin-bottom: 10px;
+}
+.meal-list-card .meal-verdict.strong { color: #21918c; }
+.meal-list-card .meal-verdict.moderate { color: #5ec962; color: #2a8a3a; }
+.meal-list-card .meal-verdict.mixed { color: #b08a00; }
+.meal-list-card .meal-verdict.weak { color: #6b3d80; }
+.meal-list-card .meal-explain {
+  font-size: 15px;
+  line-height: 1.55;
+  color: #444;
+  margin: 0;
+  text-align: left;
+  word-wrap: break-word !important;
+  overflow-wrap: break-word !important;
+  white-space: normal !important;
+  max-width: 100% !important;
+  hyphens: auto;
+}
+
+/* Buttons */
+.btn-primary,
+.phone a.btn-primary,
+.phone a.btn-primary.link-internal,
+.phone a.btn-primary.macro-link {
+  display: block !important;
+  width: 100% !important;
+  padding: 16px !important;
+  background-color: #fde725 !important;
+  color: #1a1232 !important;
+  border: none !important;
+  border-radius: 14px !important;
+  font-weight: bold !important;
+  font-size: 16px !important;
+  letter-spacing: 0.1em !important;
+  text-align: center !important;
+  text-decoration: none !important;
+  font-family: "Times New Roman", Times, serif !important;
+  cursor: pointer !important;
+  margin-bottom: 10px !important;
+  box-sizing: border-box !important;
+}
+.btn-secondary,
+.phone a.btn-secondary,
+.phone a.btn-secondary.link-internal,
+.phone a.btn-secondary.macro-link {
+  display: block !important;
+  width: 100% !important;
+  padding: 12px !important;
+  background-color: transparent !important;
+  border: 1px solid rgba(255,255,255,0.3) !important;
+  color: rgba(255,255,255,0.85) !important;
+  border-radius: 14px !important;
+  font-size: 13px !important;
+  letter-spacing: 0.05em !important;
+  text-align: center !important;
+  text-decoration: none !important;
+  font-family: "Times New Roman", Times, serif !important;
+  box-sizing: border-box !important;
+}
+
+/* Plain in-text links */
+.phone a.link-internal:not(.btn-primary):not(.btn-secondary):not(.choice-btn):not(.ingredient):not(.macro-link),
+.phone a.macro-link:not(.btn-primary):not(.btn-secondary):not(.choice-btn):not(.ingredient) {
+  color: #fde725;
+}
+
+
+::UserScript [script]
+
+/* CardioCare Quest — auto passage telemetry.
+   Fires `passage_entered` for every passage entry via the FlutterBridge.
+   Snapshots SugarCube state.variables so researchers see the player's
+   path plus key in-game state. Best-effort; swallows errors. */
+$(document).on(":passagestart", function (ev) {
+  try {
+    if (window.CCQ && typeof window.CCQ.telemetry === "function") {
+      var snap = {};
+      try { Object.assign(snap, SugarCube.State.variables); } catch (e) {}
+      CCQ.telemetry("passage_entered", {
+        passage: ev.passage.title,
+        vars: snap
+      });
+    }
+  } catch (e) { /* swallow */ }
+});
+
+
+
+::Story innit [Important/Needed]
+/*
+SYSTEM CODE: runs once at the very start.
+
+Variables:
+- $playerName  : player name
+- $score       : total correct quiz answers (0 to 6)
+- $wrong       : total wrong quiz answers (0 to 6)
+- $mealScore   : meal builder running score
+- $round       : current quiz round 1 to 6
+- $lastFood    : the food just classified
+- $lastCorrect : whether the last answer was right
+- $meal        : list of ingredients picked
+
+You do not need to edit this.
+*/
+
+<<set $playerName to "Explorer">>
+<<set $score to 0>>
+<<set $wrong to 0>>
+<<set $mealScore to 0>>
+<<set $round to 1>>
+<<set $lastFood to "">>
+<<set $lastCorrect to false>>
+<<set $meal to []>>
+
+<<goto "Welcome">>
+
+
+::Welcome [Important/Needed nobr]
+/*
+INCITING MOMENT: Greeting + hook. One button.
+Card 1 of 2 before gameplay starts.
+*/
+
+<div class="phone">
+<div class="header"><span>DASH Game</span></div>
+<div class="content">
+
+<span class="hero-emoji">🥗</span>
+
+<h1 class="intro-title">DASH Diet Game</h1>
+
+<p class="narrative center">Hey $playerName.</p>
+
+<p class="narrative">DASH means Dietary Approaches to Stop Hypertension. A way of eating proven to lower blood pressure.</p>
+
+<p class="narrative">This game shows you which everyday foods help and which ones work against you.</p>
+
+<div class="spacer"></div>
+
+<a class="btn-primary" data-passage="How To Play">HOW IT WORKS</a>
+
+</div>
+</div>
+
+
+::How To Play [Important/Needed nobr]
+/*
+RULES in one screen.
+Card 2 of 2 before gameplay starts.
+*/
+
+<div class="phone">
+<div class="header"><span>DASH Game</span></div>
+<div class="content">
+
+<span class="hero-emoji">🍎</span>
+
+<h2 class="intro-title">Two Parts</h2>
+
+<p class="narrative"><strong>Part 1:</strong> Six food cards. Tap whether each food lowers or raises blood pressure. Learn why.</p>
+
+<p class="narrative"><strong>Part 2:</strong> Build a meal. Pick ingredients. See what they do together.</p>
+
+<p class="narrative">Right or wrong, you leave knowing more than you came with.</p>
+
+<div class="spacer"></div>
+
+<a class="btn-primary" data-passage="Round Start">START ROUND 1</a>
+
+</div>
+</div>
+
+
+::Round Start [Important/Needed nobr]
+/*
+START OF EACH FOOD CARD ROUND.
+Shows current round, score meters, and routes to the food card.
+*/
+
+<div class="phone">
+<div class="header"><span>DASH Game</span><span class="round-label">Round $round of 6</span></div>
+
+<div class="meters-wrap">
+<div class="meter-row"><div class="meter-label">Correct</div><div class="meter-bar"><div class="meter-bar-fill correct" @style="'width: ' + Math.min(100, ($score / 6) * 100) + '%'"></div></div></div>
+<div class="meter-row"><div class="meter-label">Wrong</div><div class="meter-bar"><div class="meter-bar-fill wrong" @style="'width: ' + Math.min(100, ($wrong / 6) * 100) + '%'"></div></div></div>
+</div>
+
+<div class="content">
+
+<p class="round-status">A food is coming. Think about what it does to blood pressure before you answer.</p>
+
+<div class="spacer"></div>
+
+<<if $round is 1>><a class="btn-primary" data-passage="Food Card 1">SHOW ME THE FOOD</a><<elseif $round is 2>><a class="btn-primary" data-passage="Food Card 2">SHOW ME THE FOOD</a><<elseif $round is 3>><a class="btn-primary" data-passage="Food Card 3">SHOW ME THE FOOD</a><<elseif $round is 4>><a class="btn-primary" data-passage="Food Card 4">SHOW ME THE FOOD</a><<elseif $round is 5>><a class="btn-primary" data-passage="Food Card 5">SHOW ME THE FOOD</a><<else>><a class="btn-primary" data-passage="Food Card 6">SHOW ME THE FOOD</a><</if>>
+
+</div>
+</div>
+
+
+::Food Card 1 [Important/Needed nobr]
+/*
+FOOD CARD 1: Banana. Correct = Lowers BP.
+*/
+
+<div class="phone">
+<div class="header"><span>DASH Game</span><span class="round-label">Round 1 of 6</span></div>
+
+<div class="meters-wrap">
+<div class="meter-row"><div class="meter-label">Correct</div><div class="meter-bar"><div class="meter-bar-fill correct" @style="'width: ' + Math.min(100, ($score / 6) * 100) + '%'"></div></div></div>
+<div class="meter-row"><div class="meter-label">Wrong</div><div class="meter-bar"><div class="meter-bar-fill wrong" @style="'width: ' + Math.min(100, ($wrong / 6) * 100) + '%'"></div></div></div>
+</div>
+
+<div class="content">
+
+<div class="quiz-card">
+<span class="quiz-emoji">🍌</span>
+<h2 class="quiz-name">Banana</h2>
+<p class="quiz-desc">A common fruit. Sweet. Easy to find. You probably already know someone who eats one every morning.</p>
+</div>
+
+<div class="question-prompt">What does it do to blood pressure?</div>
+
+<div class="choice-row">
+
+<<link '<span>LOWERS BP</span>'>>
+<<set $lastFood to "banana">>
+<<set $lastCorrect to true>>
+<<set $score to $score + 1>>
+<<goto "Food Result">>
+<</link>>
+
+<<link '<span>RAISES BP</span>'>>
+<<set $lastFood to "banana">>
+<<set $lastCorrect to false>>
+<<set $wrong to $wrong + 1>>
+<<goto "Food Result">>
+<</link>>
+
+</div>
+</div>
+</div>
+
+<<script>>
+setTimeout(function () {
+  var btns = document.querySelectorAll('.choice-row a.macro-link, .choice-row a.link-internal');
+  if (btns.length >= 1) btns[0].classList.add('choice-btn', 'lowers');
+  if (btns.length >= 2) btns[1].classList.add('choice-btn', 'raises');
+}, 0);
+<</script>>
+
+
+::Food Card 2 [Important/Needed nobr]
+/*
+FOOD CARD 2: Instant Noodles. Correct = Raises BP.
+*/
+
+<div class="phone">
+<div class="header"><span>DASH Game</span><span class="round-label">Round 2 of 6</span></div>
+
+<div class="meters-wrap">
+<div class="meter-row"><div class="meter-label">Correct</div><div class="meter-bar"><div class="meter-bar-fill correct" @style="'width: ' + Math.min(100, ($score / 6) * 100) + '%'"></div></div></div>
+<div class="meter-row"><div class="meter-label">Wrong</div><div class="meter-bar"><div class="meter-bar-fill wrong" @style="'width: ' + Math.min(100, ($wrong / 6) * 100) + '%'"></div></div></div>
+</div>
+
+<div class="content">
+
+<div class="quiz-card">
+<span class="quiz-emoji">🍜</span>
+<h2 class="quiz-name">Instant Noodles</h2>
+<p class="quiz-desc">Quick to make. Inexpensive. A meal that shows up in most kitchens at some point.</p>
+</div>
+
+<div class="question-prompt">What does it do to blood pressure?</div>
+
+<div class="choice-row">
+
+<<link '<span>LOWERS BP</span>'>>
+<<set $lastFood to "noodles">>
+<<set $lastCorrect to false>>
+<<set $wrong to $wrong + 1>>
+<<goto "Food Result">>
+<</link>>
+
+<<link '<span>RAISES BP</span>'>>
+<<set $lastFood to "noodles">>
+<<set $lastCorrect to true>>
+<<set $score to $score + 1>>
+<<goto "Food Result">>
+<</link>>
+
+</div>
+</div>
+</div>
+
+<<script>>
+setTimeout(function () {
+  var btns = document.querySelectorAll('.choice-row a.macro-link, .choice-row a.link-internal');
+  if (btns.length >= 1) btns[0].classList.add('choice-btn', 'lowers');
+  if (btns.length >= 2) btns[1].classList.add('choice-btn', 'raises');
+}, 0);
+<</script>>
+
+
+::Food Card 3 [Important/Needed nobr]
+/*
+FOOD CARD 3: Dark Chocolate. Correct = Lowers BP.
+*/
+
+<div class="phone">
+<div class="header"><span>DASH Game</span><span class="round-label">Round 3 of 6</span></div>
+
+<div class="meters-wrap">
+<div class="meter-row"><div class="meter-label">Correct</div><div class="meter-bar"><div class="meter-bar-fill correct" @style="'width: ' + Math.min(100, ($score / 6) * 100) + '%'"></div></div></div>
+<div class="meter-row"><div class="meter-label">Wrong</div><div class="meter-bar"><div class="meter-bar-fill wrong" @style="'width: ' + Math.min(100, ($wrong / 6) * 100) + '%'"></div></div></div>
+</div>
+
+<div class="content">
+
+<div class="quiz-card">
+<span class="quiz-emoji">🍫</span>
+<h2 class="quiz-name">Dark Chocolate</h2>
+<p class="quiz-desc">Not milk chocolate. Dark, seventy percent cacao or higher. A small square. Not a whole bar.</p>
+</div>
+
+<div class="question-prompt">What does it do to blood pressure?</div>
+
+<div class="choice-row">
+
+<<link '<span>LOWERS BP</span>'>>
+<<set $lastFood to "darkchocolate">>
+<<set $lastCorrect to true>>
+<<set $score to $score + 1>>
+<<goto "Food Result">>
+<</link>>
+
+<<link '<span>RAISES BP</span>'>>
+<<set $lastFood to "darkchocolate">>
+<<set $lastCorrect to false>>
+<<set $wrong to $wrong + 1>>
+<<goto "Food Result">>
+<</link>>
+
+</div>
+</div>
+</div>
+
+<<script>>
+setTimeout(function () {
+  var btns = document.querySelectorAll('.choice-row a.macro-link, .choice-row a.link-internal');
+  if (btns.length >= 1) btns[0].classList.add('choice-btn', 'lowers');
+  if (btns.length >= 2) btns[1].classList.add('choice-btn', 'raises');
+}, 0);
+<</script>>
+
+
+::Food Card 4 [Important/Needed nobr]
+/*
+FOOD CARD 4: Bacon. Correct = Raises BP.
+*/
+
+<div class="phone">
+<div class="header"><span>DASH Game</span><span class="round-label">Round 4 of 6</span></div>
+
+<div class="meters-wrap">
+<div class="meter-row"><div class="meter-label">Correct</div><div class="meter-bar"><div class="meter-bar-fill correct" @style="'width: ' + Math.min(100, ($score / 6) * 100) + '%'"></div></div></div>
+<div class="meter-row"><div class="meter-label">Wrong</div><div class="meter-bar"><div class="meter-bar-fill wrong" @style="'width: ' + Math.min(100, ($wrong / 6) * 100) + '%'"></div></div></div>
+</div>
+
+<div class="content">
+
+<div class="quiz-card">
+<span class="quiz-emoji">🥓</span>
+<h2 class="quiz-name">Bacon</h2>
+<p class="quiz-desc">Cured in salt. High in saturated fat. A food that appears on a lot of breakfast plates.</p>
+</div>
+
+<div class="question-prompt">What does it do to blood pressure?</div>
+
+<div class="choice-row">
+
+<<link '<span>LOWERS BP</span>'>>
+<<set $lastFood to "bacon">>
+<<set $lastCorrect to false>>
+<<set $wrong to $wrong + 1>>
+<<goto "Food Result">>
+<</link>>
+
+<<link '<span>RAISES BP</span>'>>
+<<set $lastFood to "bacon">>
+<<set $lastCorrect to true>>
+<<set $score to $score + 1>>
+<<goto "Food Result">>
+<</link>>
+
+</div>
+</div>
+</div>
+
+<<script>>
+setTimeout(function () {
+  var btns = document.querySelectorAll('.choice-row a.macro-link, .choice-row a.link-internal');
+  if (btns.length >= 1) btns[0].classList.add('choice-btn', 'lowers');
+  if (btns.length >= 2) btns[1].classList.add('choice-btn', 'raises');
+}, 0);
+<</script>>
+
+
+::Food Card 5 [Important/Needed nobr]
+/*
+FOOD CARD 5: Spinach. Correct = Lowers BP.
+*/
+
+<div class="phone">
+<div class="header"><span>DASH Game</span><span class="round-label">Round 5 of 6</span></div>
+
+<div class="meters-wrap">
+<div class="meter-row"><div class="meter-label">Correct</div><div class="meter-bar"><div class="meter-bar-fill correct" @style="'width: ' + Math.min(100, ($score / 6) * 100) + '%'"></div></div></div>
+<div class="meter-row"><div class="meter-label">Wrong</div><div class="meter-bar"><div class="meter-bar-fill wrong" @style="'width: ' + Math.min(100, ($wrong / 6) * 100) + '%'"></div></div></div>
+</div>
+
+<div class="content">
+
+<div class="quiz-card">
+<span class="quiz-emoji">🥬</span>
+<h2 class="quiz-name">Spinach</h2>
+<p class="quiz-desc">A leafy green. Eaten raw or cooked. Shows up in salads, soups, side dishes.</p>
+</div>
+
+<div class="question-prompt">What does it do to blood pressure?</div>
+
+<div class="choice-row">
+
+<<link '<span>LOWERS BP</span>'>>
+<<set $lastFood to "spinach">>
+<<set $lastCorrect to true>>
+<<set $score to $score + 1>>
+<<goto "Food Result">>
+<</link>>
+
+<<link '<span>RAISES BP</span>'>>
+<<set $lastFood to "spinach">>
+<<set $lastCorrect to false>>
+<<set $wrong to $wrong + 1>>
+<<goto "Food Result">>
+<</link>>
+
+</div>
+</div>
+</div>
+
+<<script>>
+setTimeout(function () {
+  var btns = document.querySelectorAll('.choice-row a.macro-link, .choice-row a.link-internal');
+  if (btns.length >= 1) btns[0].classList.add('choice-btn', 'lowers');
+  if (btns.length >= 2) btns[1].classList.add('choice-btn', 'raises');
+}, 0);
+<</script>>
+
+
+::Food Card 6 [Important/Needed nobr]
+/*
+FOOD CARD 6: Canned Soup. Correct = Raises BP.
+*/
+
+<div class="phone">
+<div class="header"><span>DASH Game</span><span class="round-label">Round 6 of 6</span></div>
+
+<div class="meters-wrap">
+<div class="meter-row"><div class="meter-label">Correct</div><div class="meter-bar"><div class="meter-bar-fill correct" @style="'width: ' + Math.min(100, ($score / 6) * 100) + '%'"></div></div></div>
+<div class="meter-row"><div class="meter-label">Wrong</div><div class="meter-bar"><div class="meter-bar-fill wrong" @style="'width: ' + Math.min(100, ($wrong / 6) * 100) + '%'"></div></div></div>
+</div>
+
+<div class="content">
+
+<div class="quiz-card">
+<span class="quiz-emoji">🥫</span>
+<h2 class="quiz-name">Canned Soup</h2>
+<p class="quiz-desc">Warm. Convenient. A common meal for busy days or cold evenings.</p>
+</div>
+
+<div class="question-prompt">What does it do to blood pressure?</div>
+
+<div class="choice-row">
+
+<<link '<span>LOWERS BP</span>'>>
+<<set $lastFood to "cannedsoup">>
+<<set $lastCorrect to false>>
+<<set $wrong to $wrong + 1>>
+<<goto "Food Result">>
+<</link>>
+
+<<link '<span>RAISES BP</span>'>>
+<<set $lastFood to "cannedsoup">>
+<<set $lastCorrect to true>>
+<<set $score to $score + 1>>
+<<goto "Food Result">>
+<</link>>
+
+</div>
+</div>
+</div>
+
+<<script>>
+setTimeout(function () {
+  var btns = document.querySelectorAll('.choice-row a.macro-link, .choice-row a.link-internal');
+  if (btns.length >= 1) btns[0].classList.add('choice-btn', 'lowers');
+  if (btns.length >= 2) btns[1].classList.add('choice-btn', 'raises');
+}, 0);
+<</script>>
+
+
+::Food Result [Important/Needed nobr]
+/*
+RESULT OF EACH FOOD CARD.
+Tells the player whether they were right and explains why.
+Moves to next round or meal builder after round 6.
+*/
+
+<div class="phone">
+<div class="header"><span>DASH Game</span><span class="round-label">Round $round of 6</span></div>
+
+<div class="meters-wrap">
+<div class="meter-row"><div class="meter-label">Correct</div><div class="meter-bar"><div class="meter-bar-fill correct" @style="'width: ' + Math.min(100, ($score / 6) * 100) + '%'"></div></div></div>
+<div class="meter-row"><div class="meter-label">Wrong</div><div class="meter-bar"><div class="meter-bar-fill wrong" @style="'width: ' + Math.min(100, ($wrong / 6) * 100) + '%'"></div></div></div>
+</div>
+
+<div class="content">
+
+<div class="result-card">
+<<if $lastFood is "banana">><span class="result-emoji">🍌</span><<elseif $lastFood is "noodles">><span class="result-emoji">🍜</span><<elseif $lastFood is "darkchocolate">><span class="result-emoji">🍫</span><<elseif $lastFood is "bacon">><span class="result-emoji">🥓</span><<elseif $lastFood is "spinach">><span class="result-emoji">🥬</span><<else>><span class="result-emoji">🥫</span><</if>>
+
+<<if $lastCorrect is true>><div class="result-verdict correct">Correct</div><<else>><div class="result-verdict wrong">Not quite</div><</if>>
+
+<p class="result-explain"><<if $lastFood is "banana">>Bananas are high in potassium, which helps your kidneys flush excess sodium out. Less sodium means less pressure on your artery walls. A banana a day is a real cardiovascular tool.<<elseif $lastFood is "noodles">>One packet of instant noodles can contain 1500 milligrams of sodium. The recommended daily limit is 2300. One packet gets you halfway there before anything else.<<elseif $lastFood is "darkchocolate">>Dark chocolate contains flavonoids that help blood vessels relax and widen. A small amount, around one square, can produce a measurable drop in blood pressure. The key word is small.<<elseif $lastFood is "bacon">>Bacon is cured in salt and high in saturated fat. Sodium increases blood volume. Saturated fat stiffens artery walls. Together they are a real cardiovascular load.<<elseif $lastFood is "spinach">>Spinach is high in potassium and magnesium, two minerals that directly support healthy blood pressure. One of the most nutrient-dense foods for the heart.<<else>>One serving of canned soup often contains 800 to 1200 milligrams of sodium. Many cans hold two servings. Checking labels on canned food is one of the best things you can do for blood pressure.<</if>></p>
+</div>
+
+<<if $round lt 6>>
+<<set $round to $round + 1>>
+<a class="btn-primary" data-passage="Round Start">NEXT FOOD</a>
+<a class="btn-secondary" data-passage="Central Hub">BACK TO CARDIOCAREQUEST</a>
+<<else>>
+<a class="btn-primary" data-passage="Meal Builder Intro">NOW BUILD A MEAL</a>
+<<set $round to $round + 1>>
+<</if>>
+
+</div>
+</div>
+
+
+::Meal Builder Intro [Important/Needed nobr]
+/*
+TRANSITION: Cards done. Introduce meal building.
+*/
+
+<div class="phone">
+<div class="header"><span>DASH Game</span><span class="round-label">Part 2</span></div>
+<div class="content">
+
+<span class="hero-emoji">🍽️</span>
+
+<h2 class="intro-title">Build a Meal</h2>
+
+<p class="narrative center">You scored $score out of 6 on the cards.</p>
+
+<p class="narrative">Now pick ingredients to build a meal. Tap each one to add it. The score bar fills as you choose.</p>
+
+<p class="narrative">No wrong answers here. The point is to see what each choice does.</p>
+
+<div class="spacer"></div>
+
+<a class="btn-primary" data-passage="Meal Builder">START BUILDING</a>
+
+</div>
+</div>
+
+
+::Meal Builder [Important/Needed nobr]
+/*
+MEAL BUILDER: Player picks ingredients.
+Each <<linkreplace>> can be triggered once.
+Score bar reflects $mealScore.
+*/
+
+<div class="phone">
+<div class="header"><span>DASH Game</span><span class="round-label">Build a meal</span></div>
+
+<div class="score-bar-wrap">
+<span class="score-label">Meal score</span>
+<div class="score-bar"><div class="score-bar-fill" @style="'width: ' + Math.max(0, Math.min(100, ($mealScore + 50))) + '%'"></div></div>
+</div>
+
+<div class="content">
+
+<div class="section-label">Proteins</div>
+<div class="ingredients-grid">
+<span id="ing01" class="ing-wrap"><<linkreplace '<span class="ing-emoji">🍚</span><span class="ing-name">Brown rice</span>'>><<run $meal.push("🍚 Brown rice"), State.variables.mealScore += 10, $("#ing01").addClass("selected")>><span class="ing-emoji">🍚</span><span class="ing-name added-name">✓ Added</span><</linkreplace>></span><span id="ing02" class="ing-wrap"><<linkreplace '<span class="ing-emoji">🍲</span><span class="ing-name">Beans</span>'>><<run $meal.push("🍲 Beans"), State.variables.mealScore += 15, $("#ing02").addClass("selected")>><span class="ing-emoji">🍲</span><span class="ing-name added-name">✓ Added</span><</linkreplace>></span><span id="ing03" class="ing-wrap"><<linkreplace '<span class="ing-emoji">🥓</span><span class="ing-name">Bacon</span>'>><<run $meal.push("🥓 Bacon"), State.variables.mealScore -= 15, $("#ing03").addClass("selected")>><span class="ing-emoji">🥓</span><span class="ing-name added-name">✓ Added</span><</linkreplace>></span><span id="ing04" class="ing-wrap"><<linkreplace '<span class="ing-emoji">🥛</span><span class="ing-name">Yogurt</span>'>><<run $meal.push("🥛 Yogurt"), State.variables.mealScore += 10, $("#ing04").addClass("selected")>><span class="ing-emoji">🥛</span><span class="ing-name added-name">✓ Added</span><</linkreplace>></span>
+</div>
+
+<div class="section-label">Vegetables and Fruit</div>
+<div class="ingredients-grid">
+<span id="ing05" class="ing-wrap"><<linkreplace '<span class="ing-emoji">🥬</span><span class="ing-name">Spinach</span>'>><<run $meal.push("🥬 Spinach"), State.variables.mealScore += 15, $("#ing05").addClass("selected")>><span class="ing-emoji">🥬</span><span class="ing-name added-name">✓ Added</span><</linkreplace>></span><span id="ing06" class="ing-wrap"><<linkreplace '<span class="ing-emoji">🍅</span><span class="ing-name">Tomato</span>'>><<run $meal.push("🍅 Tomato"), State.variables.mealScore += 10, $("#ing06").addClass("selected")>><span class="ing-emoji">🍅</span><span class="ing-name added-name">✓ Added</span><</linkreplace>></span><span id="ing07" class="ing-wrap"><<linkreplace '<span class="ing-emoji">🍌</span><span class="ing-name">Banana</span>'>><<run $meal.push("🍌 Banana"), State.variables.mealScore += 10, $("#ing07").addClass("selected")>><span class="ing-emoji">🍌</span><span class="ing-name added-name">✓ Added</span><</linkreplace>></span><span id="ing08" class="ing-wrap"><<linkreplace '<span class="ing-emoji">🍟</span><span class="ing-name">Potato chips</span>'>><<run $meal.push("🍟 Potato chips"), State.variables.mealScore -= 10, $("#ing08").addClass("selected")>><span class="ing-emoji">🍟</span><span class="ing-name added-name">✓ Added</span><</linkreplace>></span>
+</div>
+
+<div class="section-label">Extras</div>
+<div class="ingredients-grid">
+<span id="ing09" class="ing-wrap"><<linkreplace '<span class="ing-emoji">🍫</span><span class="ing-name">Dark chocolate</span>'>><<run $meal.push("🍫 Dark chocolate"), State.variables.mealScore += 5, $("#ing09").addClass("selected")>><span class="ing-emoji">🍫</span><span class="ing-name added-name">✓ Added</span><</linkreplace>></span><span id="ing10" class="ing-wrap"><<linkreplace '<span class="ing-emoji">🍜</span><span class="ing-name">Instant noodles</span>'>><<run $meal.push("🍜 Instant noodles"), State.variables.mealScore -= 20, $("#ing10").addClass("selected")>><span class="ing-emoji">🍜</span><span class="ing-name added-name">✓ Added</span><</linkreplace>></span><span id="ing11" class="ing-wrap"><<linkreplace '<span class="ing-emoji">💧</span><span class="ing-name">Water</span>'>><<run $meal.push("💧 Water"), State.variables.mealScore += 5, $("#ing11").addClass("selected")>><span class="ing-emoji">💧</span><span class="ing-name added-name">✓ Added</span><</linkreplace>></span><span id="ing12" class="ing-wrap"><<linkreplace '<span class="ing-emoji">🌭</span><span class="ing-name">Hot dog</span>'>><<run $meal.push("🌭 Hot dog"), State.variables.mealScore -= 15, $("#ing12").addClass("selected")>><span class="ing-emoji">🌭</span><span class="ing-name added-name">✓ Added</span><</linkreplace>></span>
+</div>
+
+<a class="btn-primary" data-passage="Meal Result">SEE MY MEAL RESULT</a>
+
+</div>
+</div>
+
+
+::Meal Result [Important/Needed nobr]
+/*
+MEAL RESULT: Shows what meal does to BP.
+Personalized message based on $mealScore.
+Lists what player picked.
+*/
+
+<div class="phone">
+<div class="header"><span>DASH Game</span><span class="round-label">Your meal</span></div>
+
+<div class="score-bar-wrap">
+<span class="score-label">Meal score</span>
+<div class="score-bar"><div class="score-bar-fill" @style="'width: ' + Math.max(0, Math.min(100, ($mealScore + 50))) + '%'"></div></div>
+</div>
+
+<div class="content">
+
+<div class="meal-list-card">
+<<if $meal.length gt 0>><div class="meal-emojis"><<for _item range $meal>><<print _item.split(" ")[0]>> <</for>></div><</if>>
+
+<<if $mealScore gte 30>>
+<div class="meal-verdict strong">Strong DASH meal</div>
+<p class="meal-explain">Your ingredient choices are high in potassium, fiber, and minerals that actively support lower blood pressure. A meal like this, eaten regularly, produces measurable results over weeks.</p>
+<<elseif $mealScore gte 10>>
+<div class="meal-verdict moderate">Moderate DASH meal</div>
+<p class="meal-explain">Some strong choices in there. Swapping one high-sodium ingredient for a potassium-rich one would shift this meal a lot in the right direction.</p>
+<<elseif $mealScore gte 0>>
+<div class="meal-verdict mixed">Mixed meal</div>
+<p class="meal-explain">The DASH-friendly choices are being offset by the high-sodium ones. Small swaps make a real difference here.</p>
+<<else>>
+<div class="meal-verdict weak">Working against you</div>
+<p class="meal-explain">This meal is working against your blood pressure. The sodium load is high and the potassium is low. Try replacing one ingredient and see what changes.</p>
+<</if>>
+</div>
+
+<div class="spacer"></div>
+
+<a class="btn-primary" data-passage="Story innit">PLAY AGAIN</a>
+<a class="btn-secondary" data-passage="Central Hub">BACK TO CARDIOCAREQUEST</a>
+
+</div>
+</div>
+
+
+::Central Hub [Important/Needed nobr]
+/*
+Placeholder. In the full app this returns to CardioCareQuest hub.
+*/
+
+<div class="phone">
+<div class="header"><span>DASH Game</span></div>
+<div class="content">
+
+<span class="hero-emoji">🏠</span>
+
+<h2 class="intro-title">Returning</h2>
+
+<p class="narrative center">Returning to CardioCareQuest.</p>
+
+<div class="spacer"></div>
+
+<a class="btn-primary" data-passage="Story innit">PLAY DASH GAME AGAIN</a>
+
+</div>
+</div>

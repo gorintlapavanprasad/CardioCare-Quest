@@ -36,11 +36,19 @@ abstract class DailyLogHooks {
   /// Log a blood-pressure reading. Awards 50 points. Increments
   /// `userData/{uid}.points`, `totalSessions`, `measurementsTaken`. Updates
   /// `lastSystolic` / `lastDiastolic` summary fields.
+  ///
+  /// HealthKit / Health Connect vitals are NOT attached here — they live
+  /// in their own collection (`userData/{uid}/healthSnapshots/{auto}`)
+  /// written by [HealthHooks.logSnapshot] on every game end, decoupled
+  /// from this BP write so the once-per-day BP gate doesn't suppress
+  /// research-grade vitals collection.
   static Future<void> logBP({
     required String uid,
     required int systolic,
     required int diastolic,
     required int mood,
+    String? sessionId,
+    String? gameId,
   }) {
     if (uid.isEmpty) return Future.value();
     final today = _today();
@@ -58,6 +66,8 @@ abstract class DailyLogHooks {
           'mood': mood,
           'timestamp': OfflineFieldValue.nowTimestamp(),
           'date': today,
+          if (sessionId != null) 'sessionId': sessionId,
+          if (gameId != null) 'gameId': gameId,
         },
       ),
       PendingOp.set(
@@ -93,6 +103,8 @@ abstract class DailyLogHooks {
           'bpReadingId': readingId,
           'timestamp': OfflineFieldValue.nowTimestamp(),
           'syncedAt': OfflineFieldValue.nowTimestamp(),
+          if (sessionId != null) 'sessionId': sessionId,
+          if (gameId != null) 'gameId': gameId,
         },
       ),
     ]);

@@ -161,6 +161,19 @@ class _TwineGameHostState extends State<TwineGameHost> {
   /// delete batch in OfflineQueue replay, leaving stale `ongoing*` fields.
   static final Map<String, String> _justCompletedSessionByGame = {};
 
+  /// Stamped onto every telemetry event coming out of this host instance
+  /// (open, quest_started, quest_completed, closed, webview_error). One
+  /// "host session" = one open of the Dog Walking screen, regardless of
+  /// how many walks the player started/resumed inside it. Distinct from
+  /// the movement [_sessionId] (per-walk, lives in MovementHooks writes).
+  late final String _hostSessionId;
+
+  /// True once a HealthKit snapshot has been logged for this host
+  /// session (either via [_endGame] on quest completion or via the
+  /// fallback in [_exitWithOptionalBpPrompt] on early exit). Prevents a
+  /// double snapshot when a player completes a walk AND then backs out.
+  bool _snapshotLogged = false;
+
   String get _phone =>
       Provider.of<UserDataProvider>(context, listen: false).phone;
   String get _uid =>
@@ -170,8 +183,18 @@ class _TwineGameHostState extends State<TwineGameHost> {
   void initState() {
     super.initState();
     _targetDistance = widget.targetDistance;
+    _hostSessionId =
+        '${widget.gameId}_host_${DateTime.now().millisecondsSinceEpoch}';
     SessionManager.startGame(widget.gameTitle);
-    TelemetryHooks.logEvent('${widget.gameId}_opened', phone: _phone);
+    TelemetryHooks.logEvent(
+      '${widget.gameId}_opened',
+      parameters: {
+        'gameId': widget.gameId,
+        'sessionId': _hostSessionId,
+      },
+      phone: _phone,
+      userId: _uid,
+    );
     _initWebView();
   }
 
@@ -184,6 +207,23 @@ class _TwineGameHostState extends State<TwineGameHost> {
           onPageFinished: (_) => _loadGameState(),
           onWebResourceError: (error) {
             debugPrint('❌ ${widget.gameId} WebView Error: ${error.description}');
+            // Report to Firestore so a failed movement-game load isn't
+            // invisible to researchers. Mirrors the questionnaire host.
+            // Uses _hostSessionId (always set since initState) rather than
+            // the movement _sessionId (null until _startGame fires).
+            TelemetryHooks.logEvent(
+              'webview_error',
+              parameters: {
+                'gameId': widget.gameId,
+                'sessionId': _hostSessionId,
+                'errorType': error.errorType?.name ?? 'unknown',
+                'errorCode': error.errorCode,
+                'description': error.description,
+                'isMainFrame': error.isForMainFrame ?? false,
+              },
+              phone: _phone,
+              userId: _uid,
+            );
           },
         ),
       )
@@ -205,7 +245,7 @@ class _TwineGameHostState extends State<TwineGameHost> {
                 await _updateBuddyName(data['name'] as String);
                 break;
               case 'GO_HOME':
-                if (mounted) Navigator.of(context).pop();
+                await _exitWithOptionalBpPrompt();
                 break;
               case 'SAVE_STATE':
                 await MovementHooks.saveGameStateJson(
@@ -463,8 +503,15 @@ class _TwineGameHostState extends State<TwineGameHost> {
     try {
       TelemetryHooks.logEvent(
         '${widget.gameId}_quest_started',
-        parameters: {'target_distance': _targetDistance, 'resumed': resume},
+        parameters: {
+          'gameId': widget.gameId,
+          'sessionId': _hostSessionId,
+          'movementSessionId': _sessionId,
+          'target_distance': _targetDistance,
+          'resumed': resume,
+        },
         phone: _phone,
+        userId: _uid,
       );
 
       final permission = await Geolocator.checkPermission();
@@ -580,12 +627,16 @@ class _TwineGameHostState extends State<TwineGameHost> {
     TelemetryHooks.logEvent(
       '${widget.gameId}_quest_completed',
       parameters: {
+        'gameId': widget.gameId,
+        'sessionId': _hostSessionId,
+        'movementSessionId': sessionId,
         'distance_walked': _distanceWalked.toInt(),
         'target_distance': _targetDistance.toInt(),
         'points_earned': pointsGained,
         'buddy_name': _currentBuddyName,
       },
       phone: _phone,
+      userId: _uid,
     );
 
     setState(() => _isPlaying = false);
@@ -611,6 +662,16 @@ class _TwineGameHostState extends State<TwineGameHost> {
         );
       }
 
+      // Fire-and-forget HealthKit snapshot — runs while the celebration
+      // scene plays. Independent of the BP prompt's once-per-day gate;
+      // researchers get vitals data after every game end.
+      unawaited(HealthHooks.logSnapshot(
+        uid: uid,
+        gameId: widget.gameId,
+        sessionId: sessionId,
+      ));
+      _snapshotLogged = true;
+
       final completedDistance = _distanceWalked.toInt();
 
       setState(() {
@@ -629,6 +690,10 @@ class _TwineGameHostState extends State<TwineGameHost> {
           'measurementsTaken': 1,
         });
 
+        // Run the in-game celebration scene. No external BP prompt —
+        // BP is collected only in the Quiet Minute game now (relaxed
+        // state per the research protocol). HealthKit snapshot still
+        // fires after every game (see HealthHooks.logSnapshot above).
         _controller.runJavaScript('onQuestFinished($pointsGained)');
 
         final weeklyCount = await MovementHooks.fetchWeeklyQuestCount(
@@ -640,6 +705,25 @@ class _TwineGameHostState extends State<TwineGameHost> {
     } catch (e) {
       debugPrint('❌ ${widget.gameId} sync error in _endGame: $e');
     }
+  }
+
+  /// Single exit path used by GO_HOME, the leading back arrow, and the
+  /// PopScope back-button handler. If the player exits before completing
+  /// a walk (so [_endGame] never fired), we still log a HealthKit snapshot
+  /// here so researchers don't lose wearable data when participants
+  /// abandon mid-walk. Guarded by [_snapshotLogged] to prevent a double
+  /// snapshot when a completion + back-out happen in sequence.
+  Future<void> _exitWithOptionalBpPrompt() async {
+    if (!mounted) return;
+    if (!_snapshotLogged) {
+      unawaited(HealthHooks.logSnapshot(
+        uid: _uid,
+        gameId: widget.gameId,
+        sessionId: _hostSessionId,
+      ));
+      _snapshotLogged = true;
+    }
+    if (mounted) Navigator.of(context).pop();
   }
 
   Future<bool> _confirmExit() async {
@@ -700,7 +784,15 @@ class _TwineGameHostState extends State<TwineGameHost> {
     _positionStream?.cancel();
     SessionManager.endGame();
     try {
-      TelemetryHooks.logEvent('${widget.gameId}_closed', phone: _phone);
+      TelemetryHooks.logEvent(
+        '${widget.gameId}_closed',
+        parameters: {
+          'gameId': widget.gameId,
+          'sessionId': _hostSessionId,
+        },
+        phone: _phone,
+        userId: _uid,
+      );
     } catch (e) {
       debugPrint('Error logging dispose for ${widget.gameId}: $e');
     }
@@ -715,7 +807,7 @@ class _TwineGameHostState extends State<TwineGameHost> {
         if (didPop) return;
         final shouldPop = await _confirmExit();
         if (shouldPop && context.mounted) {
-          Navigator.of(context).pop();
+          await _exitWithOptionalBpPrompt();
         }
       },
       child: Scaffold(
@@ -733,11 +825,11 @@ class _TwineGameHostState extends State<TwineGameHost> {
             ),
           ),
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back_ios),
+            icon: const Icon(Icons.arrow_back),
             onPressed: () async {
               final shouldClose = await _confirmExit();
               if (shouldClose && context.mounted) {
-                Navigator.of(context).pop();
+                await _exitWithOptionalBpPrompt();
               }
             },
           ),

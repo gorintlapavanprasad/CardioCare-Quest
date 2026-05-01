@@ -1,0 +1,700 @@
+::StoryTitle
+Bingo Bash
+
+::StoryData
+{
+  "ifid": "B5C6D7E8-F9A0-4234-AFAB-567890123456",
+  "format": "SugarCube",
+  "format-version": "2.37.3",
+  "start": "Story innit",
+  "zoom": 1
+}
+
+
+::UserStylesheet [stylesheet]
+/* ============================================================
+   BINGO BASH — visual stylesheet
+   Arial font, light viridis palette, click handler on cells
+   (no passage refresh on click), compact phone height.
+   ============================================================ */
+
+* { box-sizing: border-box; }
+
+body {
+  font-family: Arial, Helvetica, sans-serif;
+  background-color: #c8ccd1;
+  margin: 0;
+  padding: 1.5em 0;
+}
+
+#ui-bar { display: none; }
+
+#story {
+  margin: 0 auto;
+  max-width: 380px;
+  padding: 0;
+}
+
+.passage {
+  padding: 0;
+  margin: 0;
+  font-size: 1em;
+  line-height: 1.5;
+}
+
+/* Phone frame — compact, soft dark viridis teal */
+.phone {
+  background: linear-gradient(180deg, #1a3a3a 0%, #21505a 100%);
+  border-radius: 32px;
+  overflow: hidden;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.18);
+  color: #ffffff;
+  position: relative;
+  min-height: 660px;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 100%;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+.phone *, .phone *::before, .phone *::after {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  max-width: 100%;
+  box-sizing: border-box;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+.phone p, .phone div {
+  word-wrap: break-word !important;
+  overflow-wrap: break-word !important;
+  white-space: normal !important;
+  max-width: 100% !important;
+}
+
+/* Header */
+.header {
+  padding: 14px 20px;
+  background-color: #14292a;
+  color: #ffffff;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: bold;
+  font-size: 16px;
+  flex: 0 0 auto;
+  z-index: 2;
+  position: relative;
+}
+.header .menu-icon {
+  font-size: 22px;
+  color: #fde725;
+}
+
+/* Title area */
+.title-area {
+  text-align: center;
+  padding: 14px 20px 8px;
+  position: relative;
+  z-index: 2;
+}
+.bingo-title {
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 24px;
+  color: #fde725;
+  font-weight: bold;
+  letter-spacing: 0.02em;
+  line-height: 1.15;
+  margin: 0;
+}
+.title-actions {
+  display: flex;
+  gap: 22px;
+  justify-content: center;
+  margin-top: 10px;
+}
+.icon-with-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-decoration: none;
+}
+.icon-with-label .icon-label {
+  font-size: 10px;
+  color: rgba(255,255,255,0.85);
+  font-weight: bold;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  text-align: center;
+}
+.title-action-btn,
+.phone a.title-action-btn,
+.icon-with-label .title-action-btn {
+  background-color: #0a2020 !important;
+  color: #ffffff !important;
+  border-radius: 50% !important;
+  width: 36px !important;
+  height: 36px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  font-size: 16px !important;
+  text-decoration: none !important;
+  border: 1px solid rgba(255,255,255,0.2) !important;
+  font-family: Arial, Helvetica, sans-serif !important;
+}
+
+/* Win banner */
+.win-banner {
+  background-color: #5ec962;
+  color: #0a3d12;
+  border-radius: 14px;
+  padding: 14px 16px;
+  text-align: center;
+  margin: 8px 14px 6px;
+  position: relative;
+  z-index: 2;
+}
+.win-banner .win-title {
+  font-size: 22px;
+  font-weight: bold;
+  margin-bottom: 4px;
+}
+.win-banner .win-body {
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+/* 5x5 bingo grid — flexbox with explicit cell width */
+.bingo-grid {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: wrap !important;
+  padding: 6px 12px;
+  position: relative;
+  z-index: 2;
+  margin: 0 -2px;
+}
+
+/* Cell base style */
+.bingo-cell {
+  border-radius: 6px !important;
+  padding: 5px 3px !important;
+  text-align: center !important;
+  font-size: 9px !important;
+  font-weight: bold !important;
+  color: #14292a !important;
+  cursor: pointer !important;
+  min-height: 56px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  line-height: 1.15 !important;
+  font-family: Arial, Helvetica, sans-serif !important;
+  text-decoration: none !important;
+  box-sizing: border-box !important;
+  width: calc(20% - 4px) !important;
+  flex-grow: 0 !important;
+  flex-shrink: 0 !important;
+  flex-basis: calc(20% - 4px) !important;
+  max-width: calc(20% - 4px) !important;
+  margin: 2px !important;
+  border: none !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+
+/* Row colors via data-row attribute — bulletproof */
+.bingo-cell[data-row="1"],
+.bingo-cell[data-row="3"],
+.bingo-cell[data-row="5"] {
+  background-color: #e8f3a8 !important;
+}
+.bingo-cell[data-row="2"],
+.bingo-cell[data-row="4"] {
+  background-color: #b5e6cf !important;
+}
+
+/* Marked cell */
+.bingo-cell.marked {
+  background-color: #21918c !important;
+  color: #ffffff !important;
+  position: relative !important;
+}
+.bingo-cell.marked::after {
+  content: "✓";
+  position: absolute;
+  font-size: 22px;
+  color: #ffffff;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.4);
+  pointer-events: none;
+  font-weight: bold;
+}
+
+/* Free space center cell */
+.bingo-cell.free {
+  background-color: #fde725 !important;
+  color: #14292a !important;
+  font-style: italic;
+}
+
+/* Bottom action buttons */
+.bottom-actions {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 28px 14px;
+  position: relative;
+  z-index: 2;
+}
+.bottom-btn,
+.phone a.bottom-btn,
+.icon-with-label .bottom-btn {
+  background-color: #0a2020 !important;
+  color: #ffffff !important;
+  border-radius: 50% !important;
+  width: 40px !important;
+  height: 40px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  font-size: 18px !important;
+  text-decoration: none !important;
+  border: 1px solid rgba(255,255,255,0.2) !important;
+}
+
+/* Welcome screen */
+.welcome-content {
+  padding: 30px 22px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+}
+.welcome-emoji {
+  font-size: 72px;
+  margin: 0 auto 14px;
+  display: block;
+  line-height: 1;
+}
+.welcome-title {
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 32px;
+  font-weight: bold;
+  color: #fde725;
+  margin: 0 0 14px;
+  letter-spacing: 0.02em;
+  line-height: 1.1;
+}
+.welcome-body {
+  font-size: 16px;
+  line-height: 1.5;
+  margin: 0 0 12px;
+  color: #ffffff;
+}
+
+/* Inspiration screen content */
+.inspiration-card {
+  background-color: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 12px;
+  padding: 16px;
+  font-size: 14px;
+  line-height: 1.55;
+  text-align: left;
+  color: #ffffff;
+}
+.inspiration-card strong {
+  color: #fde725;
+}
+
+/* Edit goals screen */
+.edit-intro {
+  padding: 18px 22px 12px;
+  text-align: center;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #ffffff;
+}
+.goals-list {
+  padding: 0 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.goal-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.goal-text {
+  flex: 1;
+  background-color: #b5e6cf;
+  color: #14292a;
+  border-radius: 16px;
+  padding: 10px 14px;
+  font-size: 13px;
+  text-align: center;
+  font-weight: bold;
+}
+
+/* Buttons */
+.btn-primary,
+.phone a.btn-primary,
+.phone a.btn-primary.link-internal,
+.phone a.btn-primary.macro-link {
+  background-color: #fde725 !important;
+  color: #14292a !important;
+  border: none !important;
+  border-radius: 14px !important;
+  padding: 16px !important;
+  font-size: 16px !important;
+  font-weight: bold !important;
+  letter-spacing: 0.08em !important;
+  text-align: center !important;
+  text-decoration: none !important;
+  font-family: Arial, Helvetica, sans-serif !important;
+  display: block !important;
+  width: 100% !important;
+  cursor: pointer !important;
+  box-sizing: border-box !important;
+  margin-bottom: 8px !important;
+}
+.btn-secondary,
+.phone a.btn-secondary {
+  background-color: transparent !important;
+  color: rgba(255,255,255,0.85) !important;
+  border: 1px solid rgba(255,255,255,0.3) !important;
+  border-radius: 14px !important;
+  padding: 12px !important;
+  font-size: 13px !important;
+  font-weight: bold !important;
+  letter-spacing: 0.05em !important;
+  text-align: center !important;
+  text-decoration: none !important;
+  font-family: Arial, Helvetica, sans-serif !important;
+  display: block !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+.bottom-buttons {
+  padding: 12px 22px 16px;
+}
+
+/* Override SugarCube link defaults inside .phone */
+.phone a.link-internal:not(.btn-primary):not(.btn-secondary):not(.title-action-btn):not(.bottom-btn),
+.phone a.macro-link:not(.btn-primary):not(.btn-secondary):not(.title-action-btn):not(.bottom-btn) {
+  color: #fde725;
+}
+
+
+::UserScript [script]
+
+/* CardioCare Quest — auto passage telemetry.
+   Fires `passage_entered` for every passage entry via the FlutterBridge.
+   Snapshots SugarCube state.variables so researchers see the player's
+   path plus key in-game state. Best-effort; swallows errors. */
+$(document).on(":passagestart", function (ev) {
+  try {
+    if (window.CCQ && typeof window.CCQ.telemetry === "function") {
+      var snap = {};
+      try { Object.assign(snap, SugarCube.State.variables); } catch (e) {}
+      CCQ.telemetry("passage_entered", {
+        passage: ev.passage.title,
+        vars: snap
+      });
+    }
+  } catch (e) { /* swallow */ }
+});
+
+
+/* Bingo Bash: handle cell clicks and shuffle button via event delegation.
+   All actions happen in-place — no passage refresh, no scroll jump. */
+$(document).on(':passagedisplay', function () {
+  var grid = document.querySelector('.bingo-grid');
+  if (!grid) return;
+  if (grid.dataset.handlerAttached) return;
+  grid.dataset.handlerAttached = 'yes';
+
+  /* Restore initial cell state from $marked */
+  var marked = State.variables.marked || [];
+  var cells = grid.querySelectorAll('.bingo-cell');
+  cells.forEach(function (cell, i) {
+    if (marked[i]) cell.classList.add('marked');
+  });
+
+  /* Helper: check all 12 bingo lines and update banner */
+  function checkAndUpdateBanner() {
+    var m = State.variables.marked;
+    var lines = [
+      [0,1,2,3,4], [5,6,7,8,9], [10,11,12,13,14], [15,16,17,18,19], [20,21,22,23,24],
+      [0,5,10,15,20], [1,6,11,16,21], [2,7,12,17,22], [3,8,13,18,23], [4,9,14,19,24],
+      [0,6,12,18,24], [4,8,12,16,20]
+    ];
+    var won = lines.some(function (line) {
+      return line.every(function (i) { return m[i]; });
+    });
+    var banner = document.querySelector('.win-banner');
+    if (won && !banner) {
+      var b = document.createElement('div');
+      b.className = 'win-banner';
+      b.innerHTML = '<div class="win-title">BINGO!</div><div class="win-body">Five in a row. Your blood pressure thanks you.</div>';
+      grid.parentNode.insertBefore(b, grid);
+      State.variables.hasWon = true;
+    } else if (!won && banner) {
+      banner.remove();
+      State.variables.hasWon = false;
+    }
+  }
+
+  /* Click handler on cells: toggle, save, check win */
+  grid.addEventListener('click', function (e) {
+    e.preventDefault();
+    var target = e.target;
+    while (target && target !== grid && !target.classList.contains('bingo-cell')) {
+      target = target.parentNode;
+    }
+    if (!target || target === grid) return;
+    var idx = parseInt(target.dataset.idx, 10);
+    if (isNaN(idx)) return;
+    var m = State.variables.marked;
+    m[idx] = !m[idx];
+    target.classList.toggle('marked');
+    checkAndUpdateBanner();
+  });
+
+  /* Shuffle handler: randomize goals, keep Free space at center, reset marks */
+  var shuffleBtn = document.querySelector('.shuffle-trigger');
+  if (shuffleBtn && !shuffleBtn.dataset.handlerAttached) {
+    shuffleBtn.dataset.handlerAttached = 'yes';
+    shuffleBtn.addEventListener('click', function (e) {
+      e.preventDefault();
+      var goals = State.variables.goals.slice();
+
+      /* Remove "Free space" from the array, shuffle the rest, put it back at index 12 */
+      var freeIdx = goals.indexOf("Free space");
+      if (freeIdx !== -1) goals.splice(freeIdx, 1);
+
+      /* Fisher-Yates shuffle the remaining 24 */
+      for (var i = goals.length - 1; i > 0; i--) {
+        var j = Math.floor(Math.random() * (i + 1));
+        var tmp = goals[i];
+        goals[i] = goals[j];
+        goals[j] = tmp;
+      }
+
+      /* Re-insert Free space at index 12 */
+      goals.splice(12, 0, "Free space");
+      State.variables.goals = goals;
+
+      /* Reset marked state — only cell 12 (Free space) stays marked */
+      State.variables.marked = goals.map(function (g, i) { return i === 12; });
+
+      /* Update cell text and reset visual state in-place */
+      cells.forEach(function (cell, i) {
+        cell.textContent = goals[i];
+        if (i === 12) {
+          cell.classList.add('marked');
+        } else {
+          cell.classList.remove('marked');
+        }
+      });
+
+      checkAndUpdateBanner();
+    });
+  }
+});
+
+
+::Story innit [Important/Needed]
+/*
+SYSTEM CODE: runs once at the very start.
+
+Variables:
+- $playerName : default "Explorer"
+- $marked     : array of 25 booleans (cell 12 starts true = Free space)
+- $goals      : array of 25 goal text strings
+- $hasWon     : whether player has hit bingo
+*/
+
+<<set $playerName to "Explorer">>
+<<set $marked to [false, false, false, false, false, false, false, false, false, false, false, false, true, false, false, false, false, false, false, false, false, false, false, false, false]>>
+<<set $goals to [
+  "Eat low sodium meal",
+  "Take a 30 min walk",
+  "Meditate 5 minutes",
+  "Eat side of veggies",
+  "Cook at home",
+  "Spend 2 hrs outside",
+  "Take medication",
+  "No eating out today",
+  "Get 8 hours sleep",
+  "Drink 8 cups water",
+  "Try a breathing exercise",
+  "10 min light jog",
+  "Free space",
+  "Reduce soda intake",
+  "Exercise with family",
+  "Check pulse",
+  "Sleep before 10pm",
+  "Go biking",
+  "Eat fruit at breakfast",
+  "Taste before salting",
+  "Make healthy recipe",
+  "Maintain weight",
+  "Track mood",
+  "Dance for 10 min",
+  "Do yoga"
+]>>
+<<set $hasWon to false>>
+
+<<goto "Welcome">>
+
+
+::Welcome [Important/Needed nobr]
+
+<div class="phone">
+<div class="header"><span>Bingo Bash</span><span class="menu-icon">≡</span></div>
+
+<div class="welcome-content">
+
+<span class="welcome-emoji">🎯</span>
+
+<div class="welcome-title">Bingo Bash</div>
+
+<p class="welcome-body">Hey $playerName.</p>
+
+<p class="welcome-body">A daily board of healthy goals. Tap each one as you finish it. Get 5 in a row to win.</p>
+
+<p class="welcome-body">Some are big. Some are small. All of them help your blood pressure.</p>
+
+<div style="flex: 1 1 auto;"></div>
+
+<a class="btn-primary" data-passage="Board">SHOW ME MY BOARD</a>
+
+</div>
+</div>
+
+
+::Board [Important/Needed nobr]
+
+<div class="phone">
+<div class="header"><span>Bingo Bash</span><span class="menu-icon">≡</span></div>
+
+<div class="title-area">
+<div class="bingo-title">$playerName's Bingo Board</div>
+<div class="title-actions">
+<a class="icon-with-label" data-passage="Story innit" title="Reset board">
+<span class="title-action-btn">↻</span>
+<span class="icon-label">Reset</span>
+</a>
+<a class="icon-with-label shuffle-trigger" title="Shuffle goals">
+<span class="title-action-btn">⤨</span>
+<span class="icon-label">Shuffle</span>
+</a>
+<a class="icon-with-label" data-passage="Edit Goals" title="Edit goals">
+<span class="title-action-btn">✎</span>
+<span class="icon-label">Edit</span>
+</a>
+</div>
+</div>
+
+<div class="bingo-grid"><span class="bingo-cell" data-idx="0" data-row="1"><<print $goals[0]>></span><span class="bingo-cell" data-idx="1" data-row="1"><<print $goals[1]>></span><span class="bingo-cell" data-idx="2" data-row="1"><<print $goals[2]>></span><span class="bingo-cell" data-idx="3" data-row="1"><<print $goals[3]>></span><span class="bingo-cell" data-idx="4" data-row="1"><<print $goals[4]>></span><span class="bingo-cell" data-idx="5" data-row="2"><<print $goals[5]>></span><span class="bingo-cell" data-idx="6" data-row="2"><<print $goals[6]>></span><span class="bingo-cell" data-idx="7" data-row="2"><<print $goals[7]>></span><span class="bingo-cell" data-idx="8" data-row="2"><<print $goals[8]>></span><span class="bingo-cell" data-idx="9" data-row="2"><<print $goals[9]>></span><span class="bingo-cell" data-idx="10" data-row="3"><<print $goals[10]>></span><span class="bingo-cell" data-idx="11" data-row="3"><<print $goals[11]>></span><span class="bingo-cell free" data-idx="12" data-row="3"><<print $goals[12]>></span><span class="bingo-cell" data-idx="13" data-row="3"><<print $goals[13]>></span><span class="bingo-cell" data-idx="14" data-row="3"><<print $goals[14]>></span><span class="bingo-cell" data-idx="15" data-row="4"><<print $goals[15]>></span><span class="bingo-cell" data-idx="16" data-row="4"><<print $goals[16]>></span><span class="bingo-cell" data-idx="17" data-row="4"><<print $goals[17]>></span><span class="bingo-cell" data-idx="18" data-row="4"><<print $goals[18]>></span><span class="bingo-cell" data-idx="19" data-row="4"><<print $goals[19]>></span><span class="bingo-cell" data-idx="20" data-row="5"><<print $goals[20]>></span><span class="bingo-cell" data-idx="21" data-row="5"><<print $goals[21]>></span><span class="bingo-cell" data-idx="22" data-row="5"><<print $goals[22]>></span><span class="bingo-cell" data-idx="23" data-row="5"><<print $goals[23]>></span><span class="bingo-cell" data-idx="24" data-row="5"><<print $goals[24]>></span></div>
+
+<div class="bottom-actions">
+<a class="icon-with-label" data-passage="Inspiration" title="Inspiration">
+<span class="bottom-btn">★</span>
+<span class="icon-label">Inspiration</span>
+</a>
+<a class="icon-with-label" data-passage="Central Hub" title="Back to home">
+<span class="bottom-btn">⌂</span>
+<span class="icon-label">Home</span>
+</a>
+</div>
+</div>
+
+
+::Inspiration [Important/Needed nobr]
+
+<div class="phone">
+<div class="header"><span>Bingo Bash</span><span class="menu-icon">≡</span></div>
+
+<div class="welcome-content">
+
+<span class="welcome-emoji">⭐</span>
+
+<div class="welcome-title">Inspiration</div>
+
+<div class="inspiration-card">
+<strong>30 min walk:</strong> Walk to the mailbox and back twice. Or once around the block.
+<br><br>
+<strong>Meditate 5 min:</strong> Sit, breathe slow, count to 60 three times.
+<br><br>
+<strong>Reduce sodium:</strong> Taste your food before reaching for the salt.
+<br><br>
+<strong>Cook at home:</strong> One home cooked meal a day cuts your sodium intake in half.
+</div>
+
+<div style="flex: 1 1 auto;"></div>
+
+<a class="btn-primary" data-passage="Board">BACK TO BOARD</a>
+
+</div>
+</div>
+
+
+::Edit Goals [Important/Needed nobr]
+
+<div class="phone">
+<div class="header"><span>Bingo Bash</span><span class="menu-icon">≡</span></div>
+
+<div class="edit-intro">
+Want more personalized goals?<br>
+You can enter your own. Use the buttons<br>
+to add or remove slots.
+</div>
+
+<div class="goals-list">
+<div class="goal-row"><div class="goal-text"><<print $goals[0]>></div></div>
+<div class="goal-row"><div class="goal-text"><<print $goals[1]>></div></div>
+<div class="goal-row"><div class="goal-text"><<print $goals[2]>></div></div>
+<div class="goal-row"><div class="goal-text"><<print $goals[3]>></div></div>
+<div class="goal-row"><div class="goal-text"><<print $goals[4]>></div></div>
+<div class="goal-row"><div class="goal-text"><<print $goals[5]>></div></div>
+<div class="goal-row"><div class="goal-text"><<print $goals[6]>></div></div>
+<div class="goal-row"><div class="goal-text"><<print $goals[7]>></div></div>
+</div>
+
+<div style="text-align: center; padding: 8px 22px 12px; font-size: 12px; color: rgba(255,255,255,0.7);">... and 17 more goals</div>
+
+<div style="flex: 1 1 auto;"></div>
+
+<div class="bottom-buttons">
+<a class="btn-primary" data-passage="Board">BACK TO BOARD</a>
+</div>
+</div>
+
+
+::Central Hub [Important/Needed nobr]
+
+<div class="phone">
+<div class="header"><span>Bingo Bash</span><span class="menu-icon">≡</span></div>
+
+<div class="welcome-content">
+
+<span class="welcome-emoji">🏠</span>
+
+<div class="welcome-title">Returning</div>
+
+<p class="welcome-body">Going back to CardioCareQuest.</p>
+
+<div style="flex: 1 1 auto;"></div>
+
+<a class="btn-primary" data-passage="Story innit">PLAY BINGO BASH AGAIN</a>
+
+</div>
+</div>

@@ -4,6 +4,8 @@ import 'package:geolocator/geolocator.dart';
 import 'package:cardio_care_quest/core/providers/user_data_manager.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cardio_care_quest/core/constants/firestore_paths.dart';
+import 'package:cardio_care_quest/core/hooks/hooks.dart';
+import 'package:cardio_care_quest/core/services/health_service.dart';
 import 'package:cardio_care_quest/core/widgets/sync_badge.dart';
 import '../../../core/theme/app_colors.dart';
 import '../widgets/daily_task_card.dart';
@@ -16,6 +18,7 @@ import '../../education/health_education_screen.dart';
 import '../../exercise_log/exercise_log_screen.dart';
 import '../../medication_reminder/medication_reminder_screen.dart';
 import '../../family_circle/family_circle_screen.dart';
+import '../../measurements/measurements_screen.dart';
 import '../../statistics/heart_statistics_screen.dart';
 import '../../games/dash_diet_game/diet_log_screen.dart';
 import '../../survey/post_play_survey.dart';
@@ -35,9 +38,35 @@ class _HomeTabState extends State<HomeTab> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkDashboardLocationPermission();
+      // Best-effort: ask once for HealthKit / Health Connect permissions.
+      // Used by HealthHooks.logSnapshot to capture wearable vitals after
+      // every game end. Failure / denial is fine — game-end snapshots
+      // still write a metadata-only doc with hasWearableData=false.
+      // We log the denial as a telemetry event so researchers can
+      // distinguish "no Watch" from "permission denied" in the dataset.
+      _requestHealthPermissionsAndReport();
       // ─── CRITICAL FIX: Fetch user data when the dashboard first loads ───
       _ensureUserDataLoaded();
     });
+  }
+
+  Future<void> _requestHealthPermissionsAndReport() async {
+    try {
+      final granted = await HealthService.instance.requestPermissions();
+      if (!granted) {
+        final uid =
+            Provider.of<UserDataProvider>(context, listen: false).uid;
+        await TelemetryHooks.logEvent(
+          'healthkit_permission_denied',
+          parameters: const {
+            'reason': 'os_dialog_denied_or_unavailable',
+          },
+          userId: uid.isEmpty ? null : uid,
+        );
+      }
+    } catch (e) {
+      debugPrint('HealthKit permission request error: $e');
+    }
   }
 
   Future<void> _ensureUserDataLoaded() async {
@@ -151,29 +180,36 @@ class _HomeTabState extends State<HomeTab> {
         final data = provider.userData!;
 
         // ─── THE FIX: Use the Provider getters instead of raw map keys ───
-        final name = provider.firstName;
+        // Hardcoded for the 2026-05-02 dry-run: 15 participants log in by
+        // Unique ID without ever setting a profile name. Pull from
+        // provider.firstName again once participants have a real basicInfo.
+        const name = 'Explorer';
         final points = provider.points;
-        final logs = provider.totalSessions;
 
         // Data retention fields from Deep Sync
         final String sys = data['lastSystolic']?.toString() ?? "--";
         final String dia = data['lastDiastolic']?.toString() ?? "--";
-        final String avgSys = data['averageSystolic']?.toString() ?? sys;
-        final String avgDia = data['averageDiastolic']?.toString() ?? dia;
-        final String avgBp = "$avgSys/$avgDia";
-        final String today = DateTime.now().toIso8601String().split('T')[0];
-        // Look specifically for the BP log date, not the generic one!
-        final bool isTaskDone = data['lastBPLogDate'] == today;
 
         return Scaffold(
           backgroundColor: AppColors.background,
+          appBar: AppBar(
+            backgroundColor: AppColors.title,
+            elevation: 0,
+            scrolledUnderElevation: 0,
+            automaticallyImplyLeading: false,
+            actions: const [
+              Padding(
+                padding: EdgeInsets.only(right: 16),
+                child: Center(child: SyncBadge()),
+              ),
+            ],
+          ),
           body: SingleChildScrollView(
             padding: const EdgeInsets.only(bottom: 120),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _buildPremiumHeader(context, name, points),
-                _buildResearchStatsBar(logs, avgBp),
 
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20.0),
@@ -182,27 +218,11 @@ class _HomeTabState extends State<HomeTab> {
                     children: [
                       const SizedBox(height: 24),
                       _buildSectionTitle("Health Status"),
-                      _buildExpandButton(context, "Expand Player Statistics"),
-                      const SizedBox(height: 16),
                       _buildLatestBPCard(context, sys, dia),
-                      const SizedBox(height: 16),
-                      _buildExpandButton(context, "Expand Player Vitals"),
                       const SizedBox(height: 32),
-                      _buildSectionTitle("Daily Quest"),
-                      _buildDailyBPQuest(context, isTaskDone),
-
-                      const SizedBox(height: 32),
-                      _buildSectionTitle("Family Status"),
-                      _buildFamilySnippet(context),
-
-                      const SizedBox(height: 32),
-                      _buildSectionTitle("Game Catalog"),
                       _buildGameMenuRow(context),
                       const SizedBox(height: 32),
-                      _buildSectionTitle(
-                        "Health Pillars",
-                        actionText: "Statistics",
-                      ),
+                      _buildSectionTitle("Health Pillars"),
                       _buildHealthPillarsGrid(context),
 
                       const SizedBox(height: 32),
@@ -226,9 +246,9 @@ class _HomeTabState extends State<HomeTab> {
   Widget _buildPostPlaySurveyCard(BuildContext context) {
     return Material(
       color: Colors.white,
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(16),
       child: InkWell(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         onTap: () {
           Navigator.push(
             context,
@@ -240,21 +260,22 @@ class _HomeTabState extends State<HomeTab> {
         child: Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(16),
             border: Border.all(color: AppColors.cardBorder),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.accent.withValues(alpha: 0.08),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
           child: Row(
             children: [
-              Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.10),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: const Center(
-                  child: Text('💬', style: TextStyle(fontSize: 28)),
-                ),
+              const Icon(
+                Icons.feedback_outlined,
+                color: AppColors.primary,
+                size: 32,
               ),
               const SizedBox(width: 16),
               const Expanded(
@@ -294,51 +315,20 @@ class _HomeTabState extends State<HomeTab> {
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       crossAxisCount: 2,
-      crossAxisSpacing: 16,
-      mainAxisSpacing: 16,
-      childAspectRatio: 1.1,
+      crossAxisSpacing: 12,
+      mainAxisSpacing: 12,
+      childAspectRatio: 1.7,
       children: [
+        _pillar(context, Icons.favorite, "Heart", const HeartStatisticsScreen()),
+        _pillar(context, Icons.directions_walk, "Movement", const ExerciseLogScreen()),
+        _pillar(context, Icons.restaurant, "Plate", const DietLogScreen()),
+        _pillar(context, Icons.school, "Education", const HealthEducationScreen()),
+        _pillar(context, Icons.medication, "Medicine", const MedicationReminderScreen()),
         _pillar(
           context,
-          Icons.favorite,
-          "Heart",
-          AppColors.error,
-          const HeartStatisticsScreen(),
-        ),
-        _pillar(
-          context,
-          Icons.directions_walk,
-          "Movement",
-          AppColors.primary,
-          const ExerciseLogScreen(),
-        ),
-        _pillar(
-          context,
-          Icons.restaurant,
-          "Plate",
-          AppColors.secondary,
-          const DietLogScreen(),
-        ),
-        _pillar(
-          context,
-          Icons.school,
-          "Education",
-          AppColors.accent,
-          const HealthEducationScreen(),
-        ),
-        _pillar(
-          context,
-          Icons.medication,
-          "Medicine",
-          AppColors.info,
-          const MedicationReminderScreen(),
-        ),
-        _pillar(
-          context,
-          Icons.people,
-          "Family",
-          AppColors.primary,
-          const FamilyCircleScreen(),
+          Icons.monitor_heart_outlined,
+          "Measurements",
+          const MeasurementsScreen(),
         ),
       ],
     );
@@ -348,14 +338,11 @@ class _HomeTabState extends State<HomeTab> {
     BuildContext context,
     IconData icon,
     String title,
-    Color color,
     Widget screen,
   ) {
     return HealthPillarTile(
       icon: icon,
       title: title,
-      color: color,
-      level: 1,
       onTap: () async {
         final dynamic result = await Navigator.push(
           context,
@@ -444,11 +431,18 @@ class _HomeTabState extends State<HomeTab> {
   Widget _buildLatestBPCard(BuildContext context, String sys, String dia) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.cardBorder),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.accent.withValues(alpha: 0.08),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -459,9 +453,10 @@ class _HomeTabState extends State<HomeTab> {
               const Text(
                 "LATEST READING",
                 style: TextStyle(
-                  color: AppColors.viridis2,
-                  fontSize: 10,
+                  color: AppColors.subtitle,
+                  fontSize: 11,
                   fontWeight: FontWeight.bold,
+                  letterSpacing: 0.6,
                 ),
               ),
               const SizedBox(height: 8),
@@ -500,8 +495,8 @@ class _HomeTabState extends State<HomeTab> {
           ),
           const Icon(
             Icons.favorite_rounded,
-            color: AppColors.viridis2,
-            size: 38,
+            color: AppColors.primary,
+            size: 36,
           ),
         ],
       ),
@@ -511,64 +506,36 @@ class _HomeTabState extends State<HomeTab> {
   Widget _buildPremiumHeader(BuildContext context, String name, int points) {
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.only(
-        top: MediaQuery.of(context).padding.top + 24,
-        bottom: 24,
-        left: 24,
-        right: 24,
-      ),
-      decoration: const BoxDecoration(
+      padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+      decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.vertical(bottom: Radius.circular(28)),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.accent.withValues(alpha: 0.08),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  "Hello, $name!",
-                  style: const TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF2D3A5E),
-                  ),
-                ),
-                const SizedBox(height: 6),
-                const Text(
-                  "Ready for today's quest?",
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontStyle: FontStyle.italic,
-                    color: AppColors.subtitle,
-                  ),
-                ),
-              ],
+          Text(
+            "Hello, $name!",
+            style: const TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF2D3A5E),
             ),
           ),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const SyncBadge(),
-              const SizedBox(width: 8),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: AppColors.viridis4.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Text(
-                  "$points pts",
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.viridis0,
-                  ),
-                ),
-              ),
-            ],
+          const SizedBox(height: 12),
+          Text(
+            "Total Points Collected: $points",
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: AppColors.title,
+            ),
           ),
         ],
       ),
@@ -595,25 +562,25 @@ class _HomeTabState extends State<HomeTab> {
   }
 
   Widget _buildGameMenuRow(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final bool isNarrow = constraints.maxWidth < 720;
-        final children = [
-          _buildMenuCard(
+    return Row(
+      children: [
+        Expanded(
+          child: _buildMenuCard(
             context,
             title: 'Game Catalog',
-            subtitle: 'All games in one place',
             icon: Icons.grid_view,
             onTap: () => Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const GameCatalogScreen()),
             ),
           ),
-          _buildMenuCard(
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _buildMenuCard(
             context,
             title: 'Design Your Own Game',
-            subtitle: 'Create a custom quest',
-            icon: Icons.design_services,
+            icon: Icons.add_circle_outline,
             onTap: () => Navigator.push(
               context,
               MaterialPageRoute(
@@ -621,12 +588,13 @@ class _HomeTabState extends State<HomeTab> {
                     const ComingSoonScreen(featureName: 'Design Your Own Game'),
               ),
             ),
-            badgeLabel: 'Coming soon',
           ),
-          _buildMenuCard(
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _buildMenuCard(
             context,
             title: 'Community Statistics',
-            subtitle: 'See collective progress',
             icon: Icons.bar_chart,
             onTap: () => Navigator.push(
               context,
@@ -635,126 +603,55 @@ class _HomeTabState extends State<HomeTab> {
                     const ComingSoonScreen(featureName: 'Community Statistics'),
               ),
             ),
-            badgeLabel: 'Coming soon',
           ),
-        ];
-
-        if (isNarrow) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              for (var i = 0; i < children.length; i++) ...[
-                children[i],
-                if (i < children.length - 1) const SizedBox(height: 12),
-              ],
-            ],
-          );
-        }
-
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(child: children[0]),
-            const SizedBox(width: 12),
-            Expanded(child: children[1]),
-            const SizedBox(width: 12),
-            Expanded(child: children[2]),
-          ],
-        );
-      },
+        ),
+      ],
     );
   }
 
   Widget _buildMenuCard(
     BuildContext context, {
     required String title,
-    required String subtitle,
     required IconData icon,
     required VoidCallback onTap,
-    String? badgeLabel,
   }) {
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: AppColors.cardBorder),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03),
-              blurRadius: 14,
-              offset: const Offset(0, 8),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: AppColors.viridis4.withValues(alpha: 0.16),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(icon, color: AppColors.viridis0, size: 20),
+      child: AspectRatio(
+        aspectRatio: 0.9,
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.cardBorder),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.accent.withValues(alpha: 0.08),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, color: AppColors.primary, size: 28),
+              const SizedBox(height: 10),
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.title,
+                  height: 1.2,
                 ),
-                const Spacer(),
-                if (badgeLabel != null)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.accent.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      badgeLabel,
-                      style: const TextStyle(
-                        fontSize: 10,
-                        color: AppColors.accent,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 20),
-            Text(
-              title,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: AppColors.title,
               ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              subtitle,
-              style: const TextStyle(
-                fontSize: 12,
-                color: AppColors.subtitle,
-                height: 1.4,
-              ),
-            ),
-            const SizedBox(height: 14),
-            const Divider(color: AppColors.viridis4, height: 0),
-            const SizedBox(height: 12),
-            const Text(
-              'Tap to explore',
-              style: TextStyle(
-                fontSize: 12,
-                color: AppColors.subtitle,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

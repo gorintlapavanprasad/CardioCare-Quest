@@ -1,0 +1,775 @@
+:: StoryTitle
+Quiet Minute
+
+
+:: StoryData
+{
+  "ifid": "C1A1F0E0-1111-4001-AAAA-000000000006",
+  "format": "SugarCube",
+  "format-version": "2.37.3",
+  "start": "Welcome",
+  "zoom": 1
+}
+
+
+:: StoryInit
+<<script>>
+try {
+  var saved = window.localStorage.getItem("quietMinute_history");
+  State.variables.history = saved ? JSON.parse(saved) : [];
+  var pts = window.localStorage.getItem("quietMinute_points");
+  State.variables.totalPoints = pts ? Number(pts) : 0;
+} catch (e) {
+  State.variables.history = [];
+  State.variables.totalPoints = 0;
+}
+<</script>>
+<<set $todaySys to "">>
+<<set $todayDia to "">>
+
+
+:: Story Stylesheet [stylesheet]
+/* Quiet Minute — calm rest then BP entry. Strict alignment system. */
+
+* { box-sizing: border-box; }
+
+body {
+  font-family: "Times New Roman", Times, serif;
+  background-color: #e8e8e8;
+  margin: 0;
+  padding: 1em 0;
+}
+
+#ui-bar { display: none; }
+
+#story {
+  margin: 0 auto;
+  max-width: 380px;
+  padding: 0;
+}
+
+.passage {
+  padding: 0;
+  margin: 0;
+  font-size: 1em;
+  line-height: 1.5;
+}
+
+/* Phone frame — real phone dimensions, flex column to distribute content vertically */
+.phone {
+  background: linear-gradient(180deg, #1a3a5c 0%, #2a5074 50%, #3a6a94 100%);
+  border-radius: 32px;
+  overflow: hidden;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.18);
+  color: #ffffff;
+  position: relative;
+  min-height: 780px;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 100%;
+}
+
+/* Force everything inside .phone to wrap and respect width constraints */
+.phone *, .phone *::before, .phone *::after {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Header — fixed at top */
+.header {
+  padding: 16px 22px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: bold;
+  color: #ffffff;
+  font-size: 14px;
+  background-color: rgba(0,0,0,0.18);
+  flex: 0 0 auto;
+}
+.header .menu {
+  font-size: 18px;
+  opacity: 0.7;
+}
+
+/* Content fills remaining height — children inside can use flex spacers */
+.content {
+  padding: 32px 24px 36px 24px;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+/* Spacer divs that push content apart vertically */
+.spacer { flex: 1 1 auto; min-height: 24px; }
+
+/* All paragraphs inside .phone wrap properly — overrides SugarCube defaults */
+.phone p {
+  white-space: normal !important;
+  word-wrap: break-word !important;
+  overflow-wrap: break-word !important;
+  hyphens: auto;
+  max-width: 100%;
+}
+
+/* Headings inside content */
+.title {
+  text-align: center;
+  font-size: 22px;
+  font-weight: normal;
+  margin: 0 0 8px 0;
+  letter-spacing: 0.02em;
+}
+.subtitle {
+  text-align: center;
+  font-size: 13px;
+  opacity: 0.75;
+  margin: 0 0 24px 0;
+  line-height: 1.5;
+}
+
+/* Welcome screen */
+.welcome-title {
+  text-align: center;
+  font-size: 32px;
+  font-weight: normal;
+  margin: 0 0 8px 0;
+  letter-spacing: 0.02em;
+}
+.welcome-tagline {
+  text-align: center;
+  font-size: 14px;
+  opacity: 0.85;
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* Card — generic card style used by today reading, why-rest, etc. */
+.card {
+  background-color: #ffffff;
+  border-radius: 14px;
+  padding: 18px;
+  color: #1a1a1a;
+  margin-bottom: 12px;
+}
+
+/* Translucent card variant — for history list and why-rest box */
+.card-translucent {
+  background-color: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.12);
+  color: #ffffff;
+  padding: 16px;
+  border-radius: 14px;
+  margin-bottom: 12px;
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+  overflow: hidden;
+  word-wrap: break-word !important;
+  overflow-wrap: break-word !important;
+  white-space: normal !important;
+}
+
+/* Why-rest text inside translucent card on Welcome */
+.why-title {
+  font-weight: bold;
+  margin-bottom: 6px;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  opacity: 0.9;
+  word-wrap: break-word !important;
+  overflow-wrap: break-word !important;
+  white-space: normal !important;
+  width: 100%;
+  max-width: 100%;
+}
+.why-body {
+  font-size: 13px;
+  line-height: 1.6;
+  margin: 0;
+  color: #ffffff !important;
+  word-wrap: break-word !important;
+  overflow-wrap: break-word !important;
+  white-space: normal !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+  display: block !important;
+}
+
+/* Breathing screen — vertical stack centered */
+.breathe-stage {
+  padding: 50px 0 30px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.breath-prompt-wrap {
+  position: relative;
+  height: 36px;
+  width: 100%;
+  margin-bottom: 36px;
+  text-align: center;
+}
+.breath-prompt {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  font-size: 22px;
+  font-weight: normal;
+  letter-spacing: 0.04em;
+  text-align: center;
+}
+.breath-prompt.in {
+  animation: prompt-in 10s ease-in-out infinite;
+}
+.breath-prompt.out {
+  animation: prompt-out 10s ease-in-out infinite;
+}
+/* In phase: visible 0-45% (the inhale + brief hold), then fades out */
+@keyframes prompt-in {
+  0%   { opacity: 0; }
+  5%   { opacity: 1; }
+  40%  { opacity: 1; }
+  48%  { opacity: 0; }
+  100% { opacity: 0; }
+}
+/* Out phase: visible 50-95% (the exhale + brief hold), then fades out */
+@keyframes prompt-out {
+  0%   { opacity: 0; }
+  48%  { opacity: 0; }
+  55%  { opacity: 1; }
+  90%  { opacity: 1; }
+  98%  { opacity: 0; }
+  100% { opacity: 0; }
+}
+.breath-circle-wrap {
+  width: 240px;
+  height: 240px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.breath-circle {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, rgba(255,255,255,0.35), rgba(255,255,255,0.08));
+  border: 1px solid rgba(255,255,255,0.4);
+  animation: breathe 10s ease-in-out infinite;
+  box-shadow: 0 0 60px rgba(255,255,255,0.2);
+}
+@keyframes breathe {
+  0%   { width: 100px; height: 100px; opacity: 0.6; }
+  40%  { width: 220px; height: 220px; opacity: 1; }
+  50%  { width: 220px; height: 220px; opacity: 1; }
+  90%  { width: 100px; height: 100px; opacity: 0.6; }
+  100% { width: 100px; height: 100px; opacity: 0.6; }
+}
+.timer-bar-wrap {
+  margin: 20px 20px 12px 20px;
+  height: 6px;
+  background-color: rgba(255,255,255,0.2);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.timer-bar-fill {
+  height: 100%;
+  background-color: rgba(255,255,255,0.85);
+  border-radius: 4px;
+  animation: fill-bar 120s linear forwards;
+}
+@keyframes fill-bar {
+  from { width: 0%; }
+  to   { width: 100%; }
+}
+.timer-text {
+  text-align: center;
+  font-size: 12px;
+  opacity: 0.7;
+  letter-spacing: 0.05em;
+  margin-bottom: 14px;
+}
+.skip-rest {
+  text-align: center;
+  font-size: 11px;
+  opacity: 0.55;
+  letter-spacing: 0.05em;
+  padding-bottom: 16px;
+}
+.skip-rest a {
+  color: rgba(255,255,255,0.7);
+  text-decoration: underline;
+}
+
+/* Entry screen — two side-by-side input cards */
+.input-row {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.input-card {
+  flex: 1;
+  background-color: #ffffff;
+  border-radius: 14px;
+  padding: 14px 12px;
+  text-align: center;
+  color: #1a1a1a;
+  min-width: 0;
+}
+.input-card .label {
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  color: #666;
+  margin-bottom: 10px;
+  text-transform: uppercase;
+}
+.input-card input {
+  display: block;
+  width: 100%;
+  border: none;
+  background: transparent;
+  font-family: "Times New Roman", Times, serif;
+  font-size: 38px;
+  font-weight: bold;
+  text-align: center;
+  color: #1a1a1a;
+  outline: none;
+  padding: 0;
+  margin: 0;
+  border-bottom: 2px solid #d8d8d8;
+  padding-bottom: 4px;
+}
+.input-card input:focus { border-bottom-color: #1a3a5c; }
+.input-card .unit {
+  font-size: 11px;
+  color: #888;
+  margin-top: 8px;
+}
+
+/* Today reading card on result screen */
+.today-label {
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  color: #888;
+  text-transform: uppercase;
+  text-align: center;
+  margin-bottom: 10px;
+}
+.today-reading {
+  font-size: 50px;
+  font-weight: bold;
+  line-height: 1;
+  text-align: center;
+  margin-bottom: 4px;
+}
+.today-reading .slash {
+  font-weight: normal;
+  opacity: 0.3;
+  margin: 0 4px;
+}
+.today-unit {
+  font-size: 11px;
+  color: #999;
+  text-align: center;
+  margin-bottom: 14px;
+}
+.today-zone {
+  display: block;
+  margin: 0 auto 12px auto;
+  width: fit-content;
+  padding: 5px 16px;
+  border-radius: 16px;
+  font-size: 12px;
+  font-weight: bold;
+  letter-spacing: 0.04em;
+  text-align: center;
+}
+.zone-normal { background-color: #d6f5d8; color: #1a5a1f; }
+.zone-elevated { background-color: #ffe9b5; color: #8a5a00; }
+.zone-stage1 { background-color: #ffd5b8; color: #8a3a00; }
+.zone-stage2 { background-color: #f8c3c8; color: #8a1a25; }
+.today-note {
+  font-size: 12px;
+  color: #555;
+  line-height: 1.5;
+  text-align: center;
+  margin: 0;
+}
+
+/* History list inside translucent card */
+.history-title {
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  opacity: 0.75;
+  margin-bottom: 10px;
+}
+.history-empty {
+  text-align: center;
+  font-size: 12px;
+  opacity: 0.6;
+  padding: 8px 0;
+  margin: 0;
+}
+.history-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 7px 0;
+  font-size: 13px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+.history-row:last-child { border-bottom: none; }
+.history-row .date { opacity: 0.7; }
+.history-row .reading-side {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: bold;
+}
+.zone-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.dot-normal { background-color: #5dd97a; }
+.dot-elevated { background-color: #ffd633; }
+.dot-stage1 { background-color: #ff9a3c; }
+.dot-stage2 { background-color: #e63946; }
+
+/* Buttons — primary white, secondary outlined. Same width via parent padding. */
+.btn-primary {
+  display: block;
+  width: 100%;
+  padding: 14px;
+  background-color: #ffffff;
+  color: #1a3a5c;
+  border: none;
+  border-radius: 14px;
+  font-weight: bold;
+  font-size: 14px;
+  letter-spacing: 0.08em;
+  text-align: center;
+  text-decoration: none;
+  font-family: "Times New Roman", Times, serif;
+  cursor: pointer;
+  margin-bottom: 10px;
+}
+.btn-secondary {
+  display: block;
+  width: 100%;
+  padding: 11px;
+  background-color: transparent;
+  border: 1px solid rgba(255,255,255,0.25);
+  color: rgba(255,255,255,0.8);
+  border-radius: 14px;
+  font-size: 12px;
+  letter-spacing: 0.05em;
+  text-align: center;
+  text-decoration: none;
+  font-family: "Times New Roman", Times, serif;
+  margin-bottom: 0;
+}
+
+.help-text {
+  margin: 18px 0 0 0;
+  text-align: center;
+  font-size: 11px;
+  opacity: 0.6;
+  line-height: 1.5;
+}
+
+/* Celebration screen — short and rewarding result */
+.celebration {
+  background-color: #ffffff;
+  border-radius: 14px;
+  padding: 30px 22px 26px 22px;
+  color: #1a1a1a;
+  text-align: center;
+  margin-bottom: 14px;
+}
+.celebration-mark {
+  font-size: 48px;
+  font-weight: bold;
+  color: #1a5a1f;
+  background-color: #d6f5d8;
+  display: inline-block;
+  padding: 8px 22px;
+  border-radius: 50px;
+  margin-bottom: 16px;
+  letter-spacing: -0.02em;
+}
+.celebration-title {
+  font-size: 26px;
+  font-weight: bold;
+  margin: 0 0 8px 0;
+}
+.celebration-sub {
+  font-size: 13px;
+  color: #555;
+  line-height: 1.5;
+  margin: 0 0 18px 0;
+}
+.celebration-reading {
+  font-size: 18px;
+  font-weight: bold;
+  color: #1a3a5c;
+  margin-bottom: 6px;
+  letter-spacing: 0.02em;
+}
+.celebration-total {
+  font-size: 12px;
+  color: #888;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* Inputs inside input cards — strict overrides for size AND color so they're visible while typing (SugarCube default theme is dark and overrides input colors) */
+.input-card input,
+.input-card input[type="text"],
+.input-card input[type="number"],
+.input-card input[type="tel"] {
+  display: block !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+  border: none !important;
+  background-color: #ffffff !important;
+  background: #ffffff !important;
+  font-family: "Times New Roman", Times, serif !important;
+  font-size: 38px !important;
+  font-weight: bold !important;
+  text-align: center !important;
+  color: #1a1a1a !important;
+  caret-color: #1a3a5c !important;
+  outline: none !important;
+  padding: 0 0 4px 0 !important;
+  margin: 0 !important;
+  border-bottom: 2px solid #d8d8d8 !important;
+  -moz-appearance: textfield !important;
+  -webkit-text-fill-color: #1a1a1a !important;
+}
+.input-card input::-webkit-outer-spin-button,
+.input-card input::-webkit-inner-spin-button {
+  -webkit-appearance: none !important;
+  margin: 0 !important;
+}
+.input-card input:focus {
+  border-bottom-color: #1a3a5c !important;
+  background-color: #ffffff !important;
+  color: #1a1a1a !important;
+  -webkit-text-fill-color: #1a1a1a !important;
+}
+/* Selection color when user highlights typed numbers */
+.input-card input::selection {
+  background-color: #1a3a5c !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+.input-card input::-moz-selection {
+  background-color: #1a3a5c !important;
+  color: #ffffff !important;
+}
+/* Mobile/iOS sometimes adds yellow autofill background — kill it */
+.input-card input:-webkit-autofill,
+.input-card input:-webkit-autofill:hover,
+.input-card input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 100px #ffffff inset !important;
+  -webkit-text-fill-color: #1a1a1a !important;
+}
+
+
+:: HeaderWidget [widget]
+<<widget "header">>
+<div class="header"><span>Quiet Minute</span><span class="menu">≡</span></div>
+<</widget>>
+
+
+:: Welcome [nobr]
+<div class="phone">
+<<header>>
+<div class="content">
+<h1 class="welcome-title">Quiet Minute</h1>
+<p class="welcome-tagline">Two minutes of rest. Then one reading.</p>
+<div class="spacer"></div>
+<div class="card-translucent">
+<div class="why-title">Why rest first?</div>
+<p class="why-body">Sitting quietly for a minute before measuring makes the reading more accurate. Walking, talking, and stress all push the numbers up. This is also a chance to slow down. The breathing helps too.</p>
+</div>
+<div class="spacer"></div>
+<a class="btn-primary" data-passage="Breathing">BEGIN</a>
+<a class="btn-secondary" data-passage="Entry">Skip and enter a reading</a>
+</div>
+</div>
+
+
+:: Breathing [nobr]
+<div class="phone">
+<<header>>
+
+<div class="breathe-stage">
+  <div class="breath-prompt-wrap">
+    <div class="breath-prompt in">breathe in</div>
+    <div class="breath-prompt out">breathe out</div>
+  </div>
+  <div class="breath-circle-wrap">
+    <div class="breath-circle"></div>
+  </div>
+</div>
+
+<div class="timer-bar-wrap"><div class="timer-bar-fill"></div></div>
+<div class="timer-text">two minutes</div>
+
+<div class="skip-rest"><a data-passage="Entry">I'm ready</a></div>
+
+</div>
+
+<<timed 120s>><<goto "Entry">><</timed>>
+
+
+:: Entry [nobr]
+<div class="phone">
+<<header>>
+<div class="content">
+<h2 class="title">How does it read?</h2>
+<p class="subtitle">Take your blood pressure now. Enter the numbers from your cuff.</p>
+<div class="spacer"></div>
+<div class="input-row">
+  <div class="input-card">
+    <div class="label">Systolic</div>
+    <input type="text" inputmode="numeric" pattern="[0-9]*" id="qm-sys">
+    <div class="unit">mmHg, top</div>
+  </div>
+  <div class="input-card">
+    <div class="label">Diastolic</div>
+    <input type="text" inputmode="numeric" pattern="[0-9]*" id="qm-dia">
+    <div class="unit">mmHg, bottom</div>
+  </div>
+</div>
+<div class="spacer"></div>
+<button class="btn-primary" id="qm-save-btn">SAVE READING</button>
+<p class="help-text">No cuff right now? You can come back later. The rest minute still counts.</p>
+</div>
+</div>
+
+<<script>>
+setTimeout(function () {
+  var btn = document.getElementById("qm-save-btn");
+  if (btn && !btn.dataset.bound) {
+    btn.dataset.bound = "1";
+    btn.addEventListener("click", function () {
+      var sysEl = document.getElementById("qm-sys");
+      var diaEl = document.getElementById("qm-dia");
+      State.variables.todaySys = Number(sysEl ? sysEl.value : 0);
+      State.variables.todayDia = Number(diaEl ? diaEl.value : 0);
+      Engine.play("Save");
+    });
+  }
+  var sys = document.getElementById("qm-sys");
+  if (sys) sys.focus();
+}, 0);
+<</script>>
+
+
+:: Save
+<<if $todaySys lt 60 or $todaySys gt 250 or $todayDia lt 30 or $todayDia gt 160>>
+  <<goto "InvalidEntry">>
+<</if>>
+
+<<script>>
+try {
+  var hist = State.variables.history || [];
+  var entry = {
+    sys: State.variables.todaySys,
+    dia: State.variables.todayDia,
+    when: Date.now()
+  };
+  hist.unshift(entry);
+  if (hist.length > 7) hist = hist.slice(0, 7);
+  State.variables.history = hist;
+  window.localStorage.setItem("quietMinute_history", JSON.stringify(hist));
+} catch (e) {}
+/* CCQ — push the BP reading to Flutter so it lands in DailyLogHooks.logBP
+   (and from there into userData/{uid}/dailyLogs/{today}/bpReadings).
+   This game is the only path to manual BP entry now; researchers wanted
+   BP collected only in a relaxed state. */
+try {
+  if (window.CCQ && typeof window.CCQ.logBP === "function") {
+    window.CCQ.logBP(State.variables.todaySys, State.variables.todayDia);
+  }
+} catch (e) { /* swallow */ }
+<</script>>
+
+<<goto "Result">>
+
+
+:: InvalidEntry [nobr]
+<div class="phone">
+<<header>>
+<div class="content">
+<h2 class="title">Check the numbers</h2>
+<p class="subtitle">That reading looks outside the usual range. Could you check it and enter again?</p>
+<div class="spacer"></div>
+<a class="btn-primary" data-passage="Entry">Try again</a>
+</div>
+</div>
+
+
+:: Result [nobr]
+<<script>>
+try {
+  var pts = Number(window.localStorage.getItem("quietMinute_points") || 0);
+  pts = pts + 50;
+  window.localStorage.setItem("quietMinute_points", String(pts));
+  State.variables.totalPoints = pts;
+} catch (e) {
+  State.variables.totalPoints = 50;
+}
+<</script>>
+
+<div class="phone">
+<<header>>
+<div class="content">
+<div class="spacer"></div>
+<div class="celebration">
+<div class="celebration-mark">+50</div>
+<div class="celebration-title">Great job</div>
+<p class="celebration-sub">You rested for two minutes and logged your blood pressure. That counts.</p>
+<div class="celebration-reading"><<print $todaySys>> / <<print $todayDia>> mmHg</div>
+<div class="celebration-total">Total points <<print $totalPoints>></div>
+</div>
+<div class="spacer"></div>
+<a class="btn-primary" data-passage="Welcome">DONE</a>
+</div>
+</div>
+
+:: UserScript [script]
+
+/* CardioCare Quest — auto passage telemetry.
+   Fires `passage_entered` for every passage entry via the FlutterBridge.
+   Snapshots SugarCube state.variables so researchers see the player's
+   path plus key in-game state. Best-effort; swallows errors. */
+$(document).on(":passagestart", function (ev) {
+  try {
+    if (window.CCQ && typeof window.CCQ.telemetry === "function") {
+      var snap = {};
+      try { Object.assign(snap, SugarCube.State.variables); } catch (e) {}
+      CCQ.telemetry("passage_entered", {
+        passage: ev.passage.title,
+        vars: snap
+      });
+    }
+  } catch (e) { /* swallow */ }
+});
+

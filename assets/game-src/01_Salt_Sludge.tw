@@ -1,0 +1,943 @@
+::StoryTitle
+Salt Sludge
+
+::StoryData
+{
+  "ifid": "A1B2C3D4-E5F6-4890-A8CD-EF1234567890",
+  "format": "SugarCube",
+  "format-version": "2.37.3",
+  "start": "Story innit",
+  "zoom": 1
+}
+
+::UserStylesheet [stylesheet]
+/* ============================================================
+   SALT SLUDGE — visual stylesheet
+   Phone-frame UI, warm dark gradient, large food cards.
+   ============================================================ */
+
+* { box-sizing: border-box; }
+
+body {
+  font-family: "Times New Roman", Times, serif;
+  background-color: #c8ccd1;
+  margin: 0;
+  padding: 1.5em 0;
+}
+
+#ui-bar { display: none; }
+
+#story {
+  margin: 0 auto;
+  max-width: 380px;
+  padding: 0;
+}
+
+.passage {
+  padding: 0;
+  margin: 0;
+  font-size: 1em;
+  line-height: 1.5;
+}
+
+/* Phone frame */
+.phone {
+  background: linear-gradient(180deg, #2a1a1a 0%, #3a2828 50%, #4a3838 100%);
+  border-radius: 32px;
+  overflow: hidden;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.18);
+  color: #ffffff;
+  position: relative;
+  min-height: 660px;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 100%;
+}
+
+/* Wrap protection inside phone */
+.phone *, .phone *::before, .phone *::after {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Header */
+.header {
+  padding: 16px 22px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: bold;
+  color: #ffffff;
+  font-size: 16px;
+  background-color: rgba(0,0,0,0.25);
+  flex: 0 0 auto;
+}
+.header .day-label {
+  opacity: 0.75;
+  font-size: 14px;
+  letter-spacing: 0.04em;
+}
+
+/* Twin meter section — sludge bar (bad) and nutrient bar (good) side by side */
+.meters-wrap {
+  padding: 10px 22px 6px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.meter-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.meter-label {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.85;
+  width: 72px;
+  flex-shrink: 0;
+}
+.meter-bar {
+  flex: 1;
+  height: 10px;
+  background-color: #ffffff;
+  border-radius: 6px;
+  overflow: hidden;
+}
+.meter-bar-fill {
+  height: 100%;
+  border-radius: 6px;
+  transition: width 0.4s ease;
+  width: 0%;
+}
+.meter-bar-fill.sludge {
+  background: linear-gradient(90deg, #c97339 0%, #a04d20 100%);
+}
+.meter-bar-fill.nutrient {
+  background: linear-gradient(90deg, #5dd97a 0%, #2a9a3f 100%);
+}
+
+/* Content area — flex column, fills remaining height */
+.content {
+  padding: 12px 20px 20px 20px;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+/* Spacer that pushes content apart — grows but has no minimum so it can shrink */
+.spacer { flex: 1 1 auto; min-height: 6px; }
+
+/* Scene description text */
+.scene {
+  text-align: center;
+  font-size: 17px;
+  line-height: 1.55;
+  margin: 8px 0 10px 0;
+  opacity: 0.92;
+  word-wrap: break-word !important;
+  overflow-wrap: break-word !important;
+  white-space: normal !important;
+  max-width: 100% !important;
+}
+
+/* Title for narrative screens */
+.intro-title {
+  text-align: center;
+  font-size: 32px;
+  font-weight: normal;
+  margin: 0 0 16px 0;
+  letter-spacing: 0.02em;
+  word-wrap: break-word !important;
+  overflow-wrap: break-word !important;
+  white-space: normal !important;
+  max-width: 100% !important;
+}
+
+/* Hero emoji — big centered visual for intro and narrative screens */
+.hero-emoji {
+  font-size: 90px;
+  line-height: 1;
+  text-align: center;
+  display: block;
+  margin: 8px auto 16px auto;
+}
+
+/* Duo emoji — two emojis side by side, used to show salt vs potassium */
+.duo-emoji {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 24px;
+  margin: 8px auto 16px auto;
+}
+.duo-emoji-bad,
+.duo-emoji-good {
+  font-size: 78px;
+  line-height: 1;
+  display: inline-block;
+}
+
+/* Narrative body for story passages */
+.narrative {
+  font-size: 17px;
+  line-height: 1.55;
+  margin: 0 0 12px 0;
+  text-align: left;
+  word-wrap: break-word !important;
+  overflow-wrap: break-word !important;
+  white-space: normal !important;
+  max-width: 100% !important;
+  color: #ffffff !important;
+}
+.narrative.center { text-align: center; }
+.narrative:last-of-type { margin-bottom: 0; }
+
+/* Force ALL paragraphs and divs inside .phone to wrap */
+.phone p, .phone div {
+  word-wrap: break-word !important;
+  overflow-wrap: break-word !important;
+  white-space: normal !important;
+  max-width: 100% !important;
+}
+
+/* Food choice cards — high specificity to beat SugarCube's a.macro-link defaults */
+.food-row {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.food-card,
+.food-row a.food-card,
+.food-row a.macro-link,
+.food-row a.link-internal {
+  background-color: #ffffff !important;
+  color: #1a1a1a !important;
+  border: none !important;
+  border-radius: 18px !important;
+  padding: 24px 16px 20px 16px !important;
+  cursor: pointer !important;
+  text-decoration: none !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: center !important;
+  align-items: center !important;
+  text-align: center !important;
+  font-family: "Times New Roman", Times, serif !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15) !important;
+  transition: transform 0.15s ease !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+  min-height: 170px !important;
+}
+.food-card:hover,
+.food-row a.food-card:hover,
+.food-row a.macro-link:hover,
+.food-row a.link-internal:hover {
+  transform: translateY(-2px) !important;
+  background-color: #ffffff !important;
+  color: #1a1a1a !important;
+}
+.food-emoji {
+  font-size: 80px !important;
+  line-height: 1 !important;
+  display: block !important;
+  margin: 0 auto 14px auto !important;
+  text-align: center !important;
+}
+.food-name {
+  font-size: 22px !important;
+  font-weight: bold !important;
+  letter-spacing: 0.02em !important;
+  text-align: center !important;
+  color: #1a1a1a !important;
+  margin: 0 !important;
+}
+
+.or-divider {
+  text-align: center;
+  font-size: 14px;
+  opacity: 0.55;
+  letter-spacing: 0.2em;
+  margin: 4px 0;
+  text-transform: uppercase;
+}
+
+/* Day Start screen — health tip card */
+.tip-card {
+  background-color: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.14);
+  border-radius: 14px;
+  padding: 18px 20px;
+  font-size: 16px;
+  line-height: 1.6;
+  color: #ffffff;
+}
+.tip-card .tip-label {
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  opacity: 0.7;
+  margin-bottom: 8px;
+  font-weight: bold;
+}
+.day-status {
+  text-align: center;
+  font-size: 17px;
+  line-height: 1.55;
+  margin: 8px 0 18px 0;
+  opacity: 0.88;
+}
+
+/* Food Result screen */
+.result-card {
+  background-color: #ffffff;
+  border-radius: 18px;
+  padding: 22px 20px;
+  color: #1a1a1a;
+  text-align: center;
+  margin-bottom: 14px;
+  min-height: 320px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.result-emoji {
+  font-size: 70px;
+  line-height: 1;
+  margin-bottom: 10px;
+  display: block;
+}
+.result-verdict {
+  font-size: 26px;
+  font-weight: bold;
+  margin: 0 0 14px 0;
+}
+.result-verdict.good { color: #1a5a1f; }
+.result-verdict.bad { color: #8a2025; }
+.result-explain {
+  font-size: 16px;
+  line-height: 1.6;
+  color: #444;
+  margin: 0;
+}
+.result-meter-after {
+  text-align: center;
+  font-size: 14px;
+  margin: 16px 0 0 0;
+  opacity: 0.85;
+  letter-spacing: 0.04em;
+}
+
+/* Buttons — high specificity and !important to beat .phone a generic rules */
+.btn-primary,
+.phone a.btn-primary,
+.phone a.btn-primary.link-internal,
+.phone a.btn-primary.macro-link {
+  display: block !important;
+  width: 100% !important;
+  padding: 18px !important;
+  background-color: #ffffff !important;
+  color: #2a1a1a !important;
+  border: none !important;
+  border-radius: 14px !important;
+  font-weight: bold !important;
+  font-size: 16px !important;
+  letter-spacing: 0.1em !important;
+  text-align: center !important;
+  text-decoration: none !important;
+  font-family: "Times New Roman", Times, serif !important;
+  cursor: pointer !important;
+  margin-bottom: 10px !important;
+  box-sizing: border-box !important;
+}
+.btn-secondary,
+.phone a.btn-secondary,
+.phone a.btn-secondary.link-internal,
+.phone a.btn-secondary.macro-link {
+  display: block !important;
+  width: 100% !important;
+  padding: 14px !important;
+  background-color: transparent !important;
+  border: 1px solid rgba(255,255,255,0.3) !important;
+  color: rgba(255,255,255,0.85) !important;
+  border-radius: 14px !important;
+  font-size: 14px !important;
+  letter-spacing: 0.05em !important;
+  text-align: center !important;
+  text-decoration: none !important;
+  font-family: "Times New Roman", Times, serif !important;
+  box-sizing: border-box !important;
+}
+
+/* Final result */
+.final-card {
+  background-color: #ffffff;
+  border-radius: 18px;
+  padding: 28px 22px;
+  color: #1a1a1a;
+  text-align: center;
+  margin-bottom: 14px;
+}
+.final-card .final-headline {
+  font-size: 28px;
+  font-weight: bold;
+  margin: 0 0 10px 0;
+}
+.final-card .final-headline.clean { color: #1a5a1f; }
+.final-card .final-headline.middle { color: #8a5a00; }
+.final-card .final-headline.heavy { color: #8a2025; }
+.final-card .final-stats {
+  font-size: 15px;
+  color: #555;
+  margin: 0 0 16px 0;
+  line-height: 1.6;
+}
+.final-card .final-body {
+  font-size: 16px;
+  line-height: 1.6;
+  color: #1a1a1a;
+  text-align: left;
+}
+
+/* SVG artery cross-section (for visual sludge feedback) */
+.artery-svg {
+  display: block;
+  margin: 0 auto 8px auto;
+  max-width: 220px;
+  width: 100%;
+  height: auto;
+}
+
+/* Plain in-text links inside .phone — applies ONLY to links without our custom classes */
+.phone a.link-internal:not(.btn-primary):not(.btn-secondary):not(.food-card):not(.macro-link),
+.phone a.macro-link:not(.btn-primary):not(.btn-secondary):not(.food-card) {
+  color: #ffffff;
+}
+
+
+::UserScript [script]
+
+/* CardioCare Quest — auto passage telemetry.
+   Fires `passage_entered` for every passage entry via the FlutterBridge.
+   Snapshots SugarCube state.variables so researchers see the player's
+   path plus key in-game state. Best-effort; swallows errors. */
+$(document).on(":passagestart", function (ev) {
+  try {
+    if (window.CCQ && typeof window.CCQ.telemetry === "function") {
+      var snap = {};
+      try { Object.assign(snap, SugarCube.State.variables); } catch (e) {}
+      CCQ.telemetry("passage_entered", {
+        passage: ev.passage.title,
+        vars: snap
+      });
+    }
+  } catch (e) { /* swallow */ }
+});
+
+
+
+::Story innit [Important/Needed]
+/*
+SYSTEM CODE: runs once at the very start.
+
+Variables:
+- $playerName  : pulled from sign-in
+- $sludge      : sludge level 0 to 100, starts at 0
+- $score       : nutrient points earned
+- $day         : current day 1 to 5
+- $foodChoice  : what the player just ate
+
+You do not need to edit this.
+*/
+
+<<set $playerName to "Explorer">>
+<<set $sludge to 0>>
+<<set $score to 0>>
+<<set $day to 1>>
+<<set $foodChoice to "">>
+
+<<goto "Welcome">>
+
+
+::Welcome [Important/Needed nobr]
+/*
+INCITING MOMENT: Personal greeting. The hook. One button.
+Card 1 of 2 before gameplay starts.
+*/
+
+<div class="phone">
+<div class="header"><span>Salt Sludge</span></div>
+<div class="content">
+
+<span class="hero-emoji">🧂</span>
+
+<h1 class="intro-title">Salt Sludge</h1>
+
+<p class="narrative center">Hey $playerName.</p>
+
+<p class="narrative">Watch your arteries react in real time to what you eat. Five days. Five food choices. About two minutes.</p>
+
+<div class="spacer"></div>
+
+<a class="btn-primary" data-passage="How It Works">HOW IT WORKS</a>
+
+</div>
+</div>
+
+
+::How It Works [Important/Needed nobr]
+/*
+RULES + SCIENCE in one screen.
+Combines what salt does, what potassium does, and how to play.
+Card 2 of 2 before gameplay starts.
+*/
+
+<div class="phone">
+<div class="header"><span>Salt Sludge</span></div>
+<div class="content">
+
+<div class="duo-emoji">
+<span class="duo-emoji-bad">🧂</span>
+<span class="duo-emoji-good">🍌</span>
+</div>
+
+<h2 class="intro-title">Salt vs Potassium</h2>
+
+<p class="narrative"><strong>Salt</strong> builds orange sludge on your artery walls. Blood pressure climbs.</p>
+
+<p class="narrative"><strong>Potassium</strong> from foods like bananas, spinach, beans, and sweet potatoes flushes salt out. Sludge clears.</p>
+
+<p class="narrative">Each day you pick one food. Your sludge carries into tomorrow.</p>
+
+<div class="spacer"></div>
+
+<a class="btn-primary" data-passage="Day Start">START DAY 1</a>
+
+</div>
+</div>
+
+
+::Day Start [Important/Needed nobr]
+/*
+START OF EACH DAY.
+Shows current day, current sludge level (visual + number),
+and a daily health tip. Sends player to the food choice for that day.
+*/
+
+<div class="phone">
+<div class="header"><span>Salt Sludge</span><span class="day-label">Day $day of 5</span></div>
+
+<div class="meters-wrap">
+<div class="meter-row"><div class="meter-label">Sludge</div><div class="meter-bar"><div class="meter-bar-fill sludge" @style="'width: ' + $sludge + '%'"></div></div></div>
+<div class="meter-row"><div class="meter-label">Nutrients</div><div class="meter-bar"><div class="meter-bar-fill nutrient" @style="'width: ' + Math.min(100, $score * 2) + '%'"></div></div></div>
+</div>
+
+<div class="content">
+
+<p class="day-status"><<if $sludge lt 30>>Your artery is looking clean right now.<<elseif $sludge lt 60>>Some sludge is building up. Today is a chance to clear it.<<else>>That sludge is getting thick. Choose carefully today.<</if>></p>
+
+<div class="tip-card">
+<div class="tip-label">Did you know</div>
+<<if $day is 1>>Most adults eat double the recommended daily sodium without realizing it.<<elseif $day is 2>>Potassium helps your kidneys flush sodium out. Most people do not get enough of it.<<elseif $day is 3>>Canned foods are one of the biggest hidden sources of sodium. One serving can contain more than half your daily limit.<<elseif $day is 4>>Walking also helps lower blood pressure. Potassium is not the only tool you have.<<else>>Five days of better choices can make a measurable difference in your resting blood pressure.<</if>>
+</div>
+
+<div class="spacer"></div>
+
+<<if $day is 1>><a class="btn-primary" data-passage="Food Day 1">SHOW ME TODAY'S FOOD</a><<elseif $day is 2>><a class="btn-primary" data-passage="Food Day 2">SHOW ME TODAY'S FOOD</a><<elseif $day is 3>><a class="btn-primary" data-passage="Food Day 3">SHOW ME TODAY'S FOOD</a><<elseif $day is 4>><a class="btn-primary" data-passage="Food Day 4">SHOW ME TODAY'S FOOD</a><<else>><a class="btn-primary" data-passage="Food Day 5">SHOW ME TODAY'S FOOD</a><</if>>
+
+</div>
+</div>
+
+
+::Food Day 1 [Important/Needed nobr]
+/*
+DAY 1 FOOD CHOICE: Banana vs Canned Soup.
+Banana clears sludge and earns points.
+Canned Soup adds sludge.
+*/
+
+<div class="phone">
+<div class="header"><span>Salt Sludge</span><span class="day-label">Day 1 of 5</span></div>
+
+<div class="meters-wrap">
+<div class="meter-row"><div class="meter-label">Sludge</div><div class="meter-bar"><div class="meter-bar-fill sludge" @style="'width: ' + $sludge + '%'"></div></div></div>
+<div class="meter-row"><div class="meter-label">Nutrients</div><div class="meter-bar"><div class="meter-bar-fill nutrient" @style="'width: ' + Math.min(100, $score * 2) + '%'"></div></div></div>
+</div>
+
+<div class="content">
+<p class="scene">You are home. It is late afternoon. You are hungry and need something quick.</p>
+
+<div class="spacer"></div>
+
+<div class="food-row">
+
+<<link '<span class="food-emoji">🍌</span><div class="food-name">A banana</div>'>>
+<<set $sludge to Math.max(0, $sludge - 15)>>
+<<set $score to $score + 10>>
+<<set $foodChoice to "banana">>
+<<goto "Food Result">>
+<</link>>
+
+<div class="or-divider">or</div>
+
+<<link '<span class="food-emoji">🥫</span><div class="food-name">A bowl of canned soup</div>'>>
+<<set $sludge to Math.min(100, $sludge + 25)>>
+<<set $foodChoice to "soup">>
+<<goto "Food Result">>
+<</link>>
+
+</div>
+
+<div class="spacer"></div>
+
+</div>
+</div>
+
+<<script>>
+/* Wrap each <<link>>'s generated <a> in food-card class so it gets the white card styling.
+   This runs after the passage renders. */
+setTimeout(function () {
+  document.querySelectorAll('.food-row a.macro-link, .food-row a.link-internal').forEach(function (a) {
+    a.classList.add('food-card');
+  });
+}, 0);
+<</script>>
+
+
+::Food Day 2 [Important/Needed nobr]
+/*
+DAY 2 FOOD CHOICE: Spinach vs Instant Noodles.
+*/
+
+<div class="phone">
+<div class="header"><span>Salt Sludge</span><span class="day-label">Day 2 of 5</span></div>
+
+<div class="meters-wrap">
+<div class="meter-row"><div class="meter-label">Sludge</div><div class="meter-bar"><div class="meter-bar-fill sludge" @style="'width: ' + $sludge + '%'"></div></div></div>
+<div class="meter-row"><div class="meter-label">Nutrients</div><div class="meter-bar"><div class="meter-bar-fill nutrient" @style="'width: ' + Math.min(100, $score * 2) + '%'"></div></div></div>
+</div>
+
+<div class="content">
+<p class="scene">Lunchtime. You have ten minutes and two options on the counter.</p>
+
+<div class="spacer"></div>
+
+<div class="food-row">
+
+<<link '<span class="food-emoji">🥬</span><div class="food-name">A plate of spinach</div>'>>
+<<set $sludge to Math.max(0, $sludge - 20)>>
+<<set $score to $score + 10>>
+<<set $foodChoice to "spinach">>
+<<goto "Food Result">>
+<</link>>
+
+<div class="or-divider">or</div>
+
+<<link '<span class="food-emoji">🍜</span><div class="food-name">A packet of instant noodles</div>'>>
+<<set $sludge to Math.min(100, $sludge + 30)>>
+<<set $foodChoice to "noodles">>
+<<goto "Food Result">>
+<</link>>
+
+</div>
+
+<div class="spacer"></div>
+
+</div>
+</div>
+
+<<script>>
+setTimeout(function () {
+  document.querySelectorAll('.food-row a.macro-link, .food-row a.link-internal').forEach(function (a) {
+    a.classList.add('food-card');
+  });
+}, 0);
+<</script>>
+
+
+::Food Day 3 [Important/Needed nobr]
+/*
+DAY 3 FOOD CHOICE: Beans vs Potato Chips.
+*/
+
+<div class="phone">
+<div class="header"><span>Salt Sludge</span><span class="day-label">Day 3 of 5</span></div>
+
+<div class="meters-wrap">
+<div class="meter-row"><div class="meter-label">Sludge</div><div class="meter-bar"><div class="meter-bar-fill sludge" @style="'width: ' + $sludge + '%'"></div></div></div>
+<div class="meter-row"><div class="meter-label">Nutrients</div><div class="meter-bar"><div class="meter-bar-fill nutrient" @style="'width: ' + Math.min(100, $score * 2) + '%'"></div></div></div>
+</div>
+
+<div class="content">
+<p class="scene">Afternoon snack time. You open the cupboard. Two things catch your eye.</p>
+
+<div class="spacer"></div>
+
+<div class="food-row">
+
+<<link '<span class="food-emoji">🍲</span><div class="food-name">A bowl of beans</div>'>>
+<<set $sludge to Math.max(0, $sludge - 20)>>
+<<set $score to $score + 10>>
+<<set $foodChoice to "beans">>
+<<goto "Food Result">>
+<</link>>
+
+<div class="or-divider">or</div>
+
+<<link '<span class="food-emoji">🍟</span><div class="food-name">A bag of potato chips</div>'>>
+<<set $sludge to Math.min(100, $sludge + 25)>>
+<<set $foodChoice to "chips">>
+<<goto "Food Result">>
+<</link>>
+
+</div>
+
+<div class="spacer"></div>
+
+</div>
+</div>
+
+<<script>>
+setTimeout(function () {
+  document.querySelectorAll('.food-row a.macro-link, .food-row a.link-internal').forEach(function (a) {
+    a.classList.add('food-card');
+  });
+}, 0);
+<</script>>
+
+
+::Food Day 4 [Important/Needed nobr]
+/*
+DAY 4 FOOD CHOICE: Sweet Potato vs Bacon.
+*/
+
+<div class="phone">
+<div class="header"><span>Salt Sludge</span><span class="day-label">Day 4 of 5</span></div>
+
+<div class="meters-wrap">
+<div class="meter-row"><div class="meter-label">Sludge</div><div class="meter-bar"><div class="meter-bar-fill sludge" @style="'width: ' + $sludge + '%'"></div></div></div>
+<div class="meter-row"><div class="meter-label">Nutrients</div><div class="meter-bar"><div class="meter-bar-fill nutrient" @style="'width: ' + Math.min(100, $score * 2) + '%'"></div></div></div>
+</div>
+
+<div class="content">
+<p class="scene">Dinner. You are tired. You want something good. Two options in front of you.</p>
+
+<div class="spacer"></div>
+
+<div class="food-row">
+
+<<link '<span class="food-emoji">🍠</span><div class="food-name">A sweet potato</div>'>>
+<<set $sludge to Math.max(0, $sludge - 20)>>
+<<set $score to $score + 10>>
+<<set $foodChoice to "sweetpotato">>
+<<goto "Food Result">>
+<</link>>
+
+<div class="or-divider">or</div>
+
+<<link '<span class="food-emoji">🥓</span><div class="food-name">Bacon</div>'>>
+<<set $sludge to Math.min(100, $sludge + 30)>>
+<<set $foodChoice to "bacon">>
+<<goto "Food Result">>
+<</link>>
+
+</div>
+
+<div class="spacer"></div>
+
+</div>
+</div>
+
+<<script>>
+setTimeout(function () {
+  document.querySelectorAll('.food-row a.macro-link, .food-row a.link-internal').forEach(function (a) {
+    a.classList.add('food-card');
+  });
+}, 0);
+<</script>>
+
+
+::Food Day 5 [Important/Needed nobr]
+/*
+DAY 5 FOOD CHOICE: Yogurt vs Hot Dog.
+Final choice of the game.
+*/
+
+<div class="phone">
+<div class="header"><span>Salt Sludge</span><span class="day-label">Day 5 of 5</span></div>
+
+<div class="meters-wrap">
+<div class="meter-row"><div class="meter-label">Sludge</div><div class="meter-bar"><div class="meter-bar-fill sludge" @style="'width: ' + $sludge + '%'"></div></div></div>
+<div class="meter-row"><div class="meter-label">Nutrients</div><div class="meter-bar"><div class="meter-bar-fill nutrient" @style="'width: ' + Math.min(100, $score * 2) + '%'"></div></div></div>
+</div>
+
+<div class="content">
+<p class="scene">Last day, $playerName. Last meal. Your artery has been through four days of choices with you. One more.</p>
+
+<div class="spacer"></div>
+
+<div class="food-row">
+
+<<link '<span class="food-emoji">🥛</span><div class="food-name">Yogurt</div>'>>
+<<set $sludge to Math.max(0, $sludge - 20)>>
+<<set $score to $score + 10>>
+<<set $foodChoice to "yogurt">>
+<<goto "Food Result">>
+<</link>>
+
+<div class="or-divider">or</div>
+
+<<link '<span class="food-emoji">🌭</span><div class="food-name">A hot dog</div>'>>
+<<set $sludge to Math.min(100, $sludge + 25)>>
+<<set $foodChoice to "hotdog">>
+<<goto "Food Result">>
+<</link>>
+
+</div>
+
+<div class="spacer"></div>
+
+</div>
+</div>
+
+<<script>>
+setTimeout(function () {
+  document.querySelectorAll('.food-row a.macro-link, .food-row a.link-internal').forEach(function (a) {
+    a.classList.add('food-card');
+  });
+}, 0);
+<</script>>
+
+
+::Food Result [Important/Needed nobr]
+/*
+RESULT OF EACH FOOD CHOICE.
+Tells the player what that food did to their artery and why.
+Then moves to next day or final result after Day 5.
+*/
+
+<div class="phone">
+<div class="header"><span>Salt Sludge</span><span class="day-label">Day $day of 5</span></div>
+
+<div class="meters-wrap">
+<div class="meter-row"><div class="meter-label">Sludge</div><div class="meter-bar"><div class="meter-bar-fill sludge" @style="'width: ' + $sludge + '%'"></div></div></div>
+<div class="meter-row"><div class="meter-label">Nutrients</div><div class="meter-bar"><div class="meter-bar-fill nutrient" @style="'width: ' + Math.min(100, $score * 2) + '%'"></div></div></div>
+</div>
+
+<div class="content">
+
+<<if $foodChoice is "banana" or $foodChoice is "spinach" or $foodChoice is "beans" or $foodChoice is "sweetpotato" or $foodChoice is "yogurt">>
+
+<div class="result-card">
+<<if $foodChoice is "banana">><span class="result-emoji">🍌</span><<elseif $foodChoice is "spinach">><span class="result-emoji">🥬</span><<elseif $foodChoice is "beans">><span class="result-emoji">🍲</span><<elseif $foodChoice is "sweetpotato">><span class="result-emoji">🍠</span><<else>><span class="result-emoji">🥛</span><</if>>
+<div class="result-verdict good">Good choice</div>
+<p class="result-explain"><<if $foodChoice is "banana">>That banana just delivered a flood of potassium to your kidneys. They got to work immediately, flushing out excess sodium. Your artery wall relaxed.<<elseif $foodChoice is "spinach">>Spinach is one of the most potassium-dense foods around. Your artery walls eased up. Blood is moving more freely right now.<<elseif $foodChoice is "beans">>Beans are loaded with potassium and fiber. The sludge thinned out noticeably. Your vessel just got a proper clean.<<elseif $foodChoice is "sweetpotato">>Sweet potato is the quiet champion of blood pressure foods. High potassium. Low sodium. Your artery is grateful.<<else>>Yogurt brings calcium and potassium together. Both help keep blood pressure down. Good call.<</if>></p>
+<div class="result-meter-after">Sludge cleared</div>
+</div>
+
+<<else>>
+
+<div class="result-card">
+<<if $foodChoice is "soup">><span class="result-emoji">🥫</span><<elseif $foodChoice is "noodles">><span class="result-emoji">🍜</span><<elseif $foodChoice is "chips">><span class="result-emoji">🍟</span><<elseif $foodChoice is "bacon">><span class="result-emoji">🥓</span><<else>><span class="result-emoji">🌭</span><</if>>
+<div class="result-verdict bad">Your artery felt that</div>
+<p class="result-explain"><<if $foodChoice is "soup">>That canned soup had nearly 900 milligrams of sodium in a single serving. Almost half your daily limit in one bowl. Your artery walls tightened. Sludge started forming.<<elseif $foodChoice is "noodles">>Instant noodles pack around 1500 milligrams of sodium per packet. Your artery is working harder now than it was five minutes ago.<<elseif $foodChoice is "chips">>Potato chips are one of the sneakiest sodium sources around. A single serving can contain 200 milligrams or more. Your artery walls just got a little thicker.<<elseif $foodChoice is "bacon">>Bacon is cured in salt. That sodium hit your bloodstream fast. The sludge built up quickly.<<else>>A single hot dog contains nearly 600 milligrams of sodium. Your artery noticed immediately.<</if>></p>
+<div class="result-meter-after">Sludge increased. Tomorrow is a chance to clear it.</div>
+</div>
+
+<</if>>
+
+<<if $day lt 5>>
+<<set $day to $day + 1>>
+<a class="btn-primary" data-passage="Day Start">ON TO DAY <<print $day>></a>
+<a class="btn-secondary" data-passage="Central Hub">BACK TO CARDIOCAREQUEST</a>
+<<else>>
+<a class="btn-primary" data-passage="Final Result">SEE YOUR FINAL ARTERY</a>
+<</if>>
+
+</div>
+</div>
+
+
+::Final Result [Important/Needed nobr]
+/*
+DENOUEMENT: End of game.
+Personalized message based on final sludge level.
+Score shown. Option to play again.
+*/
+
+<div class="phone">
+<div class="header"><span>Salt Sludge</span><span class="day-label">5 days done</span></div>
+
+<div class="meters-wrap">
+<div class="meter-row"><div class="meter-label">Sludge</div><div class="meter-bar"><div class="meter-bar-fill sludge" @style="'width: ' + $sludge + '%'"></div></div></div>
+<div class="meter-row"><div class="meter-label">Nutrients</div><div class="meter-bar"><div class="meter-bar-fill nutrient" @style="'width: ' + Math.min(100, $score * 2) + '%'"></div></div></div>
+</div>
+
+<div class="content">
+
+<div class="final-card">
+
+<<if $sludge lt 30>>
+<div class="final-headline clean">Clean artery</div>
+<div class="final-stats">Sludge $sludge of 100. Nutrient points $score.</div>
+<div class="final-body">
+<p>Your potassium choices paid off. Blood is moving freely. Your blood pressure is lower right now than it was at the start of Day 1.</p>
+<p>Five days of consistent good choices. Not dramatic. Not perfect. Just noticeably better.</p>
+</div>
+<<elseif $sludge lt 60>>
+<div class="final-headline middle">Some sludge</div>
+<div class="final-stats">Sludge $sludge of 100. Nutrient points $score.</div>
+<div class="final-body">
+<p>A mix of good and tough choices. Your artery is managing but working harder than it needs to.</p>
+<p>The good news is you already know which foods cleared it. Those are the ones to reach for more often.</p>
+</div>
+<<else>>
+<div class="final-headline heavy">Heavy sludge</div>
+<div class="final-stats">Sludge $sludge of 100. Nutrient points $score.</div>
+<div class="final-body">
+<p>A tough five days. Your artery has been working overtime.</p>
+<p>The sodium added up faster than the potassium could clear it. That is the most common pattern. And now you can see exactly why it matters.</p>
+</div>
+<</if>>
+
+</div>
+
+<p class="scene">Every banana, every handful of spinach, every bowl of beans is clearing sludge in real arteries right now. Including yours.</p>
+
+<div class="spacer"></div>
+
+<a class="btn-primary" data-passage="Story innit">PLAY AGAIN</a>
+<a class="btn-secondary" data-passage="Central Hub">BACK TO CARDIOCAREQUEST</a>
+
+</div>
+</div>
+
+
+::Central Hub [Important/Needed nobr]
+/*
+Placeholder passage. In the full app this returns
+the player to the CardioCareQuest main hub.
+*/
+
+<div class="phone">
+<div class="header"><span>Salt Sludge</span></div>
+<div class="content">
+
+<h2 class="intro-title">Returning</h2>
+<p class="narrative center">Returning to CardioCareQuest.</p>
+
+<div class="spacer"></div>
+
+<a class="btn-primary" data-passage="Story innit">PLAY SALT SLUDGE AGAIN</a>
+
+</div>
+</div>

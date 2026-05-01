@@ -1,0 +1,1297 @@
+::StoryTitle
+CardioCare Quest Survey
+
+::StoryData
+{
+  "ifid": "E5F6A7B8-C9D0-4234-AFAB-345678901234",
+  "format": "SugarCube",
+  "format-version": "2.37.3",
+  "start": "Story innit",
+  "zoom": 1
+}
+
+::StoryInit
+<<script>>
+State.variables.favoriteGame = "";
+State.variables.funReasons = [];
+State.variables.feeling = 0;
+State.variables.playAgain = "";
+State.variables.wishOpen = "";
+State.variables.susAnswers = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+State.variables.threeWords = ["", "", ""];
+State.variables.rankFun = ["salt", "walk", "dash", "village", "bingo"];
+State.variables.rankHealth = ["salt", "walk", "dash", "village", "bingo"];
+State.variables.susIdx = 1;
+State.variables.susScore = 0;
+State.variables.startedAt = Date.now();
+<</script>>
+
+::SetupHelpers [script]
+/*
+HELPERS available before any passage renders.
+- setup.gameInfo: lookup table for ranking cards
+- setup.bindSpeak: wires the read-aloud buttons via Web Speech API
+- setup.renderRank: renders ranking lists with up/down arrows
+*/
+setup.gameInfo = {
+  salt:    { name: "Salt Sludge",      emoji: "🧂" },
+  walk:    { name: "Dog Walking",       emoji: "🐕" },
+  dash:    { name: "DASH Diet Game",   emoji: "🥗" },
+  village: { name: "Vascular Village", emoji: "🏘️" },
+  bingo:   { name: "Bingo Bash",       emoji: "🎯" }
+};
+
+setup.bindSpeak = function () {
+  if (typeof document === "undefined") return;
+  document.querySelectorAll(".speak-btn").forEach(function (b) {
+    if (b.dataset.bound === "1") return;
+    b.dataset.bound = "1";
+    b.addEventListener("click", function (e) {
+      e.preventDefault();
+      try {
+        var text = b.dataset.speak || "";
+        if (!text) return;
+        if (window.speechSynthesis) {
+          window.speechSynthesis.cancel();
+          var u = new SpeechSynthesisUtterance(text);
+          u.rate = 0.9;
+          u.pitch = 1.0;
+          window.speechSynthesis.speak(u);
+        }
+      } catch (err) {}
+    });
+  });
+};
+
+setup.renderRank = function (containerId, varName) {
+  var container = document.getElementById(containerId);
+  if (!container) return;
+  var draw = function () {
+    var arr = State.variables[varName] || [];
+    container.innerHTML = "";
+    arr.forEach(function (key, idx) {
+      var info = setup.gameInfo[key] || { name: key, emoji: "🎮" };
+      var row = document.createElement("div");
+      row.className = "rank-item";
+      var upDisabled = (idx === 0) ? " disabled" : "";
+      var downDisabled = (idx === arr.length - 1) ? " disabled" : "";
+      row.innerHTML =
+        '<span class="rank-num">' + (idx + 1) + '</span>' +
+        '<span class="rank-emoji">' + info.emoji + '</span>' +
+        '<span class="rank-name">' + info.name + '</span>' +
+        '<span class="rank-controls">' +
+          '<a class="rank-btn rank-up' + upDisabled + '" data-idx="' + idx + '" data-dir="up">▲</a>' +
+          '<a class="rank-btn rank-down' + downDisabled + '" data-idx="' + idx + '" data-dir="down">▼</a>' +
+        '</span>';
+      container.appendChild(row);
+    });
+    container.querySelectorAll(".rank-btn").forEach(function (btn) {
+      btn.addEventListener("click", function (e) {
+        e.preventDefault();
+        if (btn.classList.contains("disabled")) return;
+        var i = Number(btn.dataset.idx);
+        var dir = btn.dataset.dir;
+        var current = (State.variables[varName] || []).slice();
+        if (dir === "up" && i > 0) {
+          var t = current[i]; current[i] = current[i - 1]; current[i - 1] = t;
+        } else if (dir === "down" && i < current.length - 1) {
+          var t2 = current[i]; current[i] = current[i + 1]; current[i + 1] = t2;
+        }
+        State.variables[varName] = current;
+        draw();
+      });
+    });
+  };
+  draw();
+};
+
+
+::UserStylesheet [stylesheet]
+/*
+  CARDIOCARE QUEST SURVEY
+  Phone-first, accessibility-conscious.
+  Same family as Salt Sludge / Vascular Village / Quiet Minute.
+  Pale cream page, deep viridis phone, large tap tiles, emoji-first.
+*/
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+
+body {
+  font-family: "Times New Roman", Times, serif;
+  background-color: #f4f1d8;
+  padding: 16px 12px;
+  font-size: 18px;
+  line-height: 1.5;
+  color: #1a1a1a;
+}
+
+#ui-bar { display: none; }
+
+#story {
+  margin: 0 auto;
+  max-width: 400px;
+  width: 100%;
+}
+
+.passage {
+  padding: 0;
+  margin: 0;
+  font-size: 1em;
+}
+
+.phone {
+  background: linear-gradient(180deg, #440154 0%, #3b528b 50%, #21918c 100%);
+  border-radius: 28px;
+  overflow: hidden;
+  box-shadow: 0 8px 30px rgba(60, 30, 80, 0.22);
+  color: #ffffff;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-height: 680px;
+}
+
+.phone *, .phone *::before, .phone *::after {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.phone p, .phone div, .phone span {
+  word-wrap: break-word !important;
+  overflow-wrap: break-word !important;
+  white-space: normal !important;
+  max-width: 100% !important;
+}
+
+.header {
+  padding: 14px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: bold;
+  color: #ffffff;
+  font-size: 16px;
+  background-color: rgba(0,0,0,0.22);
+  flex: 0 0 auto;
+}
+.header-progress {
+  font-size: 13px;
+  font-weight: bold;
+  color: #fde725;
+  letter-spacing: 0.04em;
+}
+
+.progress-track {
+  height: 4px;
+  background-color: rgba(255,255,255,0.15);
+  flex: 0 0 auto;
+}
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #fde725, #5ec962);
+  transition: width 0.4s ease;
+}
+
+.content {
+  padding: 20px 22px 22px 22px;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+}
+.spacer { flex: 1 1 auto; min-height: 14px; }
+
+.q-section { margin-bottom: 18px; }
+.q-step {
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  opacity: 0.75;
+  margin: 0 0 8px 0;
+  font-weight: bold;
+  color: #fde725;
+}
+.q-text {
+  font-size: 22px;
+  font-weight: bold;
+  line-height: 1.35;
+  margin: 0 0 6px 0;
+  color: #ffffff;
+}
+.q-help {
+  font-size: 14px;
+  opacity: 0.85;
+  margin: 6px 0 0 0;
+  line-height: 1.4;
+  color: #ffffff;
+}
+
+.speak-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background-color: rgba(255,255,255,0.10);
+  border: 1px solid rgba(255,255,255,0.25);
+  color: #ffffff;
+  font-family: "Times New Roman", Times, serif;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  padding: 8px 14px;
+  border-radius: 18px;
+  cursor: pointer;
+  margin-top: 12px;
+  text-decoration: none;
+  min-height: 36px;
+}
+.speak-btn:hover { background-color: rgba(255,255,255,0.18); }
+.speak-btn-icon { font-size: 16px; line-height: 1; }
+
+.tile-row {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+.scale-tile,
+.tile-row a.scale-tile,
+.tile-row a.macro-link,
+.tile-row a.link-internal {
+  background-color: #ffffff !important;
+  color: #1a1a1a !important;
+  border: 2px solid transparent !important;
+  border-radius: 14px !important;
+  padding: 14px 4px 12px 4px !important;
+  cursor: pointer !important;
+  text-decoration: none !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  text-align: center !important;
+  font-family: "Times New Roman", Times, serif !important;
+  box-shadow: 0 2px 6px rgba(40, 20, 60, 0.18) !important;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, border 0.12s ease !important;
+  flex: 1 1 0 !important;
+  min-width: 0 !important;
+  min-height: 102px !important;
+}
+.scale-tile:hover,
+.tile-row a.scale-tile:hover,
+.tile-row a.macro-link:hover {
+  transform: translateY(-2px) !important;
+  box-shadow: 0 4px 12px rgba(40, 20, 60, 0.28) !important;
+}
+.scale-emoji {
+  font-size: 40px !important;
+  line-height: 1 !important;
+  margin: 0 0 6px 0 !important;
+  display: block !important;
+}
+.scale-label {
+  font-size: 11px !important;
+  font-weight: bold !important;
+  letter-spacing: 0.02em !important;
+  color: #1a1a1a !important;
+  margin: 0 !important;
+  line-height: 1.25 !important;
+  word-break: break-word !important;
+  hyphens: auto !important;
+}
+
+.scale-tile.bg-1, .tile-row a.bg-1 { background: linear-gradient(135deg, #f8c3c8, #ffd5b8) !important; }
+.scale-tile.bg-2, .tile-row a.bg-2 { background: linear-gradient(135deg, #ffd5b8, #fff0c2) !important; }
+.scale-tile.bg-3, .tile-row a.bg-3 { background: linear-gradient(135deg, #fff0c2, #fff8d8) !important; }
+.scale-tile.bg-4, .tile-row a.bg-4 { background: linear-gradient(135deg, #e8f5d0, #d6f5d8) !important; }
+.scale-tile.bg-5, .tile-row a.bg-5 { background: linear-gradient(135deg, #d6f5d8, #b8e8c0) !important; }
+
+.choice-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.choice-tile,
+.choice-list a.choice-tile,
+.choice-list a.macro-link,
+.choice-list a.link-internal {
+  background-color: #ffffff !important;
+  color: #1a1a1a !important;
+  border: 2px solid transparent !important;
+  border-radius: 14px !important;
+  padding: 16px 18px !important;
+  cursor: pointer !important;
+  text-decoration: none !important;
+  display: flex !important;
+  flex-direction: row !important;
+  justify-content: flex-start !important;
+  align-items: center !important;
+  gap: 14px !important;
+  text-align: left !important;
+  font-family: "Times New Roman", Times, serif !important;
+  box-shadow: 0 2px 8px rgba(40, 20, 60, 0.18) !important;
+  transition: transform 0.12s ease, border 0.12s ease !important;
+  width: 100% !important;
+  min-height: 64px !important;
+}
+.choice-tile:hover,
+.choice-list a.choice-tile:hover,
+.choice-list a.macro-link:hover {
+  transform: translateY(-1px) !important;
+}
+.choice-tile.selected,
+.choice-list a.choice-tile.selected {
+  border: 2px solid #fde725 !important;
+  background-color: #fff8d8 !important;
+}
+.choice-emoji {
+  font-size: 36px !important;
+  line-height: 1 !important;
+  flex: 0 0 44px !important;
+  text-align: center !important;
+}
+.choice-text {
+  font-size: 18px !important;
+  font-weight: bold !important;
+  color: #1a1a1a !important;
+  margin: 0 !important;
+  line-height: 1.3 !important;
+  flex: 1 1 auto !important;
+}
+.choice-check {
+  font-size: 22px !important;
+  color: #5ec962 !important;
+  flex: 0 0 28px !important;
+  text-align: center !important;
+  font-weight: bold !important;
+  display: none !important;
+}
+.choice-tile.selected .choice-check,
+.choice-list a.choice-tile.selected .choice-check {
+  display: block !important;
+}
+
+.text-input-wrap {
+  background-color: #ffffff;
+  border-radius: 14px;
+  padding: 4px;
+  margin-bottom: 14px;
+}
+.text-input-wrap textarea {
+  width: 100% !important;
+  border: none !important;
+  background: #ffffff !important;
+  font-family: "Times New Roman", Times, serif !important;
+  font-size: 18px !important;
+  color: #1a1a1a !important;
+  padding: 14px !important;
+  resize: none !important;
+  outline: none !important;
+  box-sizing: border-box !important;
+  min-height: 110px !important;
+  border-radius: 12px !important;
+  caret-color: #3b528b !important;
+}
+
+.three-input-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.three-input-row {
+  background-color: #ffffff;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.three-input-num {
+  font-size: 22px;
+  font-weight: bold;
+  color: #3b528b;
+  padding: 0 0 0 16px;
+  flex: 0 0 28px;
+}
+.three-input-row input {
+  flex: 1 !important;
+  border: none !important;
+  background: transparent !important;
+  font-family: "Times New Roman", Times, serif !important;
+  font-size: 18px !important;
+  color: #1a1a1a !important;
+  padding: 16px 16px 16px 0 !important;
+  outline: none !important;
+  caret-color: #3b528b !important;
+  min-width: 0 !important;
+  width: 100% !important;
+}
+
+.rank-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.rank-item {
+  background-color: #ffffff;
+  border-radius: 12px;
+  padding: 10px 10px 10px 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #1a1a1a;
+  box-shadow: 0 2px 8px rgba(40, 20, 60, 0.18);
+}
+.rank-num {
+  font-size: 18px;
+  font-weight: bold;
+  color: #3b528b;
+  flex: 0 0 24px;
+}
+.rank-emoji {
+  font-size: 30px;
+  line-height: 1;
+  flex: 0 0 38px;
+  text-align: center;
+}
+.rank-name {
+  flex: 1 1 auto;
+  font-size: 16px;
+  font-weight: bold;
+  color: #1a1a1a;
+  min-width: 0;
+}
+.rank-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+.rank-btn {
+  background-color: #3b528b !important;
+  color: #ffffff !important;
+  border: none !important;
+  border-radius: 8px !important;
+  width: 36px !important;
+  height: 28px !important;
+  cursor: pointer !important;
+  font-size: 14px !important;
+  font-weight: bold !important;
+  font-family: "Times New Roman", Times, serif !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-decoration: none !important;
+  line-height: 1 !important;
+}
+.rank-btn:hover { background-color: #2a3a6a !important; }
+.rank-btn.disabled {
+  background-color: #aaaaaa !important;
+  cursor: not-allowed !important;
+}
+.rank-hint {
+  text-align: center;
+  font-size: 13px;
+  opacity: 0.85;
+  margin: 0 0 14px 0;
+  line-height: 1.4;
+  color: #ffffff;
+}
+.rank-edges {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  opacity: 0.75;
+  margin-bottom: 8px;
+  color: #ffffff;
+}
+
+.btn-primary,
+.phone a.btn-primary,
+.phone a.btn-primary.link-internal,
+.phone a.btn-primary.macro-link {
+  display: block !important;
+  width: 100% !important;
+  padding: 18px !important;
+  background-color: #fde725 !important;
+  color: #2a1a4a !important;
+  border: none !important;
+  border-radius: 14px !important;
+  font-weight: bold !important;
+  font-size: 16px !important;
+  letter-spacing: 0.1em !important;
+  text-align: center !important;
+  text-decoration: none !important;
+  font-family: "Times New Roman", Times, serif !important;
+  cursor: pointer !important;
+  margin-bottom: 10px !important;
+  box-sizing: border-box !important;
+  min-height: 56px !important;
+}
+.btn-primary.disabled,
+.phone a.btn-primary.disabled {
+  background-color: rgba(255,255,255,0.18) !important;
+  color: rgba(255,255,255,0.45) !important;
+  cursor: not-allowed !important;
+}
+.btn-primary:last-child,
+.phone a.btn-primary:last-child {
+  margin-bottom: 0 !important;
+}
+.btn-secondary,
+.phone a.btn-secondary {
+  display: block !important;
+  width: 100% !important;
+  padding: 14px !important;
+  background-color: transparent !important;
+  border: 1px solid rgba(255,255,255,0.35) !important;
+  color: rgba(255,255,255,0.9) !important;
+  border-radius: 14px !important;
+  font-size: 13px !important;
+  letter-spacing: 0.06em !important;
+  text-align: center !important;
+  text-decoration: none !important;
+  font-family: "Times New Roman", Times, serif !important;
+  box-sizing: border-box !important;
+  margin-bottom: 0 !important;
+  min-height: 44px !important;
+}
+
+.hero-emoji {
+  font-size: 90px;
+  line-height: 1;
+  text-align: center;
+  display: block;
+  margin: 16px auto 16px auto;
+}
+.intro-title {
+  text-align: center;
+  font-size: 30px;
+  font-weight: bold;
+  margin: 0 0 14px 0;
+  letter-spacing: 0.02em;
+  color: #ffffff;
+  line-height: 1.25;
+}
+.narrative {
+  font-size: 17px;
+  line-height: 1.6;
+  margin: 0 0 14px 0;
+  color: #ffffff !important;
+}
+.narrative.center { text-align: center; }
+.narrative:last-of-type { margin-bottom: 0; }
+
+.scale-preview {
+  display: flex;
+  flex-direction: row;
+  gap: 4px;
+  margin: 16px 0 8px 0;
+}
+.scale-preview .preview-tile {
+  flex: 1 1 0;
+  border-radius: 14px;
+  padding: 14px 4px 12px 4px;
+  text-align: center;
+  min-height: 90px;
+  color: #1a1a1a;
+}
+.scale-preview .preview-tile .scale-emoji { font-size: 32px; line-height: 1; margin-bottom: 4px; display: block; }
+.scale-preview .preview-tile .scale-label { font-size: 10px; font-weight: bold; line-height: 1.2; }
+.scale-preview .preview-tile.p-1 { background: linear-gradient(135deg, #f8c3c8, #ffd5b8); }
+.scale-preview .preview-tile.p-3 { background: linear-gradient(135deg, #fff0c2, #fff8d8); }
+.scale-preview .preview-tile.p-5 { background: linear-gradient(135deg, #d6f5d8, #b8e8c0); }
+
+.done-card {
+  background-color: #ffffff;
+  border-radius: 16px;
+  padding: 24px 20px;
+  color: #1a1a1a;
+  text-align: center;
+  margin-bottom: 14px;
+}
+.done-card .done-emoji { font-size: 72px; line-height: 1; margin-bottom: 8px; }
+.done-card .done-headline {
+  font-size: 24px; font-weight: bold; margin: 0 0 10px 0;
+  color: #1a5a1f; line-height: 1.3;
+}
+.done-card .done-message {
+  font-size: 15px; color: #444; line-height: 1.55; margin: 0 0 14px 0;
+}
+.done-stat {
+  display: inline-block;
+  background-color: #d6f5d8;
+  color: #1a5a1f;
+  font-size: 14px;
+  font-weight: bold;
+  padding: 6px 14px;
+  border-radius: 16px;
+  margin: 4px 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@media (min-width: 480px) {
+  body { padding: 32px 16px; }
+  .phone { min-height: 760px; }
+}
+
+
+::Story innit
+<<goto "Welcome">>
+
+
+::Welcome [nobr]
+
+<div class="phone">
+<div class="header"><span>End Survey</span><span class="header-progress">Step 9 of 12</span></div>
+<div class="progress-track"><div class="progress-fill" style="width: 5%;"></div></div>
+<div class="content">
+
+<span class="hero-emoji">📝</span>
+
+<h1 class="intro-title">A few questions</h1>
+
+<p class="narrative center">You played the games. Now we want to hear what you thought.</p>
+
+<p class="narrative center">Tap your answers. There are no wrong ones. Take your time.</p>
+
+<div class="spacer"></div>
+
+<a class="btn-primary" data-passage="Q1 Favorite">START</a>
+
+</div>
+</div>
+
+
+::Q1 Favorite [nobr]
+/*
+END SURVEY Q1: Which game was your favorite?
+Single-select tile list.
+*/
+
+<div class="phone">
+<div class="header"><span>End Survey</span><span class="header-progress">1 of 5</span></div>
+<div class="progress-track"><div class="progress-fill" style="width: 10%;"></div></div>
+<div class="content">
+
+<div class="q-section">
+<p class="q-step">Question 1</p>
+<h2 class="q-text">Which game was your favorite?</h2>
+<a class="speak-btn" data-speak="Which game was your favorite?"><span class="speak-btn-icon">🔊</span> Read aloud</a>
+</div>
+
+<div class="choice-list" id="fav-list">
+
+<<link '<span class="choice-emoji">🧂</span><div class="choice-text">Salt Sludge</div><span class="choice-check">✓</span>'>>
+<<set $favoriteGame to "Salt Sludge">>
+<<goto "Q2 Fun">>
+<</link>>
+
+<<link '<span class="choice-emoji">🐕</span><div class="choice-text">Dog Walking</div><span class="choice-check">✓</span>'>>
+<<set $favoriteGame to "Dog Walking">>
+<<goto "Q2 Fun">>
+<</link>>
+
+<<link '<span class="choice-emoji">🥗</span><div class="choice-text">DASH Diet Game</div><span class="choice-check">✓</span>'>>
+<<set $favoriteGame to "DASH Diet Game">>
+<<goto "Q2 Fun">>
+<</link>>
+
+<<link '<span class="choice-emoji">🏘️</span><div class="choice-text">Vascular Village</div><span class="choice-check">✓</span>'>>
+<<set $favoriteGame to "Vascular Village">>
+<<goto "Q2 Fun">>
+<</link>>
+
+<<link '<span class="choice-emoji">🎯</span><div class="choice-text">Bingo Bash</div><span class="choice-check">✓</span>'>>
+<<set $favoriteGame to "Bingo Bash">>
+<<goto "Q2 Fun">>
+<</link>>
+
+</div>
+
+</div>
+</div>
+
+<<script>>
+setTimeout(function () {
+  document.querySelectorAll("#fav-list a.macro-link, #fav-list a.link-internal").forEach(function (a) {
+    a.classList.add("choice-tile");
+  });
+  if (setup.bindSpeak) setup.bindSpeak();
+}, 0);
+<</script>>
+
+
+::Q2 Fun [nobr]
+/*
+END SURVEY Q2: What made it fun? Multi-select.
+Player can pick multiple, then tap NEXT.
+*/
+
+<div class="phone">
+<div class="header"><span>End Survey</span><span class="header-progress">2 of 5</span></div>
+<div class="progress-track"><div class="progress-fill" style="width: 25%;"></div></div>
+<div class="content">
+
+<div class="q-section">
+<p class="q-step">Question 2</p>
+<h2 class="q-text">What made it fun?</h2>
+<p class="q-help">Pick as many as you want.</p>
+<a class="speak-btn" data-speak="What made it fun? Pick as many as you want."><span class="speak-btn-icon">🔊</span> Read aloud</a>
+</div>
+
+<div class="choice-list" id="fun-list">
+
+<a class="choice-tile" data-fun="movement">
+<span class="choice-emoji">🚶</span>
+<div class="choice-text">Moving around</div>
+<span class="choice-check">✓</span>
+</a>
+
+<a class="choice-tile" data-fun="story">
+<span class="choice-emoji">📖</span>
+<div class="choice-text">The story</div>
+<span class="choice-check">✓</span>
+</a>
+
+<a class="choice-tile" data-fun="progress">
+<span class="choice-emoji">📈</span>
+<div class="choice-text">Seeing my progress</div>
+<span class="choice-check">✓</span>
+</a>
+
+<a class="choice-tile" data-fun="others">
+<span class="choice-emoji">👥</span>
+<div class="choice-text">Playing with others</div>
+<span class="choice-check">✓</span>
+</a>
+
+<a class="choice-tile" data-fun="other">
+<span class="choice-emoji">✨</span>
+<div class="choice-text">Something else</div>
+<span class="choice-check">✓</span>
+</a>
+
+</div>
+
+<div class="spacer"></div>
+
+<a class="btn-primary" data-passage="Q3 Feeling">NEXT</a>
+
+</div>
+</div>
+
+<<script>>
+setTimeout(function () {
+  var picked = (State.variables.funReasons || []).slice();
+  document.querySelectorAll("#fun-list a.choice-tile").forEach(function (t) {
+    if (picked.indexOf(t.dataset.fun) >= 0) t.classList.add("selected");
+    if (t.dataset.bound === "1") return;
+    t.dataset.bound = "1";
+    t.addEventListener("click", function (e) {
+      e.preventDefault();
+      var key = t.dataset.fun;
+      var i = picked.indexOf(key);
+      if (i >= 0) {
+        picked.splice(i, 1);
+        t.classList.remove("selected");
+      } else {
+        picked.push(key);
+        t.classList.add("selected");
+      }
+      State.variables.funReasons = picked.slice();
+    });
+  });
+  if (setup.bindSpeak) setup.bindSpeak();
+}, 0);
+<</script>>
+
+
+::Q3 Feeling [nobr]
+/*
+END SURVEY Q3: How do you feel right now? 5-emoji scale.
+*/
+
+<div class="phone">
+<div class="header"><span>End Survey</span><span class="header-progress">3 of 5</span></div>
+<div class="progress-track"><div class="progress-fill" style="width: 40%;"></div></div>
+<div class="content">
+
+<div class="q-section">
+<p class="q-step">Question 3</p>
+<h2 class="q-text">How do you feel right now?</h2>
+<a class="speak-btn" data-speak="How do you feel right now?"><span class="speak-btn-icon">🔊</span> Read aloud</a>
+</div>
+
+<div class="tile-row" id="feel-row">
+
+<<link '<span class="scale-emoji">😢</span><span class="scale-label">Very sad</span>'>>
+<<set $feeling to 1>>
+<<goto "Q4 Again">>
+<</link>>
+
+<<link '<span class="scale-emoji">🙁</span><span class="scale-label">Sad</span>'>>
+<<set $feeling to 2>>
+<<goto "Q4 Again">>
+<</link>>
+
+<<link '<span class="scale-emoji">😐</span><span class="scale-label">Okay</span>'>>
+<<set $feeling to 3>>
+<<goto "Q4 Again">>
+<</link>>
+
+<<link '<span class="scale-emoji">🙂</span><span class="scale-label">Good</span>'>>
+<<set $feeling to 4>>
+<<goto "Q4 Again">>
+<</link>>
+
+<<link '<span class="scale-emoji">😄</span><span class="scale-label">Very good</span>'>>
+<<set $feeling to 5>>
+<<goto "Q4 Again">>
+<</link>>
+
+</div>
+
+</div>
+</div>
+
+<<script>>
+setTimeout(function () {
+  document.querySelectorAll("#feel-row a.macro-link, #feel-row a.link-internal").forEach(function (a, i) {
+    a.classList.add("scale-tile");
+    a.classList.add("bg-" + (i + 1));
+  });
+  if (setup.bindSpeak) setup.bindSpeak();
+}, 0);
+<</script>>
+
+
+::Q4 Again [nobr]
+/*
+END SURVEY Q4: Would you like to play again?
+*/
+
+<div class="phone">
+<div class="header"><span>End Survey</span><span class="header-progress">4 of 5</span></div>
+<div class="progress-track"><div class="progress-fill" style="width: 55%;"></div></div>
+<div class="content">
+
+<div class="q-section">
+<p class="q-step">Question 4</p>
+<h2 class="q-text">Would you like to play CardioCare Quest again?</h2>
+<a class="speak-btn" data-speak="Would you like to play CardioCare Quest again?"><span class="speak-btn-icon">🔊</span> Read aloud</a>
+</div>
+
+<div class="choice-list" id="again-list">
+
+<<link '<span class="choice-emoji">😄</span><div class="choice-text">Yes</div><span class="choice-check">✓</span>'>>
+<<set $playAgain to "yes">>
+<<goto "Q5 Wish">>
+<</link>>
+
+<<link '<span class="choice-emoji">🤔</span><div class="choice-text">Maybe</div><span class="choice-check">✓</span>'>>
+<<set $playAgain to "maybe">>
+<<goto "Q5 Wish">>
+<</link>>
+
+<<link '<span class="choice-emoji">🤷</span><div class="choice-text">Not sure</div><span class="choice-check">✓</span>'>>
+<<set $playAgain to "not_sure">>
+<<goto "Q5 Wish">>
+<</link>>
+
+</div>
+
+</div>
+</div>
+
+<<script>>
+setTimeout(function () {
+  document.querySelectorAll("#again-list a.macro-link, #again-list a.link-internal").forEach(function (a) {
+    a.classList.add("choice-tile");
+  });
+  if (setup.bindSpeak) setup.bindSpeak();
+}, 0);
+<</script>>
+
+
+::Q5 Wish [nobr]
+/*
+END SURVEY Q5: Anything you wish the game had? Optional open text.
+*/
+
+<div class="phone">
+<div class="header"><span>End Survey</span><span class="header-progress">5 of 5</span></div>
+<div class="progress-track"><div class="progress-fill" style="width: 70%;"></div></div>
+<div class="content">
+
+<div class="q-section">
+<p class="q-step">Question 5 · optional</p>
+<h2 class="q-text">Is there anything you wish the game had?</h2>
+<p class="q-help">You can leave this empty if you want.</p>
+<a class="speak-btn" data-speak="Is there anything you wish the game had? You can leave this empty if you want."><span class="speak-btn-icon">🔊</span> Read aloud</a>
+</div>
+
+<div class="text-input-wrap">
+<textarea id="wish-input" rows="4"></textarea>
+</div>
+
+<div class="spacer"></div>
+
+<a class="btn-primary" data-passage="SUS Intro">NEXT</a>
+
+</div>
+</div>
+
+<<script>>
+setTimeout(function () {
+  var wish = document.getElementById("wish-input");
+  if (wish && State.variables.wishOpen) wish.value = State.variables.wishOpen;
+  if (wish && wish.dataset.bound !== "1") {
+    wish.dataset.bound = "1";
+    wish.addEventListener("input", function () {
+      State.variables.wishOpen = wish.value;
+    });
+  }
+  if (setup.bindSpeak) setup.bindSpeak();
+}, 0);
+<</script>>
+
+
+::SUS Intro [nobr]
+/*
+SUS preamble.
+*/
+
+<div class="phone">
+<div class="header"><span>How was the system?</span><span class="header-progress">Step 10 of 12</span></div>
+<div class="progress-track"><div class="progress-fill" style="width: 75%;"></div></div>
+<div class="content">
+
+<span class="hero-emoji">📊</span>
+
+<h2 class="intro-title">Ten quick questions</h2>
+
+<p class="narrative center">For each one, tap how much you agree.</p>
+
+<div class="scale-preview">
+<div class="preview-tile p-1"><span class="scale-emoji">😠</span><span class="scale-label">Strongly disagree</span></div>
+<div class="preview-tile p-3"><span class="scale-emoji">😐</span><span class="scale-label">Neutral</span></div>
+<div class="preview-tile p-5"><span class="scale-emoji">😍</span><span class="scale-label">Strongly agree</span></div>
+</div>
+
+<div class="spacer"></div>
+
+<a class="btn-primary" data-passage="SUS Q">START</a>
+
+</div>
+</div>
+
+
+::SUS Q [nobr]
+/*
+SUS QUESTION SCREEN.
+Single passage handles all 10 SUS questions, advancing $susIdx each time.
+On the 10th tap, navigates to Three Words.
+*/
+
+<<set _susQs to [
+  "I think that I would like to use this system frequently.",
+  "I found the system unnecessarily complex.",
+  "I thought the system was easy to use.",
+  "I think that I would need the support of a technical person to use this system.",
+  "I found the various functions in this system were well integrated.",
+  "I thought there was too much inconsistency in this system.",
+  "I would imagine that most people would learn to use this system very quickly.",
+  "I found the system very cumbersome to use.",
+  "I felt very confident using the system.",
+  "I needed to learn a lot of things before I could get going with this system."
+]>>
+<<set _i to $susIdx>>
+<<set _q to _susQs[_i - 1]>>
+<<set _pct to 75 + Math.floor((_i / 10) * 15)>>
+
+<div class="phone">
+<div class="header"><span>System questions</span><span class="header-progress"><<print _i>> of 10</span></div>
+<div class="progress-track"><div class="progress-fill" @style="'width: ' + _pct + '%;'"></div></div>
+<div class="content">
+
+<div class="q-section">
+<p class="q-step">SUS · question <<print _i>></p>
+<h2 class="q-text"><<print _q>></h2>
+<a class="speak-btn" @data-speak="_q"><span class="speak-btn-icon">🔊</span> Read aloud</a>
+</div>
+
+<div class="tile-row" id="sus-row">
+
+<<link '<span class="scale-emoji">😠</span><span class="scale-label">Strongly disagree</span>'>>
+<<set $susAnswers[$susIdx - 1] to 1>>
+<<if $susIdx lt 10>><<set $susIdx to $susIdx + 1>><<goto "SUS Q">><<else>><<goto "Three Words">><</if>>
+<</link>>
+
+<<link '<span class="scale-emoji">🙁</span><span class="scale-label">Disagree</span>'>>
+<<set $susAnswers[$susIdx - 1] to 2>>
+<<if $susIdx lt 10>><<set $susIdx to $susIdx + 1>><<goto "SUS Q">><<else>><<goto "Three Words">><</if>>
+<</link>>
+
+<<link '<span class="scale-emoji">😐</span><span class="scale-label">Neutral</span>'>>
+<<set $susAnswers[$susIdx - 1] to 3>>
+<<if $susIdx lt 10>><<set $susIdx to $susIdx + 1>><<goto "SUS Q">><<else>><<goto "Three Words">><</if>>
+<</link>>
+
+<<link '<span class="scale-emoji">🙂</span><span class="scale-label">Agree</span>'>>
+<<set $susAnswers[$susIdx - 1] to 4>>
+<<if $susIdx lt 10>><<set $susIdx to $susIdx + 1>><<goto "SUS Q">><<else>><<goto "Three Words">><</if>>
+<</link>>
+
+<<link '<span class="scale-emoji">😍</span><span class="scale-label">Strongly agree</span>'>>
+<<set $susAnswers[$susIdx - 1] to 5>>
+<<if $susIdx lt 10>><<set $susIdx to $susIdx + 1>><<goto "SUS Q">><<else>><<goto "Three Words">><</if>>
+<</link>>
+
+</div>
+
+</div>
+</div>
+
+<<script>>
+setTimeout(function () {
+  document.querySelectorAll("#sus-row a.macro-link, #sus-row a.link-internal").forEach(function (a, i) {
+    a.classList.add("scale-tile");
+    a.classList.add("bg-" + (i + 1));
+  });
+  if (setup.bindSpeak) setup.bindSpeak();
+}, 0);
+<</script>>
+
+
+::Three Words [nobr]
+/*
+STEP 11: Three words.
+Three text inputs. Neutral prompt, no example words shown.
+*/
+
+<div class="phone">
+<div class="header"><span>Three words</span><span class="header-progress">Step 11 of 12</span></div>
+<div class="progress-track"><div class="progress-fill" style="width: 90%;"></div></div>
+<div class="content">
+
+<div class="q-section">
+<p class="q-step">Step 11</p>
+<h2 class="q-text">What three words would you use to describe CardioCare Quest?</h2>
+<a class="speak-btn" data-speak="What three words would you use to describe CardioCare Quest?"><span class="speak-btn-icon">🔊</span> Read aloud</a>
+</div>
+
+<div class="three-input-stack">
+<div class="three-input-row"><span class="three-input-num">1</span><input type="text" id="word-1"></div>
+<div class="three-input-row"><span class="three-input-num">2</span><input type="text" id="word-2"></div>
+<div class="three-input-row"><span class="three-input-num">3</span><input type="text" id="word-3"></div>
+</div>
+
+<div class="spacer"></div>
+
+<a class="btn-primary" data-passage="Rank Fun">NEXT</a>
+
+</div>
+</div>
+
+<<script>>
+setTimeout(function () {
+  var inputs = [
+    document.getElementById("word-1"),
+    document.getElementById("word-2"),
+    document.getElementById("word-3")
+  ];
+  inputs.forEach(function (el, i) {
+    if (!el) return;
+    if (State.variables.threeWords && State.variables.threeWords[i]) {
+      el.value = State.variables.threeWords[i];
+    }
+    if (el.dataset.bound !== "1") {
+      el.dataset.bound = "1";
+      el.addEventListener("input", function () {
+        var arr = (State.variables.threeWords || ["", "", ""]).slice();
+        arr[i] = el.value;
+        State.variables.threeWords = arr;
+      });
+    }
+  });
+  if (setup.bindSpeak) setup.bindSpeak();
+}, 0);
+<</script>>
+
+
+::Rank Fun [nobr]
+/*
+STEP 12 PASS 1: Rank by fun.
+Position 1 (top) = most fun, Position 5 (bottom) = least fun.
+*/
+
+<div class="phone">
+<div class="header"><span>Most fun</span><span class="header-progress">Step 12 · 1 of 2</span></div>
+<div class="progress-track"><div class="progress-fill" style="width: 94%;"></div></div>
+<div class="content">
+
+<div class="q-section">
+<p class="q-step">Ranking · by fun</p>
+<h2 class="q-text">Put these in order. Most fun at the top.</h2>
+<a class="speak-btn" data-speak="Put these in order. Most fun at the top. Least fun at the bottom."><span class="speak-btn-icon">🔊</span> Read aloud</a>
+</div>
+
+<div class="rank-edges"><span>Most fun</span><span>Least fun</span></div>
+
+<div class="rank-list" id="rank-fun-list"></div>
+
+<p class="rank-hint">Tap up or down to move a game.</p>
+
+<a class="btn-primary" data-passage="Rank Health">NEXT RANKING</a>
+
+</div>
+</div>
+
+<<script>>
+setTimeout(function () {
+  if (setup.renderRank) setup.renderRank("rank-fun-list", "rankFun");
+  if (setup.bindSpeak) setup.bindSpeak();
+}, 0);
+<</script>>
+
+
+::Rank Health [nobr]
+/*
+STEP 12 PASS 2: Rank by importance for health.
+*/
+
+<div class="phone">
+<div class="header"><span>Most important</span><span class="header-progress">Step 12 · 2 of 2</span></div>
+<div class="progress-track"><div class="progress-fill" style="width: 98%;"></div></div>
+<div class="content">
+
+<div class="q-section">
+<p class="q-step">Ranking · for health</p>
+<h2 class="q-text">Now order them by which one felt most important for your health.</h2>
+<a class="speak-btn" data-speak="Now order them by which one felt most important for your health."><span class="speak-btn-icon">🔊</span> Read aloud</a>
+</div>
+
+<div class="rank-edges"><span>Most important</span><span>Least important</span></div>
+
+<div class="rank-list" id="rank-health-list"></div>
+
+<p class="rank-hint">Tap up or down to move a game.</p>
+
+<a class="btn-primary" data-passage="Done">FINISH</a>
+
+</div>
+</div>
+
+<<script>>
+setTimeout(function () {
+  if (setup.renderRank) setup.renderRank("rank-health-list", "rankHealth");
+  if (setup.bindSpeak) setup.bindSpeak();
+}, 0);
+<</script>>
+
+
+::Done [nobr]
+/*
+DONE. Compute SUS score, persist payload, show thank-you.
+*/
+
+<<script>>
+(function () {
+  var ans = State.variables.susAnswers || [];
+  var sum = 0;
+  for (var i = 0; i < 10; i++) {
+    var v = Number(ans[i]) || 0;
+    if (i % 2 === 0) {
+      sum += (v - 1);
+    } else {
+      sum += (5 - v);
+    }
+  }
+  var score = sum * 2.5;
+  State.variables.susScore = score;
+
+  var payload = {
+    endSurvey: {
+      favoriteGame: State.variables.favoriteGame,
+      funReasons: State.variables.funReasons,
+      feeling: State.variables.feeling,
+      playAgain: State.variables.playAgain,
+      wishOpen: State.variables.wishOpen
+    },
+    sus: { answers: ans, score: score },
+    threeWords: State.variables.threeWords,
+    rankFun: State.variables.rankFun,
+    rankHealth: State.variables.rankHealth,
+    startedAt: State.variables.startedAt,
+    completedAt: Date.now()
+  };
+  try {
+    window.localStorage.setItem("cardiocarequest_survey", JSON.stringify(payload));
+  } catch (e) {}
+  /* CCQ — push the full payload to Flutter so it lands in
+     surveys/post_play_v1/responses/{auto} via SurveyHooks.submitResponse.
+     localStorage above is just a defensive backup on the device. */
+  try {
+    if (window.CCQ && typeof window.CCQ.submitResponse === "function") {
+      window.CCQ.submitResponse(payload, { pointsEarned: 25 });
+    }
+  } catch (e) { /* swallow */ }
+})();
+<</script>>
+
+<div class="phone">
+<div class="header"><span>All done</span><span class="header-progress">Complete</span></div>
+<div class="progress-track"><div class="progress-fill" style="width: 100%;"></div></div>
+<div class="content">
+
+<div class="done-card">
+<div class="done-emoji">🎉</div>
+<div class="done-headline">Thank you</div>
+<p class="done-message">You finished the survey. Your answers are saved on this device.</p>
+<div>
+<<if $favoriteGame isnot "">><span class="done-stat">Favorite: $favoriteGame</span><</if>>
+<span class="done-stat">SUS score: <<print Math.round($susScore)>></span>
+</div>
+</div>
+
+<p class="narrative center">A researcher will collect your responses from the device.</p>
+
+<div class="spacer"></div>
+
+<a class="btn-primary" onclick="if(window.CCQ){CCQ.goHome();}return false;" href="#">DONE</a>
+
+</div>
+</div>
+
+::UserScript [script]
+
+/* CardioCare Quest — auto passage telemetry.
+   Fires `passage_entered` for every passage entry via the FlutterBridge.
+   Snapshots SugarCube state.variables so researchers see the player's
+   path plus key in-game state. Best-effort; swallows errors. */
+$(document).on(":passagestart", function (ev) {
+  try {
+    if (window.CCQ && typeof window.CCQ.telemetry === "function") {
+      var snap = {};
+      try { Object.assign(snap, SugarCube.State.variables); } catch (e) {}
+      CCQ.telemetry("passage_entered", {
+        passage: ev.passage.title,
+        vars: snap
+      });
+    }
+  } catch (e) { /* swallow */ }
+});
+

@@ -1,18 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:cardio_care_quest/core/theme/app_colors.dart';
 
 class HealthPillarTile extends StatelessWidget {
   final IconData icon;
   final String title;
-  final Color color;
-  final int level;
-  final VoidCallback onTap; // ─── NEW: Navigation trigger
+  final VoidCallback onTap;
 
   const HealthPillarTile({
     super.key,
     required this.icon,
     required this.title,
-    required this.color,
-    required this.level,
     required this.onTap,
   });
 
@@ -20,53 +17,33 @@ class HealthPillarTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(24),
+      borderRadius: BorderRadius.circular(16),
       child: Container(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: const Color(0xFFE5E7EB)), // AppColors.cardBorder
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.cardBorder),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03),
-              blurRadius: 10,
+              color: AppColors.accent.withValues(alpha: 0.08),
+              blurRadius: 12,
               offset: const Offset(0, 4),
-            )
+            ),
           ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
+            Icon(icon, color: AppColors.primary, size: 28),
+            Text(
+              title,
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+                color: AppColors.title,
               ),
-              child: Icon(icon, color: color, size: 24),
-            ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                    color: Color(0xFF2D3A5E),
-                  ),
-                ),
-                Text(
-                  "Level $level",
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: color,
-                  ),
-                ),
-              ],
             ),
           ],
         ),

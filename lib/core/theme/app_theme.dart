@@ -9,14 +9,16 @@ class AppTheme {
       brightness: Brightness.light,
       scaffoldBackgroundColor: AppColors.background,
       
-      // Typography: Playfair Display for titles, DM Sans for body
+      // Typography: DM Sans throughout. Sans-serif is more readable for the
+      // target audience (disabled, elderly, hypertension patients) than the
+      // previous serif-for-titles pattern. Hierarchy comes from weight + size.
       textTheme: GoogleFonts.dmSansTextTheme().copyWith(
-        displayLarge: GoogleFonts.playfairDisplay(
+        displayLarge: GoogleFonts.dmSans(
           fontWeight: FontWeight.w900,
           color: AppColors.title,
           fontSize: 32,
         ),
-        headlineMedium: GoogleFonts.playfairDisplay(
+        headlineMedium: GoogleFonts.dmSans(
           fontWeight: FontWeight.w700,
           color: AppColors.title,
           fontSize: 24,
@@ -114,7 +116,7 @@ class AppTheme {
         backgroundColor: Colors.white,
         elevation: 0,
         centerTitle: false,
-        titleTextStyle: GoogleFonts.playfairDisplay(
+        titleTextStyle: GoogleFonts.dmSans(
           color: AppColors.title,
           fontSize: 24,
           fontWeight: FontWeight.bold,

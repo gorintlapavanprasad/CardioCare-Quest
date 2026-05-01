@@ -3,6 +3,8 @@
 /// Used to display rich narrative content without needing videos
 library;
 
+import 'package:flutter/material.dart';
+
 class GameStory {
   final String id;
   final String title;
@@ -11,6 +13,7 @@ class GameStory {
   final String medicalContext;
   final List<String> benefits;
   final String emoji;
+  final IconData iconData; // Mono Material icon used by game_catalog_screen
   final String color; // Hex color for card
   final String status; // 'active' or 'coming_soon'
 
@@ -22,6 +25,7 @@ class GameStory {
     required this.medicalContext,
     required this.benefits,
     required this.emoji,
+    required this.iconData,
     required this.color,
     required this.status,
   });
@@ -50,6 +54,7 @@ Each movement counts. Choose the distance that is safe and realistic for you rig
         'Builds consistency',
       ],
       emoji: '🐕‍🦺',
+      iconData: Icons.pets,
       color: '#2d7d6d',
       status: 'active',
     ),
@@ -73,6 +78,7 @@ Each square you mark off is a step towards a better understanding of your cardio
         'Share with family',
       ],
       emoji: '🅱️',
+      iconData: Icons.casino,
       color: '#d4a574',
       status: 'active',
     ),
@@ -95,6 +101,7 @@ Learn to make smart food choices, create balanced meals, and build a heart-healt
         'Lower blood pressure',
       ],
       emoji: '🥗',
+      iconData: Icons.restaurant_menu,
       color: '#2d7d6d',
       status: 'active',
     ),
@@ -117,6 +124,7 @@ Five days. Five meals. One artery.
         'Make the science concrete',
       ],
       emoji: '🧂',
+      iconData: Icons.science,
       color: '#546e7a',
       status: 'active',
     ),
@@ -141,6 +149,7 @@ There are no right or wrong answers. Your responses help the research team under
         'No game pressure',
       ],
       emoji: '📋',
+      iconData: Icons.checklist,
       color: '#4a5b80',
       status: 'active',
     ),
@@ -163,7 +172,35 @@ Make choices about diet, exercise, and stress management to help your village th
         'Holistic view of heart health',
       ],
       emoji: '🏘️',
+      iconData: Icons.holiday_village,
       color: '#1b7373',
+      status: 'active',
+    ),
+
+    // The relaxed-state BP capture game. Per professor's research
+    // protocol: BP should only be collected after a calming activity.
+    // Quiet Minute does the breathing exercise then asks for the BP
+    // reading — the only path now to log BP into Firestore.
+    'quiet_minute': GameStory(
+      id: 'quiet_minute',
+      title: 'Quiet Minute',
+      shortDescription: 'A short rest, then your blood pressure',
+      narrative: '''
+Sit somewhere quiet. Breathe slowly for two minutes. Then take your blood pressure with your cuff and enter the numbers.
+
+Your reading is most accurate when you are calm.
+      ''',
+      medicalContext:
+          'Clinical guidelines recommend resting quietly for several minutes before measuring blood pressure. Activity, stress, and recent caffeine can all push systolic readings up by 10-20 mmHg. The two-minute breathing exercise helps return your heart rate and pressure to a steadier baseline so the reading better reflects your everyday state.',
+      benefits: [
+        'More accurate BP readings',
+        'A short calming pause',
+        'Tracks your readings over time',
+        'Quick and gentle',
+      ],
+      emoji: '🧘',
+      iconData: Icons.self_improvement,
+      color: '#3a6a94',
       status: 'active',
     ),
   };

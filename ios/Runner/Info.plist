@@ -14,6 +14,10 @@
 		<string>This app accesses your photo library so you can attach meal photos when logging food for the DASH diet quest.</string>
 		<key>NSFaceIDUsageDescription</key>
 		<string>This app uses Face ID to keep your health data secure and let you sign in quickly.</string>
+		<key>NSHealthShareUsageDescription</key>
+		<string>Cardio Care Quest reads your heart rate, steps, and activity from Apple Health and your Apple Watch so researchers can study your cardiovascular health alongside the blood pressure readings you record after each game.</string>
+		<key>NSHealthUpdateUsageDescription</key>
+		<string>Cardio Care Quest may save your blood pressure readings to Apple Health so they appear alongside your other vitals.</string>
 		<key>UIBackgroundModes</key>
 		<array>
 			<string>location</string>
