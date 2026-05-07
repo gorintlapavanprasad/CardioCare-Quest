@@ -92,6 +92,18 @@ class _TwineQuestionnaireHostState extends State<TwineQuestionnaireHost> {
   // (in-game GO_HOME button vs. AppBar back arrow vs. Android back gesture).
   bool _exited = false;
 
+  // Tracks whether any SUBMIT_RESPONSE this session credited points.
+  // Used by _performExit to decide whether to bump `surveysCompleted`
+  // at exit time when no individual submit has done so already (the
+  // Vascular Village per-quest pattern).
+  bool _anyPointsEarned = false;
+
+  // True once a SUBMIT_RESPONSE has bumped `surveysCompleted` (default
+  // behavior). Lets us bump exactly once per session even when a game's
+  // submits all use `countAsCompletion: false` — _performExit covers
+  // those cases via the deferred bump.
+  bool _completionAlreadyBumped = false;
+
   // Per-play session id stamped onto every write that comes out of this
   // host instance (telemetry, BP reading, HealthKit snapshot, survey
   // response). Lets researchers do a single Firestore query to
@@ -126,8 +138,18 @@ class _TwineQuestionnaireHostState extends State<TwineQuestionnaireHost> {
   }
 
   void _initWebView() {
+    // Tag the user agent with the current participant id so the
+    // inlined bridge JS can detect a participant switch on shared
+    // devices and wipe stale per-user localStorage (BP history,
+    // voyage gate, etc.) before SugarCube StoryInit reads it.
+    // Without this, participant 124 logging in on a phone where
+    // participant 123 just played sees 123's last BP reading on
+    // their first launch of Vascular Village. "anon" is the
+    // fallback when a Twine game opens before login completes.
+    final pid = _uid.isEmpty ? 'anon' : _uid;
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setUserAgent('CCQApp/$pid')
       ..setBackgroundColor(Colors.white)
       ..setNavigationDelegate(
         NavigationDelegate(
@@ -286,6 +308,13 @@ class _TwineQuestionnaireHostState extends State<TwineQuestionnaireHost> {
           final pointsEarned = (data['pointsEarned'] is num)
               ? (data['pointsEarned'] as num).toInt()
               : widget.defaultPointsPerResponse;
+          // Default behavior: every points-earning submit also counts
+          // as one completion. Games opt out with `countAsCompletion:
+          // false` when their submits represent partial progress
+          // (e.g. Vascular Village's per-quest credits). For those,
+          // SurveyHooks skips the Firestore counter bump too, and
+          // _performExit fires it once on exit instead.
+          final countAsCompletion = data['countAsCompletion'] != false;
 
           // Stamp the response with this play's sessionId so the survey
           // doc can be tied back to the matching telemetry / health-
@@ -298,13 +327,17 @@ class _TwineQuestionnaireHostState extends State<TwineQuestionnaireHost> {
             surveyId: (data['surveyId'] as String?) ?? widget.surveyId,
             answers: enrichedAnswers,
             pointsEarned: pointsEarned,
+            countAsCompletion: countAsCompletion,
           );
 
           if (mounted && pointsEarned > 0) {
-            PointsHooks.applyIncrements(context, {
-              'points': pointsEarned,
-              'surveysCompleted': 1,
-            });
+            _anyPointsEarned = true;
+            final increments = <String, int>{'points': pointsEarned};
+            if (countAsCompletion) {
+              increments['surveysCompleted'] = 1;
+              _completionAlreadyBumped = true;
+            }
+            PointsHooks.applyIncrements(context, increments);
           }
 
           TelemetryHooks.logEvent(
@@ -313,6 +346,61 @@ class _TwineQuestionnaireHostState extends State<TwineQuestionnaireHost> {
               'questionCount': answers.length,
               'pointsEarned': pointsEarned,
               'gameId': widget.surveyId,
+              'sessionId': _sessionId,
+            },
+            phone: _phone,
+            userId: _uid,
+          );
+        }
+        break;
+
+      case 'LOG_QUEST_COMPLETION':
+        // Game-side equivalent of SUBMIT_RESPONSE for hub-and-spoke
+        // games (Vascular Village). Routes through GameLogHooks so the
+        // record lands in `userData/{uid}/gameLogs/{auto}` instead of
+        // `surveys/...` — keeps the surveys collection reserved for
+        // actual questionnaires. Otherwise mirrors the SUBMIT_RESPONSE
+        // shape: same points-credit + countAsCompletion semantics, same
+        // session-stamped enrichment, same deferred completion bump
+        // path in _performExit when callers opt out.
+        final questId = data['questId'];
+        if (questId is String && questId.isNotEmpty) {
+          final pointsEarned = (data['pointsEarned'] is num)
+              ? (data['pointsEarned'] as num).toInt()
+              : 0;
+          final countAsCompletion = data['countAsCompletion'] != false;
+          final gameId =
+              (data['gameId'] as String?) ?? widget.surveyId;
+          final questData = data['data'] is Map
+              ? Map<String, dynamic>.from(data['data'] as Map)
+              : null;
+
+          await GameLogHooks.logQuestCompletion(
+            uid: _uid,
+            gameId: gameId,
+            questId: questId,
+            pointsEarned: pointsEarned,
+            sessionId: _sessionId,
+            data: questData,
+            countAsCompletion: countAsCompletion,
+          );
+
+          if (mounted && pointsEarned > 0) {
+            _anyPointsEarned = true;
+            final increments = <String, int>{'points': pointsEarned};
+            if (countAsCompletion) {
+              increments['surveysCompleted'] = 1;
+              _completionAlreadyBumped = true;
+            }
+            PointsHooks.applyIncrements(context, increments);
+          }
+
+          TelemetryHooks.logEvent(
+            '${gameId}_quest_completed',
+            parameters: {
+              'questId': questId,
+              'pointsEarned': pointsEarned,
+              'gameId': gameId,
               'sessionId': _sessionId,
             },
             phone: _phone,
@@ -361,6 +449,30 @@ class _TwineQuestionnaireHostState extends State<TwineQuestionnaireHost> {
     _exited = true;
 
     if (mounted) {
+      // Deferred completion bump: if any submit this session credited
+      // points AND none of them counted as a completion (all used
+      // `countAsCompletion: false`), bump `surveysCompleted` once
+      // now — both in local state for instant UI feedback and in
+      // Firestore via OfflineQueue so the canonical record stays in
+      // sync. SurveyHooks skipped the Firestore bump for those
+      // partial submits, so the host owns this once-per-session
+      // bump. Vascular Village's per-quest credits go through this
+      // path; whole-game submits (Daily Check-In, Bingo Bash, etc.)
+      // bump per submit and skip this branch entirely.
+      if (_anyPointsEarned && !_completionAlreadyBumped) {
+        PointsHooks.applyIncrements(
+            context, const <String, int>{'surveysCompleted': 1});
+        if (_uid.isNotEmpty) {
+          unawaited(GetIt.instance<OfflineQueue>().enqueue(PendingOp.update(
+            '${FirestorePaths.userData}/$_uid',
+            {
+              'surveysCompleted': OfflineFieldValue.increment(1),
+              'lastSurveyId': widget.surveyId,
+              'lastSurveyAt': OfflineFieldValue.nowTimestamp(),
+            },
+          )));
+        }
+      }
       // Fire-and-forget HealthKit snapshot stamped with this play's
       // sessionId so researchers can join the snapshot to the rest of
       // the per-session writes (passage_entered events, BP reading,
@@ -377,14 +489,23 @@ class _TwineQuestionnaireHostState extends State<TwineQuestionnaireHost> {
     // Pop with BP if any was logged. Parent routes (e.g. Vascular Village
     // launching Quiet Minute via CCQ.launchGame) read the result; routes
     // popped to dashboard ignore it.
+    //
+    // Important: explicitly type the map as `Map<String, dynamic>` —
+    // a bare literal infers as `Map<String, int?>`, which is NOT a
+    // subtype of `Map<String, dynamic>` because Dart's Map is invariant
+    // in its value type. Without the explicit type, the awaiting
+    // `push<Map<String, dynamic>?>` cast in the parent's LAUNCH_GAME
+    // handler fails, the result lands as null, and Vascular Village's
+    // SugarCube state never receives the freshly-logged BP — the Hub
+    // re-renders with `--/--` until the next StoryInit picks it up
+    // from localStorage.
     if (mounted) {
-      final bpResult =
-          (_lastLoggedSys != null && _lastLoggedDia != null)
-              ? {
-                  'systolic': _lastLoggedSys,
-                  'diastolic': _lastLoggedDia,
-                }
-              : null;
+      final bpResult = (_lastLoggedSys != null && _lastLoggedDia != null)
+          ? <String, dynamic>{
+              'systolic': _lastLoggedSys,
+              'diastolic': _lastLoggedDia,
+            }
+          : null;
       Navigator.of(context).pop(bpResult);
     }
   }
@@ -436,16 +557,22 @@ class _TwineQuestionnaireHostState extends State<TwineQuestionnaireHost> {
 
   @override
   Widget build(BuildContext context) {
-    // No AppBar title — the Twine HTMLs render their own visible heading
-    // inside the WebView. Putting a duplicate title on the dark AppBar
-    // also runs into a contrast bug (theme titleTextStyle is dark navy,
-    // which disappears on dark purple). Back arrow + in-HTML title is
-    // enough context.
+    // No Flutter AppBar — the Twine HTMLs render their own header inside
+    // the WebView (`<div class="header">`), and the burger menu auto-
+    // injected by `ccq_bridge.js` provides "Go to dashboard". Stacking
+    // the native AppBar on top produced a redundant double-header:
+    // back-arrow row + in-game header row eating ~110px of viewport
+    // before the actual game content started. Removing the AppBar
+    // gives the game the full screen height.
     //
-    // PopScope intercepts the Android system back gesture so it goes
-    // through _performExit (snapshot + summary writes) instead of
-    // popping silently and skipping the data-collection writes. The
-    // AppBar back arrow is wired the same way.
+    // Exit paths still covered:
+    //   • Burger menu → "Go to dashboard" (bridge → GO_HOME → _performExit)
+    //   • Android system back gesture (PopScope below → _performExit)
+    //   • In-game completion buttons (e.g. Quiet Minute Done → CCQ.goHome)
+    //
+    // PopScope intercepts the back gesture so it goes through
+    // _performExit (snapshot + summary writes) instead of popping
+    // silently and skipping the data-collection writes.
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) async {
@@ -453,23 +580,18 @@ class _TwineQuestionnaireHostState extends State<TwineQuestionnaireHost> {
         await _performExit(exitReason: 'back_button');
       },
       child: Scaffold(
-        appBar: AppBar(
-          backgroundColor: widget.appBarColor,
-          foregroundColor: Colors.white,
-          // Explicit iconTheme so the back arrow stays white on the dark
-          // purple bar — without this, the global appBarTheme.iconTheme
-          // (dark navy) overrides foregroundColor and the arrow becomes
-          // invisible on dark purple.
-          iconTheme: const IconThemeData(color: Colors.white),
-          // Explicit leading so the icon style matches TwineGameHost's
-          // back arrow across all games (Icons.arrow_back, not the
-          // platform-adaptive default). Routes through _performExit so
-          // every exit path fires the snapshot + summary writes.
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: Colors.white),
-            onPressed: () => _performExit(exitReason: 'back_arrow'),
-          ),
-        ),
+        // Dark navy paints behind any inset region Android may reserve
+        // for the system status bar — keeps the visual continuous if
+        // the OS does carve out a sliver. Most Android builds put
+        // status bar ABOVE the activity's content area (opaque),
+        // meaning content already starts below the bar with no inset
+        // needed. Earlier we wrapped the WebView in SafeArea(top:true)
+        // which added EXTRA padding on top of that — visually a
+        // stranded band of Scaffold bg color between the OS status
+        // bar and the game's own header. Dropping SafeArea lets the
+        // WebView fill all the way up, so the game header sits
+        // directly under the status bar with no seam.
+        backgroundColor: const Color(0xFF1a1b2e),
         body: WebViewWidget(controller: _controller),
       ),
     );

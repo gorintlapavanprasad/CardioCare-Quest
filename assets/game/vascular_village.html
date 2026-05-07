@@ -128,6 +128,45 @@ var saveAs=saveAs||navigator.msSaveBlob&&navigator.msSaveBlob.bind(navigator)||f
 (function () {
   'use strict';
 
+  // ───────────────────────────────────────────────────────────────────
+  // PARTICIPANT ISOLATION
+  //
+  // Each Flutter host (`TwineQuestionnaireHost`, `TwineGameHost`) sets
+  // the WebView's user agent to `CCQApp/<participantId>` before
+  // navigating to the compiled HTML. That tag is the only signal the
+  // Twine side gets about WHO is currently logged in — `localStorage`
+  // is otherwise shared across all participants on the same device,
+  // which would let participant 124 see participant 123's last BP
+  // reading, voyage-taken-today gate, points cache, etc.
+  //
+  // We compare the tagged uid against a stamp stored in localStorage
+  // (`ccq_active_pid`) and, on mismatch, clear the per-user keys so
+  // the new participant starts clean. Runs synchronously here at the
+  // top of the bridge IIFE — that's BEFORE SugarCube StoryInit, which
+  // is what reads the cleared keys back.
+  try {
+    var ua = (typeof navigator !== 'undefined' && navigator.userAgent) || '';
+    var match = ua.match(/CCQApp\/([^\s]+)/);
+    var currentPid = match ? match[1] : '';
+    if (currentPid) {
+      var savedPid = window.localStorage.getItem('ccq_active_pid') || '';
+      if (savedPid !== currentPid) {
+        // Add new keys to this list as games introduce them.
+        var staleKeys = [
+          'quietMinute_history',
+          'quietMinute_points',
+          'vv_save',
+        ];
+        for (var i = 0; i < staleKeys.length; i++) {
+          try {
+            window.localStorage.removeItem(staleKeys[i]);
+          } catch (e) { /* ignore */ }
+        }
+        window.localStorage.setItem('ccq_active_pid', currentPid);
+      }
+    }
+  } catch (e) { /* keep going — isolation is best-effort */ }
+
   function post(payload) {
     try {
       if (window.FlutterBridge && typeof window.FlutterBridge.postMessage === 'function') {
@@ -212,6 +251,11 @@ var saveAs=saveAs||navigator.msSaveBlob&&navigator.msSaveBlob.bind(navigator)||f
    * @param {Object} [opts]        Optional extras.
    * @param {number} [opts.pointsEarned]  Override host's default points.
    * @param {string} [opts.surveyId]      Override host's surveyId (rare).
+   * @param {boolean} [opts.countAsCompletion=true]  Set false to credit
+   *   `points` without bumping the user-level `surveysCompleted`
+   *   counter. Used by games whose individual submits are partial
+   *   progress (e.g. Vascular Village's per-quest credits) — the host
+   *   then bumps `surveysCompleted` once on session exit instead.
    */
   function submitResponse(answers, opts) {
     if (typeof answers !== 'object' || answers === null) return;
@@ -221,6 +265,44 @@ var saveAs=saveAs||navigator.msSaveBlob&&navigator.msSaveBlob.bind(navigator)||f
     }
     if (opts && typeof opts.surveyId === 'string' && opts.surveyId) {
       payload.surveyId = opts.surveyId;
+    }
+    if (opts && opts.countAsCompletion === false) {
+      payload.countAsCompletion = false;
+    }
+    post(payload);
+  }
+
+  /**
+   * Log a per-quest completion from a hub-and-spoke game (Vascular
+   * Village's quests, etc.). The host routes this to GameLogHooks
+   * which writes to `userData/{uid}/gameLogs/{auto}` rather than
+   * `surveys/...` — keeps research game data out of the surveys
+   * collection (surveys are reserved for actual questionnaires).
+   *
+   * @param {string} questId          Quest identifier within the game.
+   * @param {Object} [opts]
+   * @param {number} [opts.pointsEarned=0]  Points credited to the user.
+   * @param {string} [opts.gameId]          Override host's gameId (rare).
+   * @param {Object} [opts.data]            Free-form context (e.g. quality, choices).
+   * @param {boolean} [opts.countAsCompletion=true]  Set false to skip
+   *   the user-level `surveysCompleted` counter bump — the host fires
+   *   it once on session exit instead. Use for partial-progress
+   *   submits where one play of the game produces multiple calls.
+   */
+  function logQuestCompletion(questId, opts) {
+    if (typeof questId !== 'string' || !questId) return;
+    var payload = {type: 'LOG_QUEST_COMPLETION', questId: questId};
+    if (opts && typeof opts.pointsEarned === 'number') {
+      payload.pointsEarned = opts.pointsEarned;
+    }
+    if (opts && typeof opts.gameId === 'string' && opts.gameId) {
+      payload.gameId = opts.gameId;
+    }
+    if (opts && opts.data && typeof opts.data === 'object') {
+      payload.data = opts.data;
+    }
+    if (opts && opts.countAsCompletion === false) {
+      payload.countAsCompletion = false;
     }
     post(payload);
   }
@@ -273,9 +355,370 @@ var saveAs=saveAs||navigator.msSaveBlob&&navigator.msSaveBlob.bind(navigator)||f
     goHome: goHome,
     telemetry: telemetry,
     submitResponse: submitResponse,
+    logQuestCompletion: logQuestCompletion,
     logBP: logBP,
     launchGame: launchGame,
   };
+
+  // ───────────────────────────────────────────────────────────────────
+  // BURGER MENU
+  //
+  // Every compiled Twine game has a `<span class="menu-icon">≡</span>`
+  // (or similar) in its header. Handling the menu HERE — in the shared
+  // bridge — instead of per-game means all 7 games inherit the same
+  // options, the same animation, and the same UX without duplicating
+  // markup across 7 .tw files.
+  //
+  // Options exposed today:
+  //   • Go to dashboard — calls CCQ.goHome()
+  //   • Restart this game — calls SugarCube.Engine.restart()
+  //   • Close menu — dismisses the panel
+  //
+  // Implementation notes:
+  //   • Click delegation on `document` (capture phase) so the trigger
+  //     works regardless of when the .menu-icon was added to the DOM
+  //     and survives every passage transition.
+  //   • Overlay div is created lazily on first open — by then body
+  //     exists, even though this script runs in <head>.
+  //   • Inline styles use Nunito (matches the games) with a system-
+  //     font fallback so the menu still reads if Nunito hasn't loaded.
+  // ───────────────────────────────────────────────────────────────────
+
+  function injectMenuStyles() {
+    if (document.getElementById('ccq-menu-styles')) return;
+    var style = document.createElement('style');
+    style.id = 'ccq-menu-styles';
+    // `.menu-icon` styles use !important so they win over per-game CSS
+    // (Dog Quest had `.menu-icon { display: none }` for years, and other
+    // games may have similar one-off rules). Color is white-with-shadow
+    // so the glyph stays legible on both the dark headers (most games)
+    // and any light-themed ones — the dark text-shadow gives it an
+    // outline against light backgrounds. font-size:1.4em scales from
+    // the parent header's size so small headers (Dog Quest's 0.7rem
+    // "EXERCISE" label) still get a tappable icon.
+    style.textContent =
+      '.menu-icon {' +
+      '  cursor: pointer !important;' +
+      '  user-select: none; -webkit-user-select: none;' +
+      '  display: inline-flex !important;' +
+      '  align-items: center;' +
+      '  justify-content: center;' +
+      '  color: rgba(255, 255, 255, 0.95) !important;' +
+      '  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);' +
+      '  font-size: 24px !important;' +
+      '  line-height: 1 !important;' +
+      // No `margin-left: auto` — most game headers already use
+      // `justify-content: space-between` to spread their children
+      // (title / progress / icon). Auto margin here collapses the
+      // first two children together (e.g. End Survey screen smushed
+      // "End Survey" against "Step 9 of 12" with no gap).
+      '  padding: 4px 6px !important;' +
+      '  min-width: 28px;' +
+      '  min-height: 28px;' +
+      '}' +
+      '.ccq-menu-overlay {' +
+      '  position: fixed; inset: 0;' +
+      '  background: rgba(20, 22, 32, 0.55);' +
+      '  display: flex; align-items: flex-start; justify-content: flex-end;' +
+      '  z-index: 99999;' +
+      '  opacity: 0; pointer-events: none;' +
+      '  transition: opacity 0.18s ease-out;' +
+      '  font-family: \'Nunito\', system-ui, -apple-system, "Segoe UI", sans-serif;' +
+      '}' +
+      '.ccq-menu-overlay.ccq-open { opacity: 1; pointer-events: auto; }' +
+      '.ccq-menu-panel {' +
+      '  margin: 14px;' +
+      '  background: #ffffff;' +
+      '  border-radius: 14px;' +
+      '  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28);' +
+      '  min-width: 240px; max-width: 80vw;' +
+      '  overflow: hidden;' +
+      '  transform: translateY(-8px);' +
+      '  transition: transform 0.18s ease-out;' +
+      '}' +
+      '.ccq-menu-overlay.ccq-open .ccq-menu-panel { transform: translateY(0); }' +
+      '.ccq-menu-item {' +
+      '  padding: 14px 18px;' +
+      '  font-size: 15px;' +
+      '  font-weight: 700;' +
+      '  color: #2d3140;' +
+      '  cursor: pointer;' +
+      '  display: flex;' +
+      '  align-items: center;' +
+      '  gap: 12px;' +
+      '  border-bottom: 1px solid rgba(0, 0, 0, 0.06);' +
+      '  background: #ffffff;' +
+      '  border: none;' +
+      '  width: 100%;' +
+      '  text-align: left;' +
+      '  font-family: inherit;' +
+      '}' +
+      '.ccq-menu-item:last-child { border-bottom: none; }' +
+      '.ccq-menu-item:hover, .ccq-menu-item:active { background: #f4f5f7; }' +
+      '.ccq-menu-icon-glyph {' +
+      '  width: 22px;' +
+      '  text-align: center;' +
+      '  font-size: 17px;' +
+      '  flex: 0 0 22px;' +
+      '}' +
+      '.ccq-menu-item-restart { color: #2d7d6d; }' +
+      '.ccq-menu-item-close   { color: #6b7280; }';
+    document.head.appendChild(style);
+  }
+
+  function buildOverlay() {
+    var overlay = document.createElement('div');
+    overlay.id = 'ccq-menu-overlay';
+    overlay.className = 'ccq-menu-overlay';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-label', 'Game menu');
+    overlay.innerHTML =
+      '<div class="ccq-menu-panel">' +
+      '  <button class="ccq-menu-item" data-action="dashboard">' +
+      '    <span class="ccq-menu-icon-glyph">⌂</span>' +
+      '    <span>Go to dashboard</span>' +
+      '  </button>' +
+      '  <button class="ccq-menu-item ccq-menu-item-restart" data-action="restart">' +
+      '    <span class="ccq-menu-icon-glyph">↻</span>' +
+      '    <span>Restart this game</span>' +
+      '  </button>' +
+      '  <button class="ccq-menu-item ccq-menu-item-close" data-action="close">' +
+      '    <span class="ccq-menu-icon-glyph">✕</span>' +
+      '    <span>Close menu</span>' +
+      '  </button>' +
+      '</div>';
+
+    overlay.addEventListener('click', function (e) {
+      var item = e.target.closest('[data-action]');
+      var insidePanel = e.target.closest('.ccq-menu-panel');
+      var action = item ? item.getAttribute('data-action') : null;
+
+      // Tapped the dimmed backdrop (outside the panel) — dismiss.
+      if (!action && !insidePanel) {
+        closeMenu();
+        return;
+      }
+      if (!action) return;
+      e.preventDefault();
+      e.stopPropagation();
+
+      if (action === 'close') {
+        closeMenu();
+      } else if (action === 'dashboard') {
+        closeMenu();
+        try { goHome(); } catch (err) { console.error('[CCQ] goHome failed:', err); }
+      } else if (action === 'restart') {
+        closeMenu();
+        try {
+          if (window.SugarCube && window.SugarCube.Engine && typeof window.SugarCube.Engine.restart === 'function') {
+            window.SugarCube.Engine.restart();
+          } else {
+            // Fallback for the very rare case where SugarCube isn't on
+            // the window namespace yet — reload the page so the player
+            // gets a clean start either way.
+            window.location.reload();
+          }
+        } catch (err) {
+          console.error('[CCQ] restart failed:', err);
+          window.location.reload();
+        }
+      }
+    });
+
+    return overlay;
+  }
+
+  function openMenu() {
+    console.log('[CCQ.menu] openMenu() called');
+    injectMenuStyles();
+    console.log('[CCQ.menu] styles injected');
+    var overlay = document.getElementById('ccq-menu-overlay');
+    if (!overlay) {
+      console.log('[CCQ.menu] no overlay yet — building');
+      overlay = buildOverlay();
+      if (!document.body) {
+        console.error('[CCQ.menu] document.body missing — cannot append overlay');
+        return;
+      }
+      document.body.appendChild(overlay);
+      console.log('[CCQ.menu] overlay appended to body');
+    } else {
+      console.log('[CCQ.menu] overlay already in DOM, reusing');
+    }
+    // Force a frame so the transition runs; without it the panel pops
+    // in instantly because the element was just inserted.
+    requestAnimationFrame(function () {
+      overlay.classList.add('ccq-open');
+      console.log('[CCQ.menu] .ccq-open class added — should be visible now');
+    });
+    try { telemetry('menu_opened', {passage: (window.SugarCube && SugarCube.State && SugarCube.State.passage) || ''}); } catch (e) {}
+  }
+
+  function closeMenu() {
+    var overlay = document.getElementById('ccq-menu-overlay');
+    if (overlay) overlay.classList.remove('ccq-open');
+  }
+
+  // Capture-phase delegation. Capture so per-game .menu-icon click
+  // handlers (if any are ever added) can't swallow the event before
+  // we see it. Also handles `.ccq-home-trigger` — a convention any
+  // in-game button can opt into to fire goHome directly without
+  // navigating through an intermediate "Central Hub" trampoline
+  // passage. Earlier the trampoline pattern caused a "Returning…"
+  // screen to occasionally hang when the bridge pop raced the
+  // SugarCube re-render; firing goHome from the click instead skips
+  // the race entirely.
+  // ⚠ DIAGNOSTIC LOGGING — temporarily verbose to debug "burger doesn't
+  // open menu" reports. Logs every click on `document` (capture phase),
+  // what element was hit, and which selector (if any) it matched.
+  // Once the issue is resolved these `console.log` lines should be
+  // removed or downgraded.
+  console.log('[CCQ.menu] click delegation attached on document (capture)');
+
+  document.addEventListener('click', function (e) {
+    // Match both `.menu-icon` (modern, what the bridge auto-injects)
+    // AND `.header .menu` (legacy — Quiet Minute and any not-yet-
+    // rebuilt compiled HTML still use this older class). Without the
+    // legacy match, players who tapped the visible burger on a stale
+    // build saw nothing happen because the click selector didn't fit
+    // the actual element class.
+    var t = e.target;
+    var tagInfo = t && t.tagName
+        ? (t.tagName + (t.className ? '.' + String(t.className).split(' ').join('.') : ''))
+        : '(no target)';
+    console.log('[CCQ.menu] click hit:', tagInfo);
+
+    var icon = t.closest('.menu-icon, .header .menu');
+    if (icon) {
+      console.log('[CCQ.menu] matched menu trigger, opening menu',
+                  icon.className || icon.tagName);
+      e.preventDefault();
+      e.stopPropagation();
+      openMenu();
+      return;
+    }
+    var homeTrigger = t.closest('.ccq-home-trigger');
+    if (homeTrigger) {
+      console.log('[CCQ.menu] matched .ccq-home-trigger, firing goHome()');
+      e.preventDefault();
+      e.stopPropagation();
+      try { goHome(); } catch (err) { console.error('[CCQ] home trigger:', err); }
+      return;
+    }
+  }, true);
+
+  // Auto-inject a `<span class="menu-icon">≡</span>` into every
+  // `.header` row that doesn't already have one. Three of the seven
+  // games (Bingo Bash, Dog Quest, Quiet Minute) bake the icon into
+  // their markup; the rest (Salt Sludge, DASH Diet, Daily Check-In,
+  // Post-Play Survey, Vascular Village) don't. Doing the injection
+  // here gives every game the burger control without 50+ per-passage
+  // edits across 5 .tw files. Uses MutationObserver so the icon shows
+  // up on each new passage SugarCube renders, not just the first one.
+  function ensureMenuIconInHeaders(root) {
+    if (!root || !root.querySelectorAll) return;
+    var headers = root.querySelectorAll('.header');
+    if (headers.length) {
+      console.log('[CCQ.menu] ensureMenuIconInHeaders found',
+                  headers.length, 'header element(s)');
+    }
+    for (var i = 0; i < headers.length; i++) {
+      var header = headers[i];
+      // Skip if a burger already exists — match BOTH the modern
+      // `.menu-icon` class AND the legacy `.menu` class (Quiet Minute
+      // and other pre-rebuild HTMLs use the older class). For existing
+      // ones we ATTACH the handler instead of injecting a new icon —
+      // belt-and-suspenders so the menu opens regardless of whether
+      // the document-level click delegation actually fires (some
+      // WebViews swallow capture-phase events on touch).
+      var existing = header.querySelector('.menu-icon, .menu');
+      if (existing) {
+        attachDirectClickHandler(existing);
+        console.log('[CCQ.menu] header already has burger:',
+                    existing.className || existing.tagName,
+                    '— attached direct handler');
+        continue;
+      }
+      var icon = document.createElement('span');
+      icon.className = 'menu-icon';
+      icon.textContent = '≡';
+      icon.setAttribute('role', 'button');
+      icon.setAttribute('aria-label', 'Open menu');
+      icon.title = 'Menu';
+      // Visual styling lives in the !important `.menu-icon` block in
+      // injectMenuStyles() so it overrides any per-game CSS that might
+      // hide or recolor the glyph (e.g. Dog Quest's old display:none
+      // rule). No inline styles needed here.
+      attachDirectClickHandler(icon);
+      header.appendChild(icon);
+      console.log('[CCQ.menu] injected fresh menu-icon + direct handler');
+    }
+  }
+
+  // Direct click + touch handler attached straight to the element.
+  // Belt-and-suspenders alongside the document-level delegation: some
+  // Android WebView builds fire `click` only on the originating element
+  // and don't bubble it to `document` capture-phase listeners reliably
+  // (especially for span/anchor tags inside flex headers). Attaching
+  // the handler directly on the element guarantees the menu opens.
+  // Idempotent via a `data-ccq-handler-attached` attribute so we don't
+  // stack multiple handlers if the same element is processed twice
+  // (e.g. by both initial scan AND a MutationObserver fire).
+  function attachDirectClickHandler(el) {
+    if (!el || el.dataset.ccqHandlerAttached === 'yes') return;
+    el.dataset.ccqHandlerAttached = 'yes';
+    var fire = function (e) {
+      console.log('[CCQ.menu] direct handler fired on',
+                  el.className || el.tagName, e.type);
+      try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
+      openMenu();
+    };
+    el.addEventListener('click', fire);
+    // Some Android WebView builds + screen-reader gestures only fire
+    // `touchend` cleanly. Bind that too as a fallback. Mark with
+    // `passive: false` so preventDefault() works (otherwise the WebView
+    // can fire a synthetic click that we'd then double-handle, but the
+    // `data-ccq-handler-attached` guard protects against that).
+    el.addEventListener('touchend', fire, {passive: false});
+  }
+
+  function setupHeaderInjection() {
+    // Make sure the `.menu-icon` styles are in the DOM BEFORE any icons
+    // get injected — otherwise the freshly-added icon paints with
+    // default styling (often black on a dark header → invisible) until
+    // something else triggers injectMenuStyles. Calling it here is
+    // idempotent thanks to the `getElementById('ccq-menu-styles')`
+    // short-circuit.
+    injectMenuStyles();
+    ensureMenuIconInHeaders(document);
+    if (typeof MutationObserver !== 'function') return;
+    var observer = new MutationObserver(function (mutations) {
+      for (var i = 0; i < mutations.length; i++) {
+        var added = mutations[i].addedNodes;
+        for (var j = 0; j < added.length; j++) {
+          var node = added[j];
+          if (node.nodeType !== 1) continue;
+          // Element itself might be a header, OR contain headers.
+          if (node.matches && node.matches('.header')) {
+            ensureMenuIconInHeaders(node.parentNode || document);
+          }
+          ensureMenuIconInHeaders(node);
+        }
+      }
+    });
+    observer.observe(document.body, {childList: true, subtree: true});
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', setupHeaderInjection);
+  } else {
+    setupHeaderInjection();
+  }
+
+  // Expose imperative entry points so games can trigger the menu from
+  // a custom widget if needed (e.g. a "More" button).
+  window.CCQ.openMenu = openMenu;
+  window.CCQ.closeMenu = closeMenu;
 })();
 </script>
 <!-- CardioCare Quest — viewport override (strips phone-frame chrome). -->
@@ -288,9 +731,10 @@ var saveAs=saveAs||navigator.msSaveBlob&&navigator.msSaveBlob.bind(navigator)||f
  * frame makes sense. On real devices that frame is redundant chrome.
  *
  * `!important` everywhere because it has to win against the per-game
- * UserStylesheet that ships in each .tw. Targets the standard SugarCube
- * DOM (#ui-bar, #story, .passage) plus the per-game wrapper conventions
- * (.phone, .app, .container) the authors used.
+ * UserStylesheet that ships in each .tw. Covers the actual SugarCube
+ * 2.x DOM (`<tw-story>`, `<tw-passage>`, `#passages`, `.passage`) plus
+ * the per-game wrapper conventions (.phone, .app, .container) and the
+ * legacy Twine 1 `#story` selector for safety.
  */
 
 html, body {
@@ -298,31 +742,33 @@ html, body {
   padding: 0 !important;
   width: 100% !important;
   min-height: 100vh !important;
+  /* Override per-game body backgrounds (most are light grey #e8e8e8
+     or similar) so any uncovered area shows the same dark navy as the
+     Flutter Scaffold's SafeArea inset, not a stranded light strip. */
+  background-color: #1a1b2e !important;
 }
 
 /* Hide SugarCube's default sidebar — most game stylesheets do this
    already but we enforce it for any new ones. */
 #ui-bar { display: none !important; }
 
-/* Let the game's content container fill the WebView width. The story
-   container's default max-width: 380px squeezes the game into a strip
-   on the left/center with grey margins around it. */
-#story {
-  margin: 0 !important;
-  padding: 0 !important;
-  max-width: 100% !important;
-  width: 100% !important;
-}
-
-.passage {
+/* SugarCube 2.x uses custom elements for the passage chain. Without
+   `display: block` they're inline by default in some browsers, which
+   adds extra leading/baseline space above the phone wrapper. Margin
+   + padding zeroed so nothing pushes the phone down from the body
+   top. */
+tw-story, tw-passage, tw-passagedata, #passages, #story, .passage {
+  display: block !important;
   margin: 0 !important;
   padding: 0 !important;
   width: 100% !important;
   max-width: 100% !important;
 }
 
-/* The "phone frame" wrappers used by all 5 games — flatten to fill the
-   actual viewport. Strips rounded corners, drop shadows, fixed heights. */
+/* The "phone frame" wrappers used by all games — flatten to fill the
+   actual viewport. Strips rounded corners, drop shadows, fixed heights.
+   `min-height: 100vh` ensures the phone covers the entire WebView so
+   no light body background shows above OR below it. */
 .phone, .app, .container {
   border-radius: 0 !important;
   box-shadow: none !important;
@@ -330,6 +776,51 @@ html, body {
   width: 100% !important;
   max-width: 100% !important;
   min-height: 100vh !important;
+}
+
+/* Status-bar safe inset for the in-game header.
+ *
+ * The Flutter host removed `SafeArea(top: true)` so the WebView fills
+ * edge-to-edge — that gives the dark game header a continuous look
+ * with the OS status bar (no stranded band of Scaffold colour above
+ * it). Trade-off: the header content (title text + burger glyph) was
+ * sitting at the games' default 16px top-padding, which on Android
+ * emulators put the title baseline right against the system "9:53"
+ * status text.
+ *
+ * Pad the top of every .header by the OS-reported safe-area inset
+ * plus the games' usual 12px breathing room. `env(safe-area-inset-top)`
+ * is supported on modern Android WebView and iOS WKWebView; the 24px
+ * fallback covers older Android builds where env() returns 0. The
+ * !important wins over per-game `padding: 16px 22px` rules.
+ *
+ * Net visual: header background extends behind the status bar (no
+ * empty band), but title + burger sit safely below the system text. */
+/* SugarCube auto-decorates any anchor whose href doesn't resolve to a
+ * known passage with `a.link-external::after { content: " ↗" }`. Our
+ * `.ccq-home-trigger` buttons (Bingo Bash Home, DASH "Back to
+ * CardioCareQuest", Quiet Minute Done) use `href="javascript:void(0)"`
+ * which trips that detection — but they never leave the WebView, so
+ * the ↗ is misleading + visually noisy. Drop the pseudo on any
+ * trigger-classed anchor across all games. */
+a.ccq-home-trigger::after,
+a.ccq-home-trigger.link-external::after {
+  content: none !important;
+  display: none !important;
+}
+
+.header {
+  /* `env(safe-area-inset-top, 24px)` returns 0 on Android emulators
+     because env IS defined (just zero) so the 24px fallback never
+     kicks in — the resulting 0+12=12px was actually LESS than the
+     games' original 16px, making the title sit even closer to the
+     status bar.
+     `max()` floors the padding at 40px (covers Android status bars,
+     ~24-30dp) and lets iOS notch devices use their larger reported
+     inset + 12px content padding when bigger. */
+  padding-top:
+    max(40px, calc(env(safe-area-inset-top, 0px) + 12px))
+    !important;
 }
 </style>
 </head>
@@ -448,6 +939,57 @@ body {
 .bp-bar-fill.stage1 { background: linear-gradient(90deg, #f0a020, #d04020); width: 75%; }
 .bp-bar-fill.stage2 { background: linear-gradient(90deg, #d04020, #8a1a25); width: 95%; }
 .bp-bar-fill.unset { background: rgba(255,255,255,0.25); width: 0%; }
+/* Session-progress fill. Width is set via SugarCube's `@style`
+   attribute evaluation (`@style="'width: ' + _progressPct + '%'"`)
+   so we don't need a class per percentage step. NOTE: plain
+   `<<print>>` inside a literal `style="..."` does NOT substitute —
+   SugarCube only processes the TwineScript attribute form prefixed
+   with `@`. (Salt Sludge and DASH Diet use the same `@style`
+   pattern.) The `transition: width 0.4s` on the base class doesn't
+   fire on passage re-render — the element is recreated each time —
+   but is preserved for any future JS-driven updates. */
+.bp-bar-fill.progress { background: linear-gradient(90deg, #5ec962, #21918c); }
+
+/* Tiny "X of 5 quests complete" caption under the progress bar. */
+.bp-progress-count {
+  text-align: center;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.65);
+  margin-top: 8px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+
+/* Celebration card shown when all 5 quests are complete — replaces
+   the quest list with a "village restored" message. The Finish
+   button below it is the explicit end-of-session trigger. */
+.all-done-card {
+  background: rgba(255, 255, 255, 0.10);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 18px;
+  padding: 24px 20px;
+  text-align: center;
+  margin: 8px 0 16px 0;
+}
+.all-done-emoji {
+  font-size: 48px;
+  line-height: 1;
+  margin-bottom: 12px;
+}
+.all-done-title {
+  font-size: 22px;
+  font-weight: bold;
+  color: rgba(255, 255, 255, 0.95);
+  margin-bottom: 8px;
+  font-family: "Times New Roman", Times, serif;
+}
+.all-done-blurb {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.7);
+  line-height: 1.5;
+  font-family: "Times New Roman", Times, serif;
+}
 
 .bp-row {
   display: flex;
@@ -639,6 +1181,34 @@ body {
 .voyage-taken .quest-icon { color: #5ec962 !important; }
 .voyage-taken .quest-name { font-size: 15px !important; font-weight: bold !important; color: rgba(255,255,255,0.9) !important; margin: 0 0 2px 0 !important; line-height: 1.25 !important; }
 .voyage-taken .quest-blurb { font-size: 12px !important; color: rgba(255,255,255,0.6) !important; margin: 0 !important; line-height: 1.4 !important; }
+
+/* "Finish for Today" CTA on the Hub. Sits below the Daily Bonus list
+   and triggers CCQ.finishQuest() so the host pops the WebView and
+   records the session as complete. Pill-shaped, white-on-translucent
+   to read as secondary against the purple background. */
+.finish-row {
+  margin-top: 18px;
+  text-align: center;
+}
+.finish-row a.macro-link,
+.finish-row a.link-internal {
+  display: inline-block !important;
+  background-color: rgba(255, 255, 255, 0.15) !important;
+  border: 1px solid rgba(255, 255, 255, 0.35) !important;
+  color: #ffffff !important;
+  padding: 12px 28px !important;
+  border-radius: 22px !important;
+  font-size: 15px !important;
+  font-weight: bold !important;
+  letter-spacing: 0.4px !important;
+  text-decoration: none !important;
+  cursor: pointer !important;
+  font-family: "Times New Roman", Times, serif !important;
+}
+.finish-row a.macro-link:hover,
+.finish-row a.link-internal:hover {
+  background-color: rgba(255, 255, 255, 0.22) !important;
+}
 
 /* Quest stage cards inside quests */
 .quest-stage {
@@ -1051,43 +1621,68 @@ $(document).on(":passagestart", function (ev) {
     }
   } catch (e) { /* swallow */ }
 });</script><tw-passagedata pid="1" name="StoryInit" tags="" position="100,100" size="100,100">&lt;&lt;script&gt;&gt;
+// Latest BP reading from Quiet Minute, but ONLY if it was logged
+// today (local timezone). The Welcome passage gates on $lastSys gt 0
+// to decide between &quot;CONTINUE TO VILLAGE&quot; (today&#39;s reading available)
+// and &quot;START → Take a Quiet Minute first&quot; (no reading today). Without
+// the per-day gate, a stale reading from any past day would satisfy
+// the gt-0 check and let the participant skip the Quiet Minute step
+// — the village would then show yesterday&#39;s number as if it were
+// current.
+//
+// `quietMinute_history` entries have shape {sys, dia, when: millis}.
+// We check `when` against today&#39;s midnight in local time.
+State.variables.lastSys = 0;
+State.variables.lastDia = 0;
 try {
   var qm = window.localStorage.getItem(&quot;quietMinute_history&quot;);
   if (qm) {
     var hist = JSON.parse(qm);
     if (hist &amp;&amp; hist.length &gt; 0) {
-      State.variables.lastSys = Number(hist[0].sys) || 0;
-      State.variables.lastDia = Number(hist[0].dia) || 0;
-    } else {
-      State.variables.lastSys = 0;
-      State.variables.lastDia = 0;
+      var entry = hist[0];
+      var todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      if (entry.when &amp;&amp; entry.when &gt;= todayStart.getTime()) {
+        State.variables.lastSys = Number(entry.sys) || 0;
+        State.variables.lastDia = Number(entry.dia) || 0;
+      }
     }
-  } else {
-    State.variables.lastSys = 0;
-    State.variables.lastDia = 0;
   }
-} catch (e) {
-  State.variables.lastSys = 0;
-  State.variables.lastDia = 0;
-}
+} catch (e) { /* keep $lastSys/$lastDia at 0 */ }
 
+// Header points start at 0 each session. Firestore is the canonical
+// total — each Result passage calls submitResponse which fires
+// SUBMIT_RESPONSE → SurveyHooks + PointsHooks, crediting
+// userData/{uid}.points on Firestore.
+State.variables.totalPoints = 0;
+State.variables.heartQuality = &quot;&quot;;
+// Per-session completion flags for the 4 mini-quests. Result passages
+// flip them true; the Hub uses them to gate links + drive the
+// progress meter; StoryInit (here) resets them to false so each game
+// launch starts with a fresh village.
+State.variables.reallocateDone = false;
+State.variables.pumpDone = false;
+State.variables.clearDone = false;
+State.variables.stretchDone = false;
+
+// Voyage is the one flag that persists across launches — it&#39;s framed
+// as a daily bonus and would feel pointless if it just reset every
+// session. localStorage holds the last calendar date the participant
+// took it; if that matches today, $voyageDone starts true and the
+// Hub gates the link with an &quot;Already taken today&quot; pill. Tomorrow&#39;s
+// launch sees a different todayDate, the gate falls off, and the
+// bonus is available again.
+State.variables.todayDate = (new Date()).toISOString().slice(0, 10);
+State.variables.voyageDone = false;
 try {
   var sav = window.localStorage.getItem(&quot;vv_save&quot;);
   if (sav) {
     var s = JSON.parse(sav);
-    State.variables.totalPoints = Number(s.points) || 0;
-    State.variables.voyageDate = s.voyageDate || &quot;&quot;;
-  } else {
-    State.variables.totalPoints = 0;
-    State.variables.voyageDate = &quot;&quot;;
+    if (s.voyageDate &amp;&amp; s.voyageDate === State.variables.todayDate) {
+      State.variables.voyageDone = true;
+    }
   }
-} catch (e) {
-  State.variables.totalPoints = 0;
-  State.variables.voyageDate = &quot;&quot;;
-}
-
-State.variables.heartQuality = &quot;&quot;;
-State.variables.todayDate = (new Date()).toISOString().slice(0, 10);
+} catch (e) { /* keep $voyageDone = false */ }
 &lt;&lt;/script&gt;&gt;</tw-passagedata><tw-passagedata pid="2" name="Story innit" tags="" position="225,100" size="100,100">&lt;&lt;goto &quot;Welcome&quot;&gt;&gt;</tw-passagedata><tw-passagedata pid="3" name="Welcome" tags="nobr" position="350,100" size="100,100">&lt;div class=&quot;phone&quot;&gt;
 &lt;div class=&quot;header&quot;&gt;&lt;span&gt;Vascular Village&lt;/span&gt;&lt;span class=&quot;header-points&quot;&gt;$totalPoints pts&lt;/span&gt;&lt;/div&gt;
 &lt;div class=&quot;content&quot;&gt;
@@ -1160,7 +1755,14 @@ State.variables.todayDate = (new Date()).toISOString().slice(0, 10);
 
 &lt;/div&gt;
 &lt;/div&gt;</tw-passagedata><tw-passagedata pid="5" name="Hub" tags="nobr" position="600,100" size="100,100">/*
-HUB. All zone logic inline. No setup functions.
+HUB. Per-session play-through: each of the 5 quests can be played
+exactly once per game launch. The Result passages flip the matching
+$xxDone flag and bounce back here; the flag count drives both the
+progress meter at the top and the gating around each quest link.
+When all five flags are true the village is &quot;restored&quot; — the quest
+list is replaced with a celebration card and the participant taps
+Finish to record the play. StoryInit resets every flag to false on
+the next launch, so the cycle starts over.
 */
 &lt;&lt;set _zk to &quot;unset&quot;&gt;&gt;
 &lt;&lt;set _zl to &quot;Take a Quiet Minute&quot;&gt;&gt;
@@ -1181,14 +1783,34 @@ HUB. All zone logic inline. No setup functions.
   &lt;&lt;/if&gt;&gt;
 &lt;&lt;/if&gt;&gt;
 
-&lt;&lt;set _voyageOk to ($voyageDate isnot $todayDate)&gt;&gt;
+/* Per-session progress: count completed quests so the meter and the
+   &quot;X of 5&quot; caption reflect what the player has done in this play. */
+&lt;&lt;set _doneCount to 0&gt;&gt;
+&lt;&lt;if $reallocateDone&gt;&gt;&lt;&lt;set _doneCount to _doneCount + 1&gt;&gt;&lt;&lt;/if&gt;&gt;
+&lt;&lt;if $pumpDone&gt;&gt;&lt;&lt;set _doneCount to _doneCount + 1&gt;&gt;&lt;&lt;/if&gt;&gt;
+&lt;&lt;if $clearDone&gt;&gt;&lt;&lt;set _doneCount to _doneCount + 1&gt;&gt;&lt;&lt;/if&gt;&gt;
+&lt;&lt;if $stretchDone&gt;&gt;&lt;&lt;set _doneCount to _doneCount + 1&gt;&gt;&lt;&lt;/if&gt;&gt;
+/* Voyage is intentionally NOT included in this count. It&#39;s a per-
+   day bonus, not part of the session&#39;s completion criteria — the
+   game ends at 4/4 mini-quests done. */
+&lt;&lt;set _progressPct to _doneCount * 25&gt;&gt;
+&lt;&lt;set _allDone to (_doneCount is 4)&gt;&gt;
+
+/* Once everything is complete, swap the BP-zone narrative for a
+   &quot;you did it&quot; mascot beat — the celebration card below is now the
+   primary call-to-action. */
+&lt;&lt;if _allDone&gt;&gt;
+  &lt;&lt;set _msg to &quot;Beautiful work. The village is restored. Tap Finish to wrap up.&quot;&gt;&gt;
+&lt;&lt;/if&gt;&gt;
+
 
 &lt;div class=&quot;phone&quot;&gt;
 &lt;div class=&quot;header&quot;&gt;&lt;span&gt;Vascular Village&lt;/span&gt;&lt;span class=&quot;header-points&quot;&gt;$totalPoints pts&lt;/span&gt;&lt;/div&gt;
 
 &lt;div class=&quot;bp-card&quot;&gt;
-&lt;div class=&quot;bp-label&quot;&gt;Blood Pressure Meter&lt;/div&gt;
-&lt;div class=&quot;bp-bar&quot;&gt;&lt;div class=&quot;bp-bar-fill &lt;&lt;print _zk&gt;&gt;&quot;&gt;&lt;/div&gt;&lt;/div&gt;
+&lt;div class=&quot;bp-label&quot;&gt;Today&#39;s Progress&lt;/div&gt;
+&lt;div class=&quot;bp-bar&quot;&gt;&lt;div class=&quot;bp-bar-fill progress&quot; @style=&quot;&#39;width: &#39; + _progressPct + &#39;%&#39;&quot;&gt;&lt;/div&gt;&lt;/div&gt;
+&lt;div class=&quot;bp-progress-count&quot;&gt;&lt;&lt;print _doneCount&gt;&gt; of 4 quests complete&lt;/div&gt;
 &lt;&lt;if $lastSys gt 0&gt;&gt;
 &lt;div class=&quot;bp-row&quot;&gt;
 &lt;div class=&quot;bp-numbers&quot;&gt;$lastSys&lt;span class=&quot;slash&quot;&gt;/&lt;/span&gt;$lastDia&lt;/div&gt;
@@ -1224,31 +1846,90 @@ HUB. All zone logic inline. No setup functions.
 
 &lt;div class=&quot;content&quot;&gt;
 
+&lt;&lt;if _allDone&gt;&gt;
+
+&lt;div class=&quot;all-done-card&quot;&gt;
+&lt;div class=&quot;all-done-emoji&quot;&gt;🎉&lt;/div&gt;
+&lt;div class=&quot;all-done-title&quot;&gt;Village restored&lt;/div&gt;
+&lt;div class=&quot;all-done-blurb&quot;&gt;You&#39;ve completed every quest in this session. Tap Finish to record this play — the village will be ready again next time you visit.&lt;/div&gt;
+&lt;/div&gt;
+
+&lt;&lt;else&gt;&gt;
+
 &lt;div class=&quot;section-title&quot;&gt;Quests&lt;/div&gt;
 
 &lt;div class=&quot;quest-list&quot;&gt;
 
+&lt;&lt;if not $reallocateDone&gt;&gt;
 &lt;&lt;link &#39;&lt;span class=&quot;quest-icon&quot;&gt;🧬&lt;/span&gt;&lt;div class=&quot;quest-text-wrap&quot;&gt;&lt;div class=&quot;quest-name&quot;&gt;Reallocate Resources&lt;/div&gt;&lt;div class=&quot;quest-blurb&quot;&gt;Send the right nutrients where they are needed.&lt;/div&gt;&lt;/div&gt;&#39;&gt;&gt;
 &lt;&lt;goto &quot;Quest Reallocate&quot;&gt;&gt;
 &lt;&lt;/link&gt;&gt;
+&lt;&lt;else&gt;&gt;
+&lt;div class=&quot;voyage-taken&quot;&gt;
+&lt;span class=&quot;quest-icon&quot;&gt;✓&lt;/span&gt;
+&lt;div class=&quot;quest-text-wrap&quot;&gt;
+&lt;div class=&quot;quest-name&quot;&gt;Reallocate Resources&lt;/div&gt;
+&lt;div class=&quot;quest-blurb&quot;&gt;Done&lt;/div&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;&lt;/if&gt;&gt;
 
+&lt;&lt;if not $pumpDone&gt;&gt;
 &lt;&lt;link &#39;&lt;span class=&quot;quest-icon&quot;&gt;💓&lt;/span&gt;&lt;div class=&quot;quest-text-wrap&quot;&gt;&lt;div class=&quot;quest-name&quot;&gt;Pump the Heart&lt;/div&gt;&lt;div class=&quot;quest-blurb&quot;&gt;Tap with the rhythm to keep blood flowing.&lt;/div&gt;&lt;/div&gt;&#39;&gt;&gt;
 &lt;&lt;goto &quot;Quest Pump&quot;&gt;&gt;
 &lt;&lt;/link&gt;&gt;
+&lt;&lt;else&gt;&gt;
+&lt;div class=&quot;voyage-taken&quot;&gt;
+&lt;span class=&quot;quest-icon&quot;&gt;✓&lt;/span&gt;
+&lt;div class=&quot;quest-text-wrap&quot;&gt;
+&lt;div class=&quot;quest-name&quot;&gt;Pump the Heart&lt;/div&gt;
+&lt;div class=&quot;quest-blurb&quot;&gt;Done&lt;/div&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;&lt;/if&gt;&gt;
 
+&lt;&lt;if not $clearDone&gt;&gt;
 &lt;&lt;link &#39;&lt;span class=&quot;quest-icon&quot;&gt;🧹&lt;/span&gt;&lt;div class=&quot;quest-text-wrap&quot;&gt;&lt;div class=&quot;quest-name&quot;&gt;Clear a Path&lt;/div&gt;&lt;div class=&quot;quest-blurb&quot;&gt;Clear plaque buildup from the artery walls.&lt;/div&gt;&lt;/div&gt;&#39;&gt;&gt;
 &lt;&lt;goto &quot;Quest Clear&quot;&gt;&gt;
 &lt;&lt;/link&gt;&gt;
+&lt;&lt;else&gt;&gt;
+&lt;div class=&quot;voyage-taken&quot;&gt;
+&lt;span class=&quot;quest-icon&quot;&gt;✓&lt;/span&gt;
+&lt;div class=&quot;quest-text-wrap&quot;&gt;
+&lt;div class=&quot;quest-name&quot;&gt;Clear a Path&lt;/div&gt;
+&lt;div class=&quot;quest-blurb&quot;&gt;Done&lt;/div&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;&lt;/if&gt;&gt;
 
+&lt;&lt;if not $stretchDone&gt;&gt;
 &lt;&lt;link &#39;&lt;span class=&quot;quest-icon&quot;&gt;🌊&lt;/span&gt;&lt;div class=&quot;quest-text-wrap&quot;&gt;&lt;div class=&quot;quest-name&quot;&gt;Stretch the Arteries&lt;/div&gt;&lt;div class=&quot;quest-blurb&quot;&gt;Guide your breath and stretch the walls.&lt;/div&gt;&lt;/div&gt;&#39;&gt;&gt;
 &lt;&lt;goto &quot;Quest Stretch&quot;&gt;&gt;
 &lt;&lt;/link&gt;&gt;
+&lt;&lt;else&gt;&gt;
+&lt;div class=&quot;voyage-taken&quot;&gt;
+&lt;span class=&quot;quest-icon&quot;&gt;✓&lt;/span&gt;
+&lt;div class=&quot;quest-text-wrap&quot;&gt;
+&lt;div class=&quot;quest-name&quot;&gt;Stretch the Arteries&lt;/div&gt;
+&lt;div class=&quot;quest-blurb&quot;&gt;Done&lt;/div&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;&lt;/if&gt;&gt;
 
 &lt;/div&gt;
 
+&lt;&lt;/if&gt;&gt;
+
+/* Daily Bonus is intentionally OUTSIDE the if/else above. The voyage
+   is a per-day bonus (gated by $voyageDone, which StoryInit loads
+   from localStorage), not part of the session&#39;s completion criteria
+   — keeping it visible after the celebration card lets the player
+   still claim the bonus on the same launch. */
 &lt;div class=&quot;section-title&quot; style=&quot;margin-top: 16px;&quot;&gt;Daily Bonus&lt;/div&gt;
 
-&lt;&lt;if _voyageOk&gt;&gt;
+&lt;div class=&quot;quest-list daily-bonus-list&quot;&gt;
+
+&lt;&lt;if not $voyageDone&gt;&gt;
 &lt;&lt;link &#39;&lt;span class=&quot;quest-icon&quot;&gt;🛤️&lt;/span&gt;&lt;div class=&quot;quest-text-wrap&quot;&gt;&lt;div class=&quot;quest-name&quot;&gt;Daily Blood Vessel Voyage&lt;/div&gt;&lt;div class=&quot;quest-blurb&quot;&gt;A short tour, +50 bonus points.&lt;/div&gt;&lt;/div&gt;&#39;&gt;&gt;
 &lt;&lt;goto &quot;Voyage&quot;&gt;&gt;
 &lt;&lt;/link&gt;&gt;
@@ -1256,22 +1937,35 @@ HUB. All zone logic inline. No setup functions.
 &lt;div class=&quot;voyage-taken&quot;&gt;
 &lt;span class=&quot;quest-icon&quot;&gt;✓&lt;/span&gt;
 &lt;div class=&quot;quest-text-wrap&quot;&gt;
-&lt;div class=&quot;quest-name&quot;&gt;Voyage taken today&lt;/div&gt;
-&lt;div class=&quot;quest-blurb&quot;&gt;Come back tomorrow for another.&lt;/div&gt;
+&lt;div class=&quot;quest-name&quot;&gt;Daily Blood Vessel Voyage&lt;/div&gt;
+&lt;div class=&quot;quest-blurb&quot;&gt;Already taken today. Come back tomorrow.&lt;/div&gt;
 &lt;/div&gt;
 &lt;/div&gt;
 &lt;&lt;/if&gt;&gt;
+
+&lt;/div&gt;
+
+&lt;div class=&quot;finish-row&quot;&gt;
+&lt;&lt;link &#39;Finish&#39;&gt;&gt;
+&lt;&lt;run
+  try {
+    if (window.CCQ &amp;&amp; typeof window.CCQ.finishQuest === &quot;function&quot;) {
+      window.CCQ.finishQuest();
+    }
+  } catch (e) { console.error(&quot;[VV] finish:&quot;, e); }
+&gt;&gt;
+&lt;&lt;/link&gt;&gt;
+&lt;/div&gt;
 
 &lt;/div&gt;
 &lt;/div&gt;
 
 &lt;&lt;script&gt;&gt;
 setTimeout(function () {
-  var nodes = document.querySelectorAll(&#39;.quest-list a.macro-link, .quest-list a.link-internal&#39;);
-  nodes.forEach(function (a, i) {
-    a.classList.add(&#39;quest-card&#39;);
-    if (i === 4) a.classList.add(&#39;voyage-card&#39;);
-  });
+  document.querySelectorAll(&#39;.quest-list a.macro-link, .quest-list a.link-internal&#39;)
+    .forEach(function (a) { a.classList.add(&#39;quest-card&#39;); });
+  document.querySelectorAll(&#39;.daily-bonus-list a.macro-link, .daily-bonus-list a.link-internal&#39;)
+    .forEach(function (a) { a.classList.add(&#39;voyage-card&#39;); });
 }, 0);
 &lt;&lt;/script&gt;&gt;</tw-passagedata><tw-passagedata pid="6" name="Quest Reallocate" tags="nobr" position="725,100" size="100,100">&lt;div class=&quot;phone&quot;&gt;
 &lt;div class=&quot;header&quot;&gt;&lt;span&gt;Reallocate Resources&lt;/span&gt;&lt;span class=&quot;header-points&quot;&gt;$totalPoints pts&lt;/span&gt;&lt;/div&gt;
@@ -1337,10 +2031,22 @@ setTimeout(function () {
     });
   });
 }, 0);
-&lt;&lt;/script&gt;&gt;</tw-passagedata><tw-passagedata pid="7" name="Reallocate Result" tags="nobr" position="850,100" size="100,100">&lt;&lt;set $totalPoints to $totalPoints + 100&gt;&gt;
-&lt;&lt;script&gt;&gt;
-try { window.localStorage.setItem(&quot;vv_save&quot;, JSON.stringify({ points: State.variables.totalPoints, voyageDate: State.variables.voyageDate || &quot;&quot; })); } catch (e) {}
-&lt;&lt;/script&gt;&gt;
+&lt;&lt;/script&gt;&gt;</tw-passagedata><tw-passagedata pid="7" name="Reallocate Result" tags="nobr" position="850,100" size="100,100">&lt;&lt;set $reallocateDone to true&gt;&gt;
+&lt;&lt;set $totalPoints to $totalPoints + 100&gt;&gt;
+&lt;&lt;run
+  /* Firestore-first: every quest completion crosses the bridge so
+     GameLogHooks credits userData/{uid}.points and writes a per-quest
+     record at userData/{uid}/gameLogs/{auto}. Per-action submit (vs.
+     one batch at finishQuest) guarantees we don&#39;t lose data if the
+     participant exits early. countAsCompletion: false skips the
+     surveysCompleted bump per quest — the host fires it once on
+     session exit instead. */
+  try {
+    if (window.CCQ &amp;&amp; typeof window.CCQ.submitResponse === &quot;function&quot;) {
+      window.CCQ.logQuestCompletion(&quot;reallocate&quot;, { pointsEarned: 100, countAsCompletion: false });
+    }
+  } catch (e) { console.error(&quot;[VV] submit:&quot;, e); }
+&gt;&gt;
 
 &lt;div class=&quot;phone&quot;&gt;
 &lt;div class=&quot;header&quot;&gt;&lt;span&gt;Reallocate Resources&lt;/span&gt;&lt;span class=&quot;header-points&quot;&gt;$totalPoints pts&lt;/span&gt;&lt;/div&gt;
@@ -1418,14 +2124,19 @@ setTimeout(function () {
     }
   });
 }, 0);
-&lt;&lt;/script&gt;&gt;</tw-passagedata><tw-passagedata pid="9" name="Pump Result" tags="nobr" position="1100,100" size="100,100">&lt;&lt;set _earned to 75&gt;&gt;
+&lt;&lt;/script&gt;&gt;</tw-passagedata><tw-passagedata pid="9" name="Pump Result" tags="nobr" position="1100,100" size="100,100">&lt;&lt;set $pumpDone to true&gt;&gt;
+&lt;&lt;set _earned to 75&gt;&gt;
 &lt;&lt;if $heartQuality is &quot;steady&quot;&gt;&gt;&lt;&lt;set _earned to 100&gt;&gt;
 &lt;&lt;elseif $heartQuality is &quot;shaky&quot;&gt;&gt;&lt;&lt;set _earned to 50&gt;&gt;
 &lt;&lt;/if&gt;&gt;
 &lt;&lt;set $totalPoints to $totalPoints + _earned&gt;&gt;
-&lt;&lt;script&gt;&gt;
-try { window.localStorage.setItem(&quot;vv_save&quot;, JSON.stringify({ points: State.variables.totalPoints, voyageDate: State.variables.voyageDate || &quot;&quot; })); } catch (e) {}
-&lt;&lt;/script&gt;&gt;
+&lt;&lt;run
+  try {
+    if (window.CCQ &amp;&amp; typeof window.CCQ.submitResponse === &quot;function&quot;) {
+      window.CCQ.logQuestCompletion(&quot;pump&quot;, { pointsEarned: _earned, data: { quality: $heartQuality }, countAsCompletion: false });
+    }
+  } catch (e) { console.error(&quot;[VV] submit:&quot;, e); }
+&gt;&gt;
 
 &lt;div class=&quot;phone&quot;&gt;
 &lt;div class=&quot;header&quot;&gt;&lt;span&gt;Pump the Heart&lt;/span&gt;&lt;span class=&quot;header-points&quot;&gt;$totalPoints pts&lt;/span&gt;&lt;/div&gt;
@@ -1502,10 +2213,15 @@ setTimeout(function () {
     });
   });
 }, 0);
-&lt;&lt;/script&gt;&gt;</tw-passagedata><tw-passagedata pid="11" name="Clear Result" tags="nobr" position="100,225" size="100,100">&lt;&lt;set $totalPoints to $totalPoints + 100&gt;&gt;
-&lt;&lt;script&gt;&gt;
-try { window.localStorage.setItem(&quot;vv_save&quot;, JSON.stringify({ points: State.variables.totalPoints, voyageDate: State.variables.voyageDate || &quot;&quot; })); } catch (e) {}
-&lt;&lt;/script&gt;&gt;
+&lt;&lt;/script&gt;&gt;</tw-passagedata><tw-passagedata pid="11" name="Clear Result" tags="nobr" position="100,225" size="100,100">&lt;&lt;set $clearDone to true&gt;&gt;
+&lt;&lt;set $totalPoints to $totalPoints + 100&gt;&gt;
+&lt;&lt;run
+  try {
+    if (window.CCQ &amp;&amp; typeof window.CCQ.submitResponse === &quot;function&quot;) {
+      window.CCQ.logQuestCompletion(&quot;clear&quot;, { pointsEarned: 100, countAsCompletion: false });
+    }
+  } catch (e) { console.error(&quot;[VV] submit:&quot;, e); }
+&gt;&gt;
 
 &lt;div class=&quot;phone&quot;&gt;
 &lt;div class=&quot;header&quot;&gt;&lt;span&gt;Clear a Path&lt;/span&gt;&lt;span class=&quot;header-points&quot;&gt;$totalPoints pts&lt;/span&gt;&lt;/div&gt;
@@ -1544,10 +2260,15 @@ try { window.localStorage.setItem(&quot;vv_save&quot;, JSON.stringify({ points: 
 &lt;/div&gt;
 &lt;/div&gt;
 
-&lt;&lt;timed 32s&gt;&gt;&lt;&lt;goto &quot;Stretch Result&quot;&gt;&gt;&lt;&lt;/timed&gt;&gt;</tw-passagedata><tw-passagedata pid="13" name="Stretch Result" tags="nobr" position="350,225" size="100,100">&lt;&lt;set $totalPoints to $totalPoints + 100&gt;&gt;
-&lt;&lt;script&gt;&gt;
-try { window.localStorage.setItem(&quot;vv_save&quot;, JSON.stringify({ points: State.variables.totalPoints, voyageDate: State.variables.voyageDate || &quot;&quot; })); } catch (e) {}
-&lt;&lt;/script&gt;&gt;
+&lt;&lt;timed 32s&gt;&gt;&lt;&lt;goto &quot;Stretch Result&quot;&gt;&gt;&lt;&lt;/timed&gt;&gt;</tw-passagedata><tw-passagedata pid="13" name="Stretch Result" tags="nobr" position="350,225" size="100,100">&lt;&lt;set $stretchDone to true&gt;&gt;
+&lt;&lt;set $totalPoints to $totalPoints + 100&gt;&gt;
+&lt;&lt;run
+  try {
+    if (window.CCQ &amp;&amp; typeof window.CCQ.submitResponse === &quot;function&quot;) {
+      window.CCQ.logQuestCompletion(&quot;stretch&quot;, { pointsEarned: 100, countAsCompletion: false });
+    }
+  } catch (e) { console.error(&quot;[VV] submit:&quot;, e); }
+&gt;&gt;
 
 &lt;div class=&quot;phone&quot;&gt;
 &lt;div class=&quot;header&quot;&gt;&lt;span&gt;Stretch the Arteries&lt;/span&gt;&lt;span class=&quot;header-points&quot;&gt;$totalPoints pts&lt;/span&gt;&lt;/div&gt;
@@ -1565,10 +2286,22 @@ try { window.localStorage.setItem(&quot;vv_save&quot;, JSON.stringify({ points: 
 &lt;a class=&quot;btn-primary&quot; data-passage=&quot;Hub&quot;&gt;BACK TO VILLAGE&lt;/a&gt;
 
 &lt;/div&gt;
-&lt;/div&gt;</tw-passagedata><tw-passagedata pid="14" name="Voyage" tags="nobr" position="475,225" size="100,100">&lt;&lt;set $voyageDate to $todayDate&gt;&gt;
+&lt;/div&gt;</tw-passagedata><tw-passagedata pid="14" name="Voyage" tags="nobr" position="475,225" size="100,100">&lt;&lt;set $voyageDone to true&gt;&gt;
 &lt;&lt;set $totalPoints to $totalPoints + 50&gt;&gt;
+&lt;&lt;run
+  try {
+    if (window.CCQ &amp;&amp; typeof window.CCQ.submitResponse === &quot;function&quot;) {
+      window.CCQ.logQuestCompletion(&quot;voyage&quot;, { pointsEarned: 50, countAsCompletion: false });
+    }
+  } catch (e) { console.error(&quot;[VV] submit:&quot;, e); }
+&gt;&gt;
 &lt;&lt;script&gt;&gt;
-try { window.localStorage.setItem(&quot;vv_save&quot;, JSON.stringify({ points: State.variables.totalPoints, voyageDate: State.variables.voyageDate })); } catch (e) {}
+// Voyage is per-day. Persist today&#39;s date so StoryInit gates the
+// voyage link as &quot;Already taken today&quot; on the next launch within
+// the same calendar date.
+try {
+  window.localStorage.setItem(&quot;vv_save&quot;, JSON.stringify({ voyageDate: State.variables.todayDate }));
+} catch (e) {}
 &lt;&lt;/script&gt;&gt;
 
 &lt;div class=&quot;phone&quot;&gt;
@@ -1609,18 +2342,34 @@ try { window.localStorage.setItem(&quot;vv_save&quot;, JSON.stringify({ points: 
 &lt;a class=&quot;btn-primary&quot; data-passage=&quot;Hub&quot;&gt;BACK TO VILLAGE&lt;/a&gt;
 
 &lt;/div&gt;
-&lt;/div&gt;</tw-passagedata><tw-passagedata pid="15" name="Central Hub" tags="nobr" position="600,225" size="100,100">&lt;div class=&quot;phone&quot;&gt;
+&lt;/div&gt;</tw-passagedata><tw-passagedata pid="15" name="Central Hub" tags="nobr" position="600,225" size="100,100">/*
+EXIT HATCH. The village&#39;s many &quot;BACK TO VILLAGE&quot; buttons all route to
+&quot;Hub&quot; (the in-game zone screen), not here — so this passage is only
+reachable if a future feature explicitly navigates to it. Burger menu
+&quot;Go to dashboard&quot; is the participant&#39;s primary exit. Kept this passage
+defensive-only: if it ever fires, it calls CCQ.goHome() so the Flutter
+host pops back to the dashboard rather than getting stuck. Replaced
+the previous &quot;RESTART VASCULAR VILLAGE&quot; button (which looped back to
+Welcome) with a no-op spinner UI.
+*/
+&lt;&lt;run
+  try {
+    if (window.CCQ &amp;&amp; typeof window.CCQ.goHome === &quot;function&quot;) {
+      window.CCQ.goHome();
+    }
+  } catch (e) { /* swallow */ }
+&gt;&gt;
+
+&lt;div class=&quot;phone&quot;&gt;
 &lt;div class=&quot;header&quot;&gt;&lt;span&gt;Vascular Village&lt;/span&gt;&lt;span class=&quot;header-points&quot;&gt;$totalPoints pts&lt;/span&gt;&lt;/div&gt;
 &lt;div class=&quot;content&quot;&gt;
 
 &lt;span class=&quot;hero-emoji&quot;&gt;🏘️&lt;/span&gt;
 
 &lt;h2 class=&quot;intro-title&quot;&gt;Returning&lt;/h2&gt;
-&lt;p class=&quot;narrative center&quot;&gt;Returning to CardioCareQuest. The platform will open Quiet Minute next.&lt;/p&gt;
+&lt;p class=&quot;narrative center&quot;&gt;Going back to CardioCareQuest.&lt;/p&gt;
 
 &lt;div class=&quot;spacer&quot;&gt;&lt;/div&gt;
-
-&lt;a class=&quot;btn-primary&quot; data-passage=&quot;Welcome&quot;&gt;RESTART VASCULAR VILLAGE&lt;/a&gt;
 
 &lt;/div&gt;
 &lt;/div&gt;</tw-passagedata><tw-passagedata pid="16" name="Launch Quiet Minute" tags="nobr" position="725,225" size="100,100">/*

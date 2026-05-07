@@ -128,6 +128,45 @@ var saveAs=saveAs||navigator.msSaveBlob&&navigator.msSaveBlob.bind(navigator)||f
 (function () {
   'use strict';
 
+  // ───────────────────────────────────────────────────────────────────
+  // PARTICIPANT ISOLATION
+  //
+  // Each Flutter host (`TwineQuestionnaireHost`, `TwineGameHost`) sets
+  // the WebView's user agent to `CCQApp/<participantId>` before
+  // navigating to the compiled HTML. That tag is the only signal the
+  // Twine side gets about WHO is currently logged in — `localStorage`
+  // is otherwise shared across all participants on the same device,
+  // which would let participant 124 see participant 123's last BP
+  // reading, voyage-taken-today gate, points cache, etc.
+  //
+  // We compare the tagged uid against a stamp stored in localStorage
+  // (`ccq_active_pid`) and, on mismatch, clear the per-user keys so
+  // the new participant starts clean. Runs synchronously here at the
+  // top of the bridge IIFE — that's BEFORE SugarCube StoryInit, which
+  // is what reads the cleared keys back.
+  try {
+    var ua = (typeof navigator !== 'undefined' && navigator.userAgent) || '';
+    var match = ua.match(/CCQApp\/([^\s]+)/);
+    var currentPid = match ? match[1] : '';
+    if (currentPid) {
+      var savedPid = window.localStorage.getItem('ccq_active_pid') || '';
+      if (savedPid !== currentPid) {
+        // Add new keys to this list as games introduce them.
+        var staleKeys = [
+          'quietMinute_history',
+          'quietMinute_points',
+          'vv_save',
+        ];
+        for (var i = 0; i < staleKeys.length; i++) {
+          try {
+            window.localStorage.removeItem(staleKeys[i]);
+          } catch (e) { /* ignore */ }
+        }
+        window.localStorage.setItem('ccq_active_pid', currentPid);
+      }
+    }
+  } catch (e) { /* keep going — isolation is best-effort */ }
+
   function post(payload) {
     try {
       if (window.FlutterBridge && typeof window.FlutterBridge.postMessage === 'function') {
@@ -212,6 +251,11 @@ var saveAs=saveAs||navigator.msSaveBlob&&navigator.msSaveBlob.bind(navigator)||f
    * @param {Object} [opts]        Optional extras.
    * @param {number} [opts.pointsEarned]  Override host's default points.
    * @param {string} [opts.surveyId]      Override host's surveyId (rare).
+   * @param {boolean} [opts.countAsCompletion=true]  Set false to credit
+   *   `points` without bumping the user-level `surveysCompleted`
+   *   counter. Used by games whose individual submits are partial
+   *   progress (e.g. Vascular Village's per-quest credits) — the host
+   *   then bumps `surveysCompleted` once on session exit instead.
    */
   function submitResponse(answers, opts) {
     if (typeof answers !== 'object' || answers === null) return;
@@ -221,6 +265,44 @@ var saveAs=saveAs||navigator.msSaveBlob&&navigator.msSaveBlob.bind(navigator)||f
     }
     if (opts && typeof opts.surveyId === 'string' && opts.surveyId) {
       payload.surveyId = opts.surveyId;
+    }
+    if (opts && opts.countAsCompletion === false) {
+      payload.countAsCompletion = false;
+    }
+    post(payload);
+  }
+
+  /**
+   * Log a per-quest completion from a hub-and-spoke game (Vascular
+   * Village's quests, etc.). The host routes this to GameLogHooks
+   * which writes to `userData/{uid}/gameLogs/{auto}` rather than
+   * `surveys/...` — keeps research game data out of the surveys
+   * collection (surveys are reserved for actual questionnaires).
+   *
+   * @param {string} questId          Quest identifier within the game.
+   * @param {Object} [opts]
+   * @param {number} [opts.pointsEarned=0]  Points credited to the user.
+   * @param {string} [opts.gameId]          Override host's gameId (rare).
+   * @param {Object} [opts.data]            Free-form context (e.g. quality, choices).
+   * @param {boolean} [opts.countAsCompletion=true]  Set false to skip
+   *   the user-level `surveysCompleted` counter bump — the host fires
+   *   it once on session exit instead. Use for partial-progress
+   *   submits where one play of the game produces multiple calls.
+   */
+  function logQuestCompletion(questId, opts) {
+    if (typeof questId !== 'string' || !questId) return;
+    var payload = {type: 'LOG_QUEST_COMPLETION', questId: questId};
+    if (opts && typeof opts.pointsEarned === 'number') {
+      payload.pointsEarned = opts.pointsEarned;
+    }
+    if (opts && typeof opts.gameId === 'string' && opts.gameId) {
+      payload.gameId = opts.gameId;
+    }
+    if (opts && opts.data && typeof opts.data === 'object') {
+      payload.data = opts.data;
+    }
+    if (opts && opts.countAsCompletion === false) {
+      payload.countAsCompletion = false;
     }
     post(payload);
   }
@@ -273,9 +355,370 @@ var saveAs=saveAs||navigator.msSaveBlob&&navigator.msSaveBlob.bind(navigator)||f
     goHome: goHome,
     telemetry: telemetry,
     submitResponse: submitResponse,
+    logQuestCompletion: logQuestCompletion,
     logBP: logBP,
     launchGame: launchGame,
   };
+
+  // ───────────────────────────────────────────────────────────────────
+  // BURGER MENU
+  //
+  // Every compiled Twine game has a `<span class="menu-icon">≡</span>`
+  // (or similar) in its header. Handling the menu HERE — in the shared
+  // bridge — instead of per-game means all 7 games inherit the same
+  // options, the same animation, and the same UX without duplicating
+  // markup across 7 .tw files.
+  //
+  // Options exposed today:
+  //   • Go to dashboard — calls CCQ.goHome()
+  //   • Restart this game — calls SugarCube.Engine.restart()
+  //   • Close menu — dismisses the panel
+  //
+  // Implementation notes:
+  //   • Click delegation on `document` (capture phase) so the trigger
+  //     works regardless of when the .menu-icon was added to the DOM
+  //     and survives every passage transition.
+  //   • Overlay div is created lazily on first open — by then body
+  //     exists, even though this script runs in <head>.
+  //   • Inline styles use Nunito (matches the games) with a system-
+  //     font fallback so the menu still reads if Nunito hasn't loaded.
+  // ───────────────────────────────────────────────────────────────────
+
+  function injectMenuStyles() {
+    if (document.getElementById('ccq-menu-styles')) return;
+    var style = document.createElement('style');
+    style.id = 'ccq-menu-styles';
+    // `.menu-icon` styles use !important so they win over per-game CSS
+    // (Dog Quest had `.menu-icon { display: none }` for years, and other
+    // games may have similar one-off rules). Color is white-with-shadow
+    // so the glyph stays legible on both the dark headers (most games)
+    // and any light-themed ones — the dark text-shadow gives it an
+    // outline against light backgrounds. font-size:1.4em scales from
+    // the parent header's size so small headers (Dog Quest's 0.7rem
+    // "EXERCISE" label) still get a tappable icon.
+    style.textContent =
+      '.menu-icon {' +
+      '  cursor: pointer !important;' +
+      '  user-select: none; -webkit-user-select: none;' +
+      '  display: inline-flex !important;' +
+      '  align-items: center;' +
+      '  justify-content: center;' +
+      '  color: rgba(255, 255, 255, 0.95) !important;' +
+      '  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);' +
+      '  font-size: 24px !important;' +
+      '  line-height: 1 !important;' +
+      // No `margin-left: auto` — most game headers already use
+      // `justify-content: space-between` to spread their children
+      // (title / progress / icon). Auto margin here collapses the
+      // first two children together (e.g. End Survey screen smushed
+      // "End Survey" against "Step 9 of 12" with no gap).
+      '  padding: 4px 6px !important;' +
+      '  min-width: 28px;' +
+      '  min-height: 28px;' +
+      '}' +
+      '.ccq-menu-overlay {' +
+      '  position: fixed; inset: 0;' +
+      '  background: rgba(20, 22, 32, 0.55);' +
+      '  display: flex; align-items: flex-start; justify-content: flex-end;' +
+      '  z-index: 99999;' +
+      '  opacity: 0; pointer-events: none;' +
+      '  transition: opacity 0.18s ease-out;' +
+      '  font-family: \'Nunito\', system-ui, -apple-system, "Segoe UI", sans-serif;' +
+      '}' +
+      '.ccq-menu-overlay.ccq-open { opacity: 1; pointer-events: auto; }' +
+      '.ccq-menu-panel {' +
+      '  margin: 14px;' +
+      '  background: #ffffff;' +
+      '  border-radius: 14px;' +
+      '  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28);' +
+      '  min-width: 240px; max-width: 80vw;' +
+      '  overflow: hidden;' +
+      '  transform: translateY(-8px);' +
+      '  transition: transform 0.18s ease-out;' +
+      '}' +
+      '.ccq-menu-overlay.ccq-open .ccq-menu-panel { transform: translateY(0); }' +
+      '.ccq-menu-item {' +
+      '  padding: 14px 18px;' +
+      '  font-size: 15px;' +
+      '  font-weight: 700;' +
+      '  color: #2d3140;' +
+      '  cursor: pointer;' +
+      '  display: flex;' +
+      '  align-items: center;' +
+      '  gap: 12px;' +
+      '  border-bottom: 1px solid rgba(0, 0, 0, 0.06);' +
+      '  background: #ffffff;' +
+      '  border: none;' +
+      '  width: 100%;' +
+      '  text-align: left;' +
+      '  font-family: inherit;' +
+      '}' +
+      '.ccq-menu-item:last-child { border-bottom: none; }' +
+      '.ccq-menu-item:hover, .ccq-menu-item:active { background: #f4f5f7; }' +
+      '.ccq-menu-icon-glyph {' +
+      '  width: 22px;' +
+      '  text-align: center;' +
+      '  font-size: 17px;' +
+      '  flex: 0 0 22px;' +
+      '}' +
+      '.ccq-menu-item-restart { color: #2d7d6d; }' +
+      '.ccq-menu-item-close   { color: #6b7280; }';
+    document.head.appendChild(style);
+  }
+
+  function buildOverlay() {
+    var overlay = document.createElement('div');
+    overlay.id = 'ccq-menu-overlay';
+    overlay.className = 'ccq-menu-overlay';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-label', 'Game menu');
+    overlay.innerHTML =
+      '<div class="ccq-menu-panel">' +
+      '  <button class="ccq-menu-item" data-action="dashboard">' +
+      '    <span class="ccq-menu-icon-glyph">⌂</span>' +
+      '    <span>Go to dashboard</span>' +
+      '  </button>' +
+      '  <button class="ccq-menu-item ccq-menu-item-restart" data-action="restart">' +
+      '    <span class="ccq-menu-icon-glyph">↻</span>' +
+      '    <span>Restart this game</span>' +
+      '  </button>' +
+      '  <button class="ccq-menu-item ccq-menu-item-close" data-action="close">' +
+      '    <span class="ccq-menu-icon-glyph">✕</span>' +
+      '    <span>Close menu</span>' +
+      '  </button>' +
+      '</div>';
+
+    overlay.addEventListener('click', function (e) {
+      var item = e.target.closest('[data-action]');
+      var insidePanel = e.target.closest('.ccq-menu-panel');
+      var action = item ? item.getAttribute('data-action') : null;
+
+      // Tapped the dimmed backdrop (outside the panel) — dismiss.
+      if (!action && !insidePanel) {
+        closeMenu();
+        return;
+      }
+      if (!action) return;
+      e.preventDefault();
+      e.stopPropagation();
+
+      if (action === 'close') {
+        closeMenu();
+      } else if (action === 'dashboard') {
+        closeMenu();
+        try { goHome(); } catch (err) { console.error('[CCQ] goHome failed:', err); }
+      } else if (action === 'restart') {
+        closeMenu();
+        try {
+          if (window.SugarCube && window.SugarCube.Engine && typeof window.SugarCube.Engine.restart === 'function') {
+            window.SugarCube.Engine.restart();
+          } else {
+            // Fallback for the very rare case where SugarCube isn't on
+            // the window namespace yet — reload the page so the player
+            // gets a clean start either way.
+            window.location.reload();
+          }
+        } catch (err) {
+          console.error('[CCQ] restart failed:', err);
+          window.location.reload();
+        }
+      }
+    });
+
+    return overlay;
+  }
+
+  function openMenu() {
+    console.log('[CCQ.menu] openMenu() called');
+    injectMenuStyles();
+    console.log('[CCQ.menu] styles injected');
+    var overlay = document.getElementById('ccq-menu-overlay');
+    if (!overlay) {
+      console.log('[CCQ.menu] no overlay yet — building');
+      overlay = buildOverlay();
+      if (!document.body) {
+        console.error('[CCQ.menu] document.body missing — cannot append overlay');
+        return;
+      }
+      document.body.appendChild(overlay);
+      console.log('[CCQ.menu] overlay appended to body');
+    } else {
+      console.log('[CCQ.menu] overlay already in DOM, reusing');
+    }
+    // Force a frame so the transition runs; without it the panel pops
+    // in instantly because the element was just inserted.
+    requestAnimationFrame(function () {
+      overlay.classList.add('ccq-open');
+      console.log('[CCQ.menu] .ccq-open class added — should be visible now');
+    });
+    try { telemetry('menu_opened', {passage: (window.SugarCube && SugarCube.State && SugarCube.State.passage) || ''}); } catch (e) {}
+  }
+
+  function closeMenu() {
+    var overlay = document.getElementById('ccq-menu-overlay');
+    if (overlay) overlay.classList.remove('ccq-open');
+  }
+
+  // Capture-phase delegation. Capture so per-game .menu-icon click
+  // handlers (if any are ever added) can't swallow the event before
+  // we see it. Also handles `.ccq-home-trigger` — a convention any
+  // in-game button can opt into to fire goHome directly without
+  // navigating through an intermediate "Central Hub" trampoline
+  // passage. Earlier the trampoline pattern caused a "Returning…"
+  // screen to occasionally hang when the bridge pop raced the
+  // SugarCube re-render; firing goHome from the click instead skips
+  // the race entirely.
+  // ⚠ DIAGNOSTIC LOGGING — temporarily verbose to debug "burger doesn't
+  // open menu" reports. Logs every click on `document` (capture phase),
+  // what element was hit, and which selector (if any) it matched.
+  // Once the issue is resolved these `console.log` lines should be
+  // removed or downgraded.
+  console.log('[CCQ.menu] click delegation attached on document (capture)');
+
+  document.addEventListener('click', function (e) {
+    // Match both `.menu-icon` (modern, what the bridge auto-injects)
+    // AND `.header .menu` (legacy — Quiet Minute and any not-yet-
+    // rebuilt compiled HTML still use this older class). Without the
+    // legacy match, players who tapped the visible burger on a stale
+    // build saw nothing happen because the click selector didn't fit
+    // the actual element class.
+    var t = e.target;
+    var tagInfo = t && t.tagName
+        ? (t.tagName + (t.className ? '.' + String(t.className).split(' ').join('.') : ''))
+        : '(no target)';
+    console.log('[CCQ.menu] click hit:', tagInfo);
+
+    var icon = t.closest('.menu-icon, .header .menu');
+    if (icon) {
+      console.log('[CCQ.menu] matched menu trigger, opening menu',
+                  icon.className || icon.tagName);
+      e.preventDefault();
+      e.stopPropagation();
+      openMenu();
+      return;
+    }
+    var homeTrigger = t.closest('.ccq-home-trigger');
+    if (homeTrigger) {
+      console.log('[CCQ.menu] matched .ccq-home-trigger, firing goHome()');
+      e.preventDefault();
+      e.stopPropagation();
+      try { goHome(); } catch (err) { console.error('[CCQ] home trigger:', err); }
+      return;
+    }
+  }, true);
+
+  // Auto-inject a `<span class="menu-icon">≡</span>` into every
+  // `.header` row that doesn't already have one. Three of the seven
+  // games (Bingo Bash, Dog Quest, Quiet Minute) bake the icon into
+  // their markup; the rest (Salt Sludge, DASH Diet, Daily Check-In,
+  // Post-Play Survey, Vascular Village) don't. Doing the injection
+  // here gives every game the burger control without 50+ per-passage
+  // edits across 5 .tw files. Uses MutationObserver so the icon shows
+  // up on each new passage SugarCube renders, not just the first one.
+  function ensureMenuIconInHeaders(root) {
+    if (!root || !root.querySelectorAll) return;
+    var headers = root.querySelectorAll('.header');
+    if (headers.length) {
+      console.log('[CCQ.menu] ensureMenuIconInHeaders found',
+                  headers.length, 'header element(s)');
+    }
+    for (var i = 0; i < headers.length; i++) {
+      var header = headers[i];
+      // Skip if a burger already exists — match BOTH the modern
+      // `.menu-icon` class AND the legacy `.menu` class (Quiet Minute
+      // and other pre-rebuild HTMLs use the older class). For existing
+      // ones we ATTACH the handler instead of injecting a new icon —
+      // belt-and-suspenders so the menu opens regardless of whether
+      // the document-level click delegation actually fires (some
+      // WebViews swallow capture-phase events on touch).
+      var existing = header.querySelector('.menu-icon, .menu');
+      if (existing) {
+        attachDirectClickHandler(existing);
+        console.log('[CCQ.menu] header already has burger:',
+                    existing.className || existing.tagName,
+                    '— attached direct handler');
+        continue;
+      }
+      var icon = document.createElement('span');
+      icon.className = 'menu-icon';
+      icon.textContent = '≡';
+      icon.setAttribute('role', 'button');
+      icon.setAttribute('aria-label', 'Open menu');
+      icon.title = 'Menu';
+      // Visual styling lives in the !important `.menu-icon` block in
+      // injectMenuStyles() so it overrides any per-game CSS that might
+      // hide or recolor the glyph (e.g. Dog Quest's old display:none
+      // rule). No inline styles needed here.
+      attachDirectClickHandler(icon);
+      header.appendChild(icon);
+      console.log('[CCQ.menu] injected fresh menu-icon + direct handler');
+    }
+  }
+
+  // Direct click + touch handler attached straight to the element.
+  // Belt-and-suspenders alongside the document-level delegation: some
+  // Android WebView builds fire `click` only on the originating element
+  // and don't bubble it to `document` capture-phase listeners reliably
+  // (especially for span/anchor tags inside flex headers). Attaching
+  // the handler directly on the element guarantees the menu opens.
+  // Idempotent via a `data-ccq-handler-attached` attribute so we don't
+  // stack multiple handlers if the same element is processed twice
+  // (e.g. by both initial scan AND a MutationObserver fire).
+  function attachDirectClickHandler(el) {
+    if (!el || el.dataset.ccqHandlerAttached === 'yes') return;
+    el.dataset.ccqHandlerAttached = 'yes';
+    var fire = function (e) {
+      console.log('[CCQ.menu] direct handler fired on',
+                  el.className || el.tagName, e.type);
+      try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
+      openMenu();
+    };
+    el.addEventListener('click', fire);
+    // Some Android WebView builds + screen-reader gestures only fire
+    // `touchend` cleanly. Bind that too as a fallback. Mark with
+    // `passive: false` so preventDefault() works (otherwise the WebView
+    // can fire a synthetic click that we'd then double-handle, but the
+    // `data-ccq-handler-attached` guard protects against that).
+    el.addEventListener('touchend', fire, {passive: false});
+  }
+
+  function setupHeaderInjection() {
+    // Make sure the `.menu-icon` styles are in the DOM BEFORE any icons
+    // get injected — otherwise the freshly-added icon paints with
+    // default styling (often black on a dark header → invisible) until
+    // something else triggers injectMenuStyles. Calling it here is
+    // idempotent thanks to the `getElementById('ccq-menu-styles')`
+    // short-circuit.
+    injectMenuStyles();
+    ensureMenuIconInHeaders(document);
+    if (typeof MutationObserver !== 'function') return;
+    var observer = new MutationObserver(function (mutations) {
+      for (var i = 0; i < mutations.length; i++) {
+        var added = mutations[i].addedNodes;
+        for (var j = 0; j < added.length; j++) {
+          var node = added[j];
+          if (node.nodeType !== 1) continue;
+          // Element itself might be a header, OR contain headers.
+          if (node.matches && node.matches('.header')) {
+            ensureMenuIconInHeaders(node.parentNode || document);
+          }
+          ensureMenuIconInHeaders(node);
+        }
+      }
+    });
+    observer.observe(document.body, {childList: true, subtree: true});
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', setupHeaderInjection);
+  } else {
+    setupHeaderInjection();
+  }
+
+  // Expose imperative entry points so games can trigger the menu from
+  // a custom widget if needed (e.g. a "More" button).
+  window.CCQ.openMenu = openMenu;
+  window.CCQ.closeMenu = closeMenu;
 })();
 </script>
 <!-- CardioCare Quest — viewport override (strips phone-frame chrome). -->
@@ -288,9 +731,10 @@ var saveAs=saveAs||navigator.msSaveBlob&&navigator.msSaveBlob.bind(navigator)||f
  * frame makes sense. On real devices that frame is redundant chrome.
  *
  * `!important` everywhere because it has to win against the per-game
- * UserStylesheet that ships in each .tw. Targets the standard SugarCube
- * DOM (#ui-bar, #story, .passage) plus the per-game wrapper conventions
- * (.phone, .app, .container) the authors used.
+ * UserStylesheet that ships in each .tw. Covers the actual SugarCube
+ * 2.x DOM (`<tw-story>`, `<tw-passage>`, `#passages`, `.passage`) plus
+ * the per-game wrapper conventions (.phone, .app, .container) and the
+ * legacy Twine 1 `#story` selector for safety.
  */
 
 html, body {
@@ -298,31 +742,33 @@ html, body {
   padding: 0 !important;
   width: 100% !important;
   min-height: 100vh !important;
+  /* Override per-game body backgrounds (most are light grey #e8e8e8
+     or similar) so any uncovered area shows the same dark navy as the
+     Flutter Scaffold's SafeArea inset, not a stranded light strip. */
+  background-color: #1a1b2e !important;
 }
 
 /* Hide SugarCube's default sidebar — most game stylesheets do this
    already but we enforce it for any new ones. */
 #ui-bar { display: none !important; }
 
-/* Let the game's content container fill the WebView width. The story
-   container's default max-width: 380px squeezes the game into a strip
-   on the left/center with grey margins around it. */
-#story {
-  margin: 0 !important;
-  padding: 0 !important;
-  max-width: 100% !important;
-  width: 100% !important;
-}
-
-.passage {
+/* SugarCube 2.x uses custom elements for the passage chain. Without
+   `display: block` they're inline by default in some browsers, which
+   adds extra leading/baseline space above the phone wrapper. Margin
+   + padding zeroed so nothing pushes the phone down from the body
+   top. */
+tw-story, tw-passage, tw-passagedata, #passages, #story, .passage {
+  display: block !important;
   margin: 0 !important;
   padding: 0 !important;
   width: 100% !important;
   max-width: 100% !important;
 }
 
-/* The "phone frame" wrappers used by all 5 games — flatten to fill the
-   actual viewport. Strips rounded corners, drop shadows, fixed heights. */
+/* The "phone frame" wrappers used by all games — flatten to fill the
+   actual viewport. Strips rounded corners, drop shadows, fixed heights.
+   `min-height: 100vh` ensures the phone covers the entire WebView so
+   no light body background shows above OR below it. */
 .phone, .app, .container {
   border-radius: 0 !important;
   box-shadow: none !important;
@@ -330,6 +776,51 @@ html, body {
   width: 100% !important;
   max-width: 100% !important;
   min-height: 100vh !important;
+}
+
+/* Status-bar safe inset for the in-game header.
+ *
+ * The Flutter host removed `SafeArea(top: true)` so the WebView fills
+ * edge-to-edge — that gives the dark game header a continuous look
+ * with the OS status bar (no stranded band of Scaffold colour above
+ * it). Trade-off: the header content (title text + burger glyph) was
+ * sitting at the games' default 16px top-padding, which on Android
+ * emulators put the title baseline right against the system "9:53"
+ * status text.
+ *
+ * Pad the top of every .header by the OS-reported safe-area inset
+ * plus the games' usual 12px breathing room. `env(safe-area-inset-top)`
+ * is supported on modern Android WebView and iOS WKWebView; the 24px
+ * fallback covers older Android builds where env() returns 0. The
+ * !important wins over per-game `padding: 16px 22px` rules.
+ *
+ * Net visual: header background extends behind the status bar (no
+ * empty band), but title + burger sit safely below the system text. */
+/* SugarCube auto-decorates any anchor whose href doesn't resolve to a
+ * known passage with `a.link-external::after { content: " ↗" }`. Our
+ * `.ccq-home-trigger` buttons (Bingo Bash Home, DASH "Back to
+ * CardioCareQuest", Quiet Minute Done) use `href="javascript:void(0)"`
+ * which trips that detection — but they never leave the WebView, so
+ * the ↗ is misleading + visually noisy. Drop the pseudo on any
+ * trigger-classed anchor across all games. */
+a.ccq-home-trigger::after,
+a.ccq-home-trigger.link-external::after {
+  content: none !important;
+  display: none !important;
+}
+
+.header {
+  /* `env(safe-area-inset-top, 24px)` returns 0 on Android emulators
+     because env IS defined (just zero) so the 24px fallback never
+     kicks in — the resulting 0+12=12px was actually LESS than the
+     games' original 16px, making the title sit even closer to the
+     status bar.
+     `max()` floors the padding at 40px (covers Android status bars,
+     ~24-30dp) and lets iOS notch devices use their larger reported
+     inset + 12px content padding when bigger. */
+  padding-top:
+    max(40px, calc(env(safe-area-inset-top, 0px) + 12px))
+    !important;
 }
 </style>
 </head>
@@ -347,7 +838,10 @@ body {
   font-family: "Times New Roman", Times, serif;
   background-color: #e8e8e8;
   margin: 0;
-  padding: 1em 0;
+  /* padding removed — was 1em 0, leaving a visible empty band above
+     the in-game header on device. Twinery preview still looks fine
+     without it. */
+  padding: 0;
 }
 
 #ui-bar { display: none; }
@@ -924,9 +1418,18 @@ try {
 }
 &lt;&lt;/script&gt;&gt;
 &lt;&lt;set $todaySys to &quot;&quot;&gt;&gt;
-&lt;&lt;set $todayDia to &quot;&quot;&gt;&gt;</tw-passagedata><tw-passagedata pid="2" name="HeaderWidget" tags="widget" position="225,100" size="100,100">&lt;&lt;widget &quot;header&quot;&gt;&gt;
-&lt;div class=&quot;header&quot;&gt;&lt;span&gt;Quiet Minute&lt;/span&gt;&lt;span class=&quot;menu&quot;&gt;≡&lt;/span&gt;&lt;/div&gt;
-&lt;&lt;/widget&gt;&gt;</tw-passagedata><tw-passagedata pid="3" name="Welcome" tags="nobr" position="350,100" size="100,100">&lt;div class=&quot;phone&quot;&gt;
+&lt;&lt;set $todayDia to &quot;&quot;&gt;&gt;</tw-passagedata><tw-passagedata pid="2" name="HeaderWidget" tags="widget nobr" position="225,100" size="100,100">/*
+The widget body MUST stay on a single line below — earlier this was
+multi-line with a doc comment between `&lt;&lt;widget&gt;&gt;` and the `&lt;div&gt;`,
+and SugarCube rendered the newlines as whitespace text nodes inheriting
+.phone&#39;s line-height. That created a 30-40px stranded gap between the
+top of .phone and the actual header bar — every other game inlines the
+header div directly in their passages, which is why Quiet Minute was
+the only one with the gap. The `nobr` tag belt-and-suspenders strips
+any remaining line breaks. The trailing burger glyph is auto-injected
+by ccq_bridge.js into any `.header` without a `.menu-icon`.
+*/
+&lt;&lt;widget &quot;header&quot;&gt;&gt;&lt;div class=&quot;header&quot;&gt;&lt;span&gt;Blood Pressure Log&lt;/span&gt;&lt;/div&gt;&lt;&lt;/widget&gt;&gt;</tw-passagedata><tw-passagedata pid="3" name="Welcome" tags="nobr" position="350,100" size="100,100">&lt;div class=&quot;phone&quot;&gt;
 &lt;&lt;header&gt;&gt;
 &lt;div class=&quot;content&quot;&gt;
 &lt;h1 class=&quot;welcome-title&quot;&gt;Quiet Minute&lt;/h1&gt;
@@ -940,7 +1443,14 @@ try {
 &lt;a class=&quot;btn-primary&quot; data-passage=&quot;Breathing&quot;&gt;BEGIN&lt;/a&gt;
 &lt;a class=&quot;btn-secondary&quot; data-passage=&quot;Entry&quot;&gt;Skip and enter a reading&lt;/a&gt;
 &lt;/div&gt;
-&lt;/div&gt;</tw-passagedata><tw-passagedata pid="4" name="Breathing" tags="nobr" position="475,100" size="100,100">&lt;div class=&quot;phone&quot;&gt;
+&lt;/div&gt;</tw-passagedata><tw-passagedata pid="4" name="Breathing" tags="nobr" position="475,100" size="100,100">/*
+Track when the player landed on this passage so the Result screen can
+report ACTUAL rest time instead of the hardcoded &quot;two minutes&quot; — the
+&quot;I&#39;m ready&quot; link below skips the 120s timer, so a player can tap save
+after just 30 seconds and the celebration shouldn&#39;t claim two minutes.
+*/
+&lt;&lt;set $breathingStartedAt to (new Date()).getTime()&gt;&gt;
+&lt;div class=&quot;phone&quot;&gt;
 &lt;&lt;header&gt;&gt;
 
 &lt;div class=&quot;breathe-stage&quot;&gt;
@@ -954,7 +1464,7 @@ try {
 &lt;/div&gt;
 
 &lt;div class=&quot;timer-bar-wrap&quot;&gt;&lt;div class=&quot;timer-bar-fill&quot;&gt;&lt;/div&gt;&lt;/div&gt;
-&lt;div class=&quot;timer-text&quot;&gt;two minutes&lt;/div&gt;
+&lt;div class=&quot;timer-text&quot;&gt;Up to two minutes — tap &quot;I&#39;m ready&quot; anytime&lt;/div&gt;
 
 &lt;div class=&quot;skip-rest&quot;&gt;&lt;a data-passage=&quot;Entry&quot;&gt;I&#39;m ready&lt;/a&gt;&lt;/div&gt;
 
@@ -1000,35 +1510,45 @@ setTimeout(function () {
   var sys = document.getElementById(&quot;qm-sys&quot;);
   if (sys) sys.focus();
 }, 0);
-&lt;&lt;/script&gt;&gt;</tw-passagedata><tw-passagedata pid="6" name="Save" tags="" position="725,100" size="100,100">&lt;&lt;if $todaySys lt 60 or $todaySys gt 250 or $todayDia lt 30 or $todayDia gt 160&gt;&gt;
+&lt;&lt;/script&gt;&gt;</tw-passagedata><tw-passagedata pid="6" name="Save" tags="" position="725,100" size="100,100">/*
+DATA INTEGRITY FIX: SugarCube&#39;s `&lt;&lt;goto&gt;&gt;` queues navigation but does
+NOT short-circuit the rest of the passage. The previous version had a
+top-level `&lt;&lt;if invalid&gt;&gt;&lt;&lt;goto &quot;InvalidEntry&quot;&gt;&gt;&lt;&lt;/if&gt;&gt;` followed by an
+unconditional `&lt;&lt;script&gt;&gt;` block that wrote the reading to localStorage
+AND called `CCQ.logBP(...)` — so out-of-range BPs (sys outside 60-250,
+dia outside 30-160) reached Firestore before the navigation actually
+happened. Wrapping the persistence + bridge call in the `&lt;&lt;else&gt;&gt;`
+branch keeps invalid readings out of the dataset.
+*/
+&lt;&lt;if $todaySys lt 60 or $todaySys gt 250 or $todayDia lt 30 or $todayDia gt 160&gt;&gt;
   &lt;&lt;goto &quot;InvalidEntry&quot;&gt;&gt;
-&lt;&lt;/if&gt;&gt;
-
-&lt;&lt;script&gt;&gt;
-try {
-  var hist = State.variables.history || [];
-  var entry = {
-    sys: State.variables.todaySys,
-    dia: State.variables.todayDia,
-    when: Date.now()
-  };
-  hist.unshift(entry);
-  if (hist.length &gt; 7) hist = hist.slice(0, 7);
-  State.variables.history = hist;
-  window.localStorage.setItem(&quot;quietMinute_history&quot;, JSON.stringify(hist));
-} catch (e) {}
-/* CCQ — push the BP reading to Flutter so it lands in DailyLogHooks.logBP
-   (and from there into userData/{uid}/dailyLogs/{today}/bpReadings).
-   This game is the only path to manual BP entry now; researchers wanted
-   BP collected only in a relaxed state. */
-try {
-  if (window.CCQ &amp;&amp; typeof window.CCQ.logBP === &quot;function&quot;) {
-    window.CCQ.logBP(State.variables.todaySys, State.variables.todayDia);
-  }
-} catch (e) { /* swallow */ }
-&lt;&lt;/script&gt;&gt;
-
-&lt;&lt;goto &quot;Result&quot;&gt;&gt;</tw-passagedata><tw-passagedata pid="7" name="InvalidEntry" tags="nobr" position="850,100" size="100,100">&lt;div class=&quot;phone&quot;&gt;
+&lt;&lt;else&gt;&gt;
+  &lt;&lt;script&gt;&gt;
+  try {
+    var hist = State.variables.history || [];
+    var entry = {
+      sys: State.variables.todaySys,
+      dia: State.variables.todayDia,
+      when: Date.now()
+    };
+    hist.unshift(entry);
+    if (hist.length &gt; 7) hist = hist.slice(0, 7);
+    State.variables.history = hist;
+    window.localStorage.setItem(&quot;quietMinute_history&quot;, JSON.stringify(hist));
+  } catch (e) {}
+  /* CCQ — push the BP reading to Flutter so it lands in
+     DailyLogHooks.logBP (and from there into
+     userData/{uid}/dailyLogs/{today}/bpReadings). This game is the
+     only path to manual BP entry now; researchers wanted BP collected
+     only in a relaxed state. */
+  try {
+    if (window.CCQ &amp;&amp; typeof window.CCQ.logBP === &quot;function&quot;) {
+      window.CCQ.logBP(State.variables.todaySys, State.variables.todayDia);
+    }
+  } catch (e) { /* swallow */ }
+  &lt;&lt;/script&gt;&gt;
+  &lt;&lt;goto &quot;Result&quot;&gt;&gt;
+&lt;&lt;/if&gt;&gt;</tw-passagedata><tw-passagedata pid="7" name="InvalidEntry" tags="nobr" position="850,100" size="100,100">&lt;div class=&quot;phone&quot;&gt;
 &lt;&lt;header&gt;&gt;
 &lt;div class=&quot;content&quot;&gt;
 &lt;h2 class=&quot;title&quot;&gt;Check the numbers&lt;/h2&gt;
@@ -1045,6 +1565,33 @@ try {
 } catch (e) {
   State.variables.totalPoints = 50;
 }
+/* Actual rest duration — Breathing passage stamped breathingStartedAt;
+   we compute elapsed seconds here and humanise it for the celebration
+   line so the copy matches what the player actually did (skipping
+   after 30s shouldn&#39;t say &quot;two minutes&quot;). */
+try {
+  var startMs = State.variables.breathingStartedAt;
+  var elapsedSec = startMs
+    ? Math.max(0, Math.round(((new Date()).getTime() - startMs) / 1000))
+    : 0;
+  var label;
+  if (elapsedSec === 0) {
+    label = &quot;before measuring&quot;;
+  } else if (elapsedSec &lt; 60) {
+    label = &quot;for &quot; + elapsedSec + &quot; seconds&quot;;
+  } else {
+    var mins = Math.floor(elapsedSec / 60);
+    var secs = elapsedSec % 60;
+    if (secs === 0) {
+      label = &quot;for &quot; + mins + &quot; minute&quot; + (mins === 1 ? &quot;&quot; : &quot;s&quot;);
+    } else {
+      label = &quot;for &quot; + mins + &quot; min &quot; + secs + &quot; sec&quot;;
+    }
+  }
+  State.variables.restLabel = label;
+} catch (e) {
+  State.variables.restLabel = &quot;before measuring&quot;;
+}
 &lt;&lt;/script&gt;&gt;
 
 &lt;div class=&quot;phone&quot;&gt;
@@ -1054,12 +1601,19 @@ try {
 &lt;div class=&quot;celebration&quot;&gt;
 &lt;div class=&quot;celebration-mark&quot;&gt;+50&lt;/div&gt;
 &lt;div class=&quot;celebration-title&quot;&gt;Great job&lt;/div&gt;
-&lt;p class=&quot;celebration-sub&quot;&gt;You rested for two minutes and logged your blood pressure. That counts.&lt;/p&gt;
+&lt;p class=&quot;celebration-sub&quot;&gt;You rested &lt;&lt;print $restLabel&gt;&gt; and logged your blood pressure. That counts.&lt;/p&gt;
 &lt;div class=&quot;celebration-reading&quot;&gt;&lt;&lt;print $todaySys&gt;&gt; / &lt;&lt;print $todayDia&gt;&gt; mmHg&lt;/div&gt;
 &lt;div class=&quot;celebration-total&quot;&gt;Total points &lt;&lt;print $totalPoints&gt;&gt;&lt;/div&gt;
 &lt;/div&gt;
 &lt;div class=&quot;spacer&quot;&gt;&lt;/div&gt;
-&lt;a class=&quot;btn-primary&quot; data-passage=&quot;Welcome&quot;&gt;DONE&lt;/a&gt;
+&lt;!-- DONE uses the .ccq-home-trigger class so the bridge fires
+     CCQ.goHome() on click — same convention as Bingo Bash and DASH
+     home buttons. Was earlier a `&lt;&lt;button&gt;&gt;` macro which inherited
+     SugarCube&#39;s default &lt;button&gt; styling (medium blue on medium
+     blue) and blended into the gradient. The .btn-primary class
+     gives the high-contrast white-on-navy look matching every
+     other primary button in this game. --&gt;
+&lt;a class=&quot;btn-primary ccq-home-trigger&quot; href=&quot;javascript:void(0)&quot;&gt;DONE&lt;/a&gt;
 &lt;/div&gt;
 &lt;/div&gt;</tw-passagedata></tw-storydata>
 	<script id="script-sugarcube" type="text/javascript">

@@ -37,7 +37,10 @@ body {
   font-family: "Times New Roman", Times, serif;
   background-color: #e8e8e8;
   margin: 0;
-  padding: 1em 0;
+  /* padding removed — was 1em 0, leaving a visible empty band above
+     the in-game header on device. Twinery preview still looks fine
+     without it. */
+  padding: 0;
 }
 
 #ui-bar { display: none; }
@@ -590,10 +593,19 @@ body {
 }
 
 
-:: HeaderWidget [widget]
-<<widget "header">>
-<div class="header"><span>Quiet Minute</span><span class="menu">≡</span></div>
-<</widget>>
+:: HeaderWidget [widget nobr]
+/*
+The widget body MUST stay on a single line below — earlier this was
+multi-line with a doc comment between `<<widget>>` and the `<div>`,
+and SugarCube rendered the newlines as whitespace text nodes inheriting
+.phone's line-height. That created a 30-40px stranded gap between the
+top of .phone and the actual header bar — every other game inlines the
+header div directly in their passages, which is why Quiet Minute was
+the only one with the gap. The `nobr` tag belt-and-suspenders strips
+any remaining line breaks. The trailing burger glyph is auto-injected
+by ccq_bridge.js into any `.header` without a `.menu-icon`.
+*/
+<<widget "header">><div class="header"><span>Blood Pressure Log</span></div><</widget>>
 
 
 :: Welcome [nobr]
@@ -615,6 +627,13 @@ body {
 
 
 :: Breathing [nobr]
+/*
+Track when the player landed on this passage so the Result screen can
+report ACTUAL rest time instead of the hardcoded "two minutes" — the
+"I'm ready" link below skips the 120s timer, so a player can tap save
+after just 30 seconds and the celebration shouldn't claim two minutes.
+*/
+<<set $breathingStartedAt to (new Date()).getTime()>>
 <div class="phone">
 <<header>>
 
@@ -629,7 +648,7 @@ body {
 </div>
 
 <div class="timer-bar-wrap"><div class="timer-bar-fill"></div></div>
-<div class="timer-text">two minutes</div>
+<div class="timer-text">Up to two minutes — tap "I'm ready" anytime</div>
 
 <div class="skip-rest"><a data-passage="Entry">I'm ready</a></div>
 
@@ -683,35 +702,45 @@ setTimeout(function () {
 
 
 :: Save
+/*
+DATA INTEGRITY FIX: SugarCube's `<<goto>>` queues navigation but does
+NOT short-circuit the rest of the passage. The previous version had a
+top-level `<<if invalid>><<goto "InvalidEntry">><</if>>` followed by an
+unconditional `<<script>>` block that wrote the reading to localStorage
+AND called `CCQ.logBP(...)` — so out-of-range BPs (sys outside 60-250,
+dia outside 30-160) reached Firestore before the navigation actually
+happened. Wrapping the persistence + bridge call in the `<<else>>`
+branch keeps invalid readings out of the dataset.
+*/
 <<if $todaySys lt 60 or $todaySys gt 250 or $todayDia lt 30 or $todayDia gt 160>>
   <<goto "InvalidEntry">>
+<<else>>
+  <<script>>
+  try {
+    var hist = State.variables.history || [];
+    var entry = {
+      sys: State.variables.todaySys,
+      dia: State.variables.todayDia,
+      when: Date.now()
+    };
+    hist.unshift(entry);
+    if (hist.length > 7) hist = hist.slice(0, 7);
+    State.variables.history = hist;
+    window.localStorage.setItem("quietMinute_history", JSON.stringify(hist));
+  } catch (e) {}
+  /* CCQ — push the BP reading to Flutter so it lands in
+     DailyLogHooks.logBP (and from there into
+     userData/{uid}/dailyLogs/{today}/bpReadings). This game is the
+     only path to manual BP entry now; researchers wanted BP collected
+     only in a relaxed state. */
+  try {
+    if (window.CCQ && typeof window.CCQ.logBP === "function") {
+      window.CCQ.logBP(State.variables.todaySys, State.variables.todayDia);
+    }
+  } catch (e) { /* swallow */ }
+  <</script>>
+  <<goto "Result">>
 <</if>>
-
-<<script>>
-try {
-  var hist = State.variables.history || [];
-  var entry = {
-    sys: State.variables.todaySys,
-    dia: State.variables.todayDia,
-    when: Date.now()
-  };
-  hist.unshift(entry);
-  if (hist.length > 7) hist = hist.slice(0, 7);
-  State.variables.history = hist;
-  window.localStorage.setItem("quietMinute_history", JSON.stringify(hist));
-} catch (e) {}
-/* CCQ — push the BP reading to Flutter so it lands in DailyLogHooks.logBP
-   (and from there into userData/{uid}/dailyLogs/{today}/bpReadings).
-   This game is the only path to manual BP entry now; researchers wanted
-   BP collected only in a relaxed state. */
-try {
-  if (window.CCQ && typeof window.CCQ.logBP === "function") {
-    window.CCQ.logBP(State.variables.todaySys, State.variables.todayDia);
-  }
-} catch (e) { /* swallow */ }
-<</script>>
-
-<<goto "Result">>
 
 
 :: InvalidEntry [nobr]
@@ -736,6 +765,33 @@ try {
 } catch (e) {
   State.variables.totalPoints = 50;
 }
+/* Actual rest duration — Breathing passage stamped breathingStartedAt;
+   we compute elapsed seconds here and humanise it for the celebration
+   line so the copy matches what the player actually did (skipping
+   after 30s shouldn't say "two minutes"). */
+try {
+  var startMs = State.variables.breathingStartedAt;
+  var elapsedSec = startMs
+    ? Math.max(0, Math.round(((new Date()).getTime() - startMs) / 1000))
+    : 0;
+  var label;
+  if (elapsedSec === 0) {
+    label = "before measuring";
+  } else if (elapsedSec < 60) {
+    label = "for " + elapsedSec + " seconds";
+  } else {
+    var mins = Math.floor(elapsedSec / 60);
+    var secs = elapsedSec % 60;
+    if (secs === 0) {
+      label = "for " + mins + " minute" + (mins === 1 ? "" : "s");
+    } else {
+      label = "for " + mins + " min " + secs + " sec";
+    }
+  }
+  State.variables.restLabel = label;
+} catch (e) {
+  State.variables.restLabel = "before measuring";
+}
 <</script>>
 
 <div class="phone">
@@ -745,12 +801,19 @@ try {
 <div class="celebration">
 <div class="celebration-mark">+50</div>
 <div class="celebration-title">Great job</div>
-<p class="celebration-sub">You rested for two minutes and logged your blood pressure. That counts.</p>
+<p class="celebration-sub">You rested <<print $restLabel>> and logged your blood pressure. That counts.</p>
 <div class="celebration-reading"><<print $todaySys>> / <<print $todayDia>> mmHg</div>
 <div class="celebration-total">Total points <<print $totalPoints>></div>
 </div>
 <div class="spacer"></div>
-<a class="btn-primary" data-passage="Welcome">DONE</a>
+<!-- DONE uses the .ccq-home-trigger class so the bridge fires
+     CCQ.goHome() on click — same convention as Bingo Bash and DASH
+     home buttons. Was earlier a `<<button>>` macro which inherited
+     SugarCube's default <button> styling (medium blue on medium
+     blue) and blended into the gradient. The .btn-primary class
+     gives the high-contrast white-on-navy look matching every
+     other primary button in this game. -->
+<a class="btn-primary ccq-home-trigger" href="javascript:void(0)">DONE</a>
 </div>
 </div>
 

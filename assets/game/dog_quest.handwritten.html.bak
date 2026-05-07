@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Exercise Game Complete</title>
+    <style>
+        /* Locally bundled Nunito so the game runs offline at the workshop. */
+        @font-face {
+            font-family: 'Nunito';
+            font-style: normal;
+            font-weight: 600;
+            font-display: swap;
+            src: url('fonts/Nunito-SemiBold.ttf') format('truetype');
+        }
+        @font-face {
+            font-family: 'Nunito';
+            font-style: normal;
+            font-weight: 700;
+            font-display: swap;
+            src: url('fonts/Nunito-Bold.ttf') format('truetype');
+        }
+        @font-face {
+            font-family: 'Nunito';
+            font-style: normal;
+            font-weight: 800;
+            font-display: swap;
+            src: url('fonts/Nunito-ExtraBold.ttf') format('truetype');
+        }
+        :root {
+            --cloud-white: #ffffff;
+            --cloud-purple: #9c88b1;
+            --accent-yellow: #e4aa24; 
+            --text-dark: #3e4a59;
+            --progress-bg: #514f35;
+            --progress-fill: #786187;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            font-family: 'Nunito', sans-serif;
+            overflow: hidden;
+            /* Matches the dark purple you are using for the Flutter AppBar */
+            background-color: #201c2e; 
+        }
+
+        /* --- Animations --- */
+        @keyframes pulse { 
+            0%, 100% { opacity: 0.6; transform: scale(0.9); } 
+            50% { opacity: 1; transform: scale(1.1); } 
+        }
+
+        @keyframes fadeUp { 
+            from { opacity: 0; transform: translateY(20px); } 
+            to { opacity: 1; transform: translateY(0); } 
+        }
+
+        @keyframes slideIn { 
+            from { opacity: 0; transform: translateX(-20px); } 
+            to { opacity: 1; transform: translateX(0); } 
+        }
+
+        @keyframes popIn {
+            from { opacity: 0; transform: scale(0.5); } 
+            to { opacity: 1; transform: scale(1); } 
+        }
+
+        /* --- Scene Controllers --- */
+        .scene {
+            width: 100%;
+            height: 100vh;
+            display: none; /* Hidden by default */
+            flex-direction: column;
+            align-items: center;
+            position: absolute;
+            top: 0;
+            left: 0;
+            opacity: 1;
+            transition: opacity 0.3s ease-in-out;
+            box-sizing: border-box;
+            /* Added padding-top to compensate for the removed header and give some breathing room */
+            padding-top: 20px;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        /* Scene Backgrounds */
+        #scene1, #scene2 {
+            background: linear-gradient(to bottom, #1e1b2e 0%, #3e6074 40%, #5e8c9c 100%);
+        }
+        #scene3 {
+            background: linear-gradient(to bottom, #e0e9ed 0%, #89b1c2 50%, #5e8c9c 100%);
+        }
+
+        /* Show Scene 1 initially */
+        #scene1 { display: flex; }
+
+        .fade-out { opacity: 0 !important; }
+
+        /* --- Scene Header (small label, top-right) --- */
+        .header {
+            width: 100%;
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            padding: 4px 18px 0 0;
+            box-sizing: border-box;
+            position: relative;
+            z-index: 20;
+        }
+        .header h1 {
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.55);
+            margin: 0;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+        }
+        .menu-icon { display: none; }
+
+        /* Clouds */
+        .cloud { position: absolute; display: flex; justify-content: center; align-items: center; }
+        .cloud.white { --cloud-fill: var(--cloud-white); z-index: 2; }
+        .cloud.purple { --cloud-fill: var(--cloud-purple); z-index: 1; }
+        .cloud-svg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; fill: var(--cloud-fill); }
+        .cloud.white .cloud-svg { filter: drop-shadow(0px 8px 12px rgba(0, 0, 0, 0.15)); }
+        
+        /* Dog Assets */
+        .dog-image { width: 200px; height: auto; z-index: 3; position: relative; }
+        .character-shadow { width: 200px; height: 14px; background-color: #69658a; border-radius: 50%; margin: -10px auto 0 auto; position: relative; z-index: 1; }
+
+        /* --- Scene 1 Specifics --- */
+        #scene1 .subtitle { color: #8acfe5; font-weight: 800; font-size: 1.15rem; text-align: center; margin: 15px 0 10px 0; padding: 0 10px; }
+        #scene1 .cloud-area { flex-grow: 1; width: 100%; position: relative; }
+        #scene1 .cloud-text { position: relative; z-index: 1; text-align: center; font-size: 0.78rem; line-height: 1.25; color: var(--text-dark); width: 70%; padding: 0 4px; box-sizing: border-box; margin-top: -5px; }
+
+        .c1 { top: 3%; left: 3%; width: 180px; height: 130px; }
+        .c2 { top: 8%; right: -5%; width: 230px; height: 150px; opacity: 0.9; }
+        .c3 { top: 28%; left: 16%; width: 270px; height: 190px; }
+        .c4 { top: 48%; left: -10%; width: 190px; height: 130px; opacity: 0.9;}
+        .c5 { top: 58%; right: -2%; width: 210px; height: 150px; }
+        .c3::after { content: ''; position: absolute; bottom: -20px; left: 55%; height: 30px; border-left: 3px dashed var(--accent-yellow); z-index: 0; }
+
+        #scene1 .character-container { margin-bottom: 30px; text-align: center; position: relative; }
+        .footer-btn { background-color: var(--accent-yellow); width: 90%; padding: 18px; border-radius: 35px; text-align: center; font-weight: 800; font-size: 1.15rem; color: #2a2a2a; margin-bottom: 25px; cursor: pointer; box-shadow: 0 5px 0px #c6942a; border: none; z-index: 10; }
+        .footer-btn:active { transform: translateY(3px); box-shadow: 0 2px 0px #c6942a; }
+
+        /* --- Scene 2 Specifics --- */
+        #scene2 .subtitle { color: #559db8; font-weight: 800; font-size: 1rem; text-align: center; margin: 15px 0 10px 0; padding: 0 20px; line-height: 1.4; z-index: 10; position: relative; }
+        #scene2 .cloud-area { position: absolute; top: 28%; left: 0; width: 100%; height: 38%; z-index: 1; }
+        #scene2 .cloud-text { position: relative; z-index: 1; text-align: center; font-size: 1rem; font-weight: 700; color: var(--text-dark); width: 60%; margin-top: -10px; }
+
+        .c-purple-1 { top: 6%; left: -28%; width: 220px; height: 160px; opacity: 0.8; }
+        .c-purple-2 { top: 52%; left: -32%; width: 180px; height: 120px; opacity: 0.8; }
+        .c-white-main { top: 8%; left: 50%; transform: translateX(-50%); width: 300px; height: 200px; }
+
+        #scene2 .character-container { margin-top: auto; margin-bottom: 20px; text-align: center; width: 100%; }
+        
+        .button-stack { width: 90%; display: flex; flex-direction: column; gap: 12px; margin-bottom: 25px; z-index: 10; }
+        .quest-btn { background-color: var(--accent-yellow); width: 100%; padding: 12px 10px; border-radius: 25px; text-align: center; color: #2a2a2a; cursor: pointer; box-shadow: 0 4px 0px #b88616; border: none; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: transform 0.1s; }
+        .quest-btn:active { transform: translateY(4px); box-shadow: 0 0px 0px #b88616; }
+        .quest-title { font-weight: 800; font-size: 1.15rem; margin-bottom: 2px; }
+        .quest-desc { font-weight: 700; font-size: 0.75rem; opacity: 0.9; }
+
+        /* --- Scene 3 Specifics --- */
+        #scene3 .stats-text { color: #5998cc; font-weight: 800; font-size: 0.9rem; text-align: center; margin: 15px 0 5px 0; z-index: 10; }
+        #scene3 .character-container { margin-top: 10px; margin-bottom: 15px; text-align: center; width: 100%; }
+        #scene3 .character-shadow { background-color: #798b9e; }
+        #scene3 .dog-image { width: 180px; } 
+        
+        .active-quest { background-color: var(--accent-yellow); width: 90%; padding: 12px 10px; border-radius: 30px; text-align: center; color: #2a2a2a; display: flex; flex-direction: column; align-items: center; justify-content: center; margin-bottom: 15px; }
+        .active-quest .quest-desc { font-weight: 800; }
+
+        .progress-container { width: 90%; height: 55px; background-color: var(--progress-bg); border-radius: 30px; position: relative; overflow: hidden; margin-bottom: 25px; box-shadow: inset 0 2px 5px rgba(0,0,0,0.2); }
+        .progress-fill { position: absolute; top: 0; left: 0; height: 100%; width: 0%; background-color: var(--progress-fill); border-radius: 30px; transition: width 0.4s ease-out; }
+        .progress-text-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; justify-content: space-between; align-items: center; padding: 0 20px; box-sizing: border-box; z-index: 2; }
+        .progress-left { color: white; font-weight: 700; font-size: 1rem; display: flex; gap: 15px; align-items: center; }
+        .progress-percent { font-weight: 800; font-size: 1.1rem; }
+        .progress-right { color: white; text-align: right; line-height: 1.1; }
+        .progress-right .number { font-weight: 800; font-size: 0.85rem; display: block; }
+        .progress-right .label { font-weight: 600; font-size: 0.7rem; opacity: 0.9; }
+
+        .info-section { width: 90%; margin-top: 5px; }
+        .info-title { color: #2c3e50; font-weight: 800; font-size: 1rem; text-align: center; margin-bottom: 15px; }
+        .info-list { list-style: none; padding: 0 0 0 25px; margin: 0; display: flex; flex-direction: column; gap: 15px; }
+        .info-list li { color: #2c3e50; font-weight: 700; font-size: 0.95rem; display: flex; align-items: center; gap: 12px; }
+        .info-list li::before { content: '✓'; display: inline-block; width: 14px; height: 14px; font-size: 1.2rem; line-height: 1; text-align: center; color: var(--progress-fill); flex-shrink: 0; }
+    </style>
+    <!--
+      CardioCare Quest Twine bridge shim. Exposes `window.CCQ` with friendly
+      wrappers for the Flutter host's bridge messages. Loaded relative to
+      this HTML file (resolves under `assets/game/ccq_bridge.js`).
+    -->
+    <script src="ccq_bridge.js"></script>
+</head>
+<body>
+
+    <svg style="display: none;">
+        <defs>
+            <g id="cloud-shape">
+                <circle cx="35" cy="55" r="20" />
+                <circle cx="65" cy="35" r="32" />
+                <circle cx="105" cy="50" r="24" />
+                <circle cx="50" cy="75" r="18" />
+                <circle cx="90" cy="70" r="22" />
+                <circle cx="70" cy="60" r="25" />
+            </g>
+        </defs>
+    </svg>
+
+    <!-- Preloader Scene -->
+    <div id="scene0" class="scene">
+        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh;">
+            <div style="font-size: 72px; animation: pulse 1.5s infinite;">🐾</div>
+            <div style="font-family: 'Nunito', sans-serif; font-weight: 700; color: #9c88b1; margin-top: 24px; font-size: 18px;">Loading Quest...</div>
+        </div>
+    </div>
+
+    <div id="scene1" class="scene">
+         <header class="header">
+            <h1>Exercise</h1>
+            <div class="menu-icon"><span></span><span></span><span></span></div>
+        </header>
+        <div class="subtitle">Let's work towards healthy blood pressure today!</div>
+
+        <div class="cloud-area">
+            <div class="cloud white c1"><svg class="cloud-svg" viewBox="0 0 140 100" preserveAspectRatio="none"><use href="#cloud-shape" /></svg><div class="cloud-text">Complete Quests based on steps</div></div>
+            <div class="cloud white c3"><svg class="cloud-svg" viewBox="0 0 140 100" preserveAspectRatio="none"><use href="#cloud-shape" /></svg><div class="cloud-text">Bring along a furry team member to help complete them</div></div>
+            <div class="cloud white c5"><svg class="cloud-svg" viewBox="0 0 140 100" preserveAspectRatio="none"><use href="#cloud-shape" /></svg><div class="cloud-text">Earn rewards to customize your dog's avatar</div></div>
+            <div class="cloud purple c2"><svg class="cloud-svg" viewBox="0 0 140 100" preserveAspectRatio="none"><use href="#cloud-shape" /></svg></div>
+            <div class="cloud purple c4"><svg class="cloud-svg" viewBox="0 0 140 100" preserveAspectRatio="none"><use href="#cloud-shape" /></svg></div>
+        </div>
+
+        <div class="character-container">
+            <img src="./dog_quest/dog.png" class="dog-image" alt="Quest Dog">
+        </div>
+
+        <button class="footer-btn" id="btn-start-quest">
+            Step outside for a walk with a friend!
+        </button>
+    </div>
+
+    <div id="scene2" class="scene">
+         <header class="header">
+            <h1>Exercise</h1>
+            <div class="menu-icon"><span></span><span></span><span></span></div>
+        </header>
+        <div class="subtitle">Regular exercise can help lower blood pressure<br>and improve heart health.</div>
+
+        <div class="cloud-area">
+            <div class="cloud purple c-purple-1"><svg class="cloud-svg" viewBox="0 0 140 100" preserveAspectRatio="none"><use href="#cloud-shape" /></svg></div>
+            <div class="cloud purple c-purple-2"><svg class="cloud-svg" viewBox="0 0 140 100" preserveAspectRatio="none"><use href="#cloud-shape" /></svg></div>
+            <div class="cloud white c-white-main"><svg class="cloud-svg" viewBox="0 0 140 100" preserveAspectRatio="none"><use href="#cloud-shape" /></svg><div class="cloud-text">Choose your quest for today</div></div>
+        </div>
+
+        <div class="character-container">
+             <img src="./dog_quest/dog.png" class="dog-image" alt="Quest Dog">
+            <div class="character-shadow"></div>
+        </div>
+
+        <div class="button-stack">
+            <button class="quest-btn diff-btn" id="btn-easy" data-distance="500">
+                <div class="quest-title">Keep going</div><div class="quest-desc">EASY- Quick walk- 500 steps- 30 pts</div>
+            </button>
+            <button class="quest-btn diff-btn" id="btn-medium" data-distance="1000">
+                <div class="quest-title">Travel to a village</div><div class="quest-desc">MEDIUM- Maintenance walk- 1000 steps- 60 pts</div>
+            </button>
+            <button class="quest-btn diff-btn" id="btn-hard" data-distance="1500">
+                <div class="quest-title">Beat a boss!!</div><div class="quest-desc">HARD- Challenge yourself- 1500 steps- 100 pts</div>
+            </button>
+        </div>
+    </div>
+
+    <div id="scene3" class="scene">
+         <header class="header">
+            <h1>Exercise</h1>
+            <div class="menu-icon"><span></span><span></span><span></span></div>
+        </header>
+        <div class="stats-text" id="quests-completed-text">0 quests completed so far this week!</div>
+
+        <div class="character-container">
+             <img src="./dog_quest/dog.png" class="dog-image" alt="Quest Dog">
+        </div>
+
+        <div class="active-quest">
+            <div class="quest-title" id="active-title">--</div>
+            <div class="quest-desc" id="active-desc">--</div>
+        </div>
+
+        <div class="progress-container">
+            <div class="progress-fill" id="progress-bar-fill"></div>
+            <div class="progress-text-overlay">
+                <div class="progress-left">
+                    <span>Progress</span>
+                    <span class="progress-percent" id="progress-percent-text">0%</span>
+                </div>
+                <div class="progress-right">
+                    <span class="number" id="progress-remaining-text">--</span>
+                    <span class="label">Distance remaining</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="info-section">
+            <div class="info-title">How does exercise help with blood pressure?</div>
+            <ul class="info-list">
+                <li>Improves circulation</li>
+                <li>Reduces Stress</li>
+                <li>Helps maintain healthy weight</li>
+            </ul>
+        </div>
+    </div>
+
+    <div id="scene4" class="scene">
+        <div style="display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding: 40px 20px 60px; width: 100%; box-sizing: border-box; flex-grow: 1;">
+            
+            <!-- Celebration Animation -->
+            <div style="font-size: 72px; margin-bottom: 20px; animation: popIn 0.6s cubic-bezier(0.16, 1, 0.3, 1);">🎉</div>
+            
+            <!-- Title -->
+            <h1 style="color: var(--cloud-white); font-size: 36px; margin: 0 0 12px 0; font-weight: 800; text-align: center; animation: slideIn 0.5s ease-out;">
+                Amazing Work!
+            </h1>
+            
+            <!-- Completion Message -->
+            <p style="color: var(--cloud-purple); font-size: 18px; margin: 0 0 40px 0; line-height: 1.6; text-align: center; max-width: 90%; animation: fadeUp 0.6s ease-out 0.1s both;">
+                You and <span id="completion-dog-name" style="color: #e4aa24; font-weight: 800;">your companion</span> completed the quest!
+            </p>
+            
+            <!-- Stats Container -->
+            <div style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 20px; padding: 28px 24px; margin-bottom: 40px; width: 90%; max-width: 400px; box-sizing: border-box; animation: fadeUp 0.6s ease-out 0.2s both;">
+                
+                <!-- Points Reward -->
+                <div style="text-align: center; margin-bottom: 24px; padding-bottom: 24px; border-bottom: 1px solid rgba(255,255,255,0.1);">
+                    <div style="font-size: 14px; color: var(--cloud-purple); text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 12px; font-weight: 700;">
+                        Points Earned
+                    </div>
+                    <div id="final-points-text" style="font-size: 56px; font-weight: 900; color: var(--accent-yellow); line-height: 1;">
+                        +0 points
+                    </div>
+                </div>
+
+                <!-- Stats Grid -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div style="text-align: center;">
+                        <div style="color: var(--cloud-purple); font-size: 12px; text-transform: uppercase; font-weight: 700; margin-bottom: 8px;">Distance</div>
+                        <div id="completion-distance" style="color: var(--cloud-white); font-size: 24px; font-weight: 800;">0m</div>
+                    </div>
+                    <div style="text-align: center;">
+                        <div style="color: var(--cloud-purple); font-size: 12px; text-transform: uppercase; font-weight: 700; margin-bottom: 8px;">Duration</div>
+                        <div id="completion-time" style="color: var(--cloud-white); font-size: 24px; font-weight: 800;">--</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Health Tip -->
+            <div style="background: rgba(156, 136, 177, 0.15); border-left: 4px solid var(--cloud-purple); border-radius: 8px; padding: 16px; margin-bottom: 40px; width: 90%; max-width: 400px; box-sizing: border-box; animation: fadeUp 0.6s ease-out 0.3s both;">
+                <div style="color: var(--cloud-purple); font-size: 14px; font-weight: 600; line-height: 1.6;">
+                    💓 <strong>Great for your heart!</strong><br>
+                    Regular walks help lower blood pressure and reduce cardiovascular risk over time.
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div style="display: flex; flex-direction: column; gap: 12px; width: 90%; max-width: 400px; animation: fadeUp 0.6s ease-out 0.4s both;">
+                <button id="another-quest-btn" style="background: var(--progress-fill); color: white; border: none; padding: 18px; border-radius: 16px; font-size: 16px; font-weight: 800; cursor: pointer; font-family: 'Nunito', sans-serif; transition: all 0.2s; box-shadow: 0 4px 0 rgba(0,0,0,0.2);">
+                    Do Another Quest
+                </button>
+                <button id="final-home-btn" style="background: transparent; color: var(--cloud-white); border: 2px solid var(--progress-fill); padding: 16px; border-radius: 16px; font-size: 16px; font-weight: 800; cursor: pointer; font-family: 'Nunito', sans-serif; transition: all 0.2s;">
+                    Return to Dashboard
+                </button>
+            </div>
+            
+        </div>
+    </div>
+
+    <script>
+        // --- Game State ---
+        let gameState = {
+            currentBuddyName: 'Buddy',
+            questStartTime: null,
+            currentDistance: 0,
+            targetDistance: 0,
+            currentTitle: ''
+        };
+
+        // --- Preloader Timeout Fallback ---
+        // If the preloader is still showing after 3 seconds, auto-transition to scene1
+        let preloaderTimeout = setTimeout(() => {
+            console.log('⚠️ Preloader timeout - auto-transitioning to scene1');
+            showPage('scene1');
+        }, 3000);
+
+        function clearPreloaderTimeout() {
+            clearTimeout(preloaderTimeout);
+        }
+
+        // --- Flutter Bridge ---
+        // The CCQ shim (loaded from assets/game/ccq_bridge.js in the
+        // <head>) provides `window.CCQ.*` wrappers around the host's
+        // FlutterBridge.postMessage(...) JSON protocol. Use those instead
+        // of constructing payloads by hand.
+
+        // --- Page Navigation ---
+        function showPage(pageId) {
+            console.log('🎮 DogQuest: Transitioning to ' + pageId);
+            clearPreloaderTimeout(); // Cancel preloader timeout when transitioning
+            document.querySelectorAll('.scene').forEach(page => {
+                page.style.display = 'none';
+            });
+            document.getElementById(pageId).style.display = 'flex';
+        }
+
+        // --- Event Listeners ---
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('🎮 DogQuest: Page loaded, showing preloader');
+            // Show preloader initially
+            showPage('scene0');
+
+            // Start Quest Button - show quest selection screen
+            const startBtn = document.getElementById('btn-start-quest');
+            if(startBtn) {
+                startBtn.addEventListener('click', () => {
+                    console.log('🎮 DogQuest: Start quest clicked');
+                    showPage('scene2');
+                });
+            }
+
+            // Quest difficulty buttons
+            const questButtons = document.querySelectorAll('.quest-btn');
+            questButtons.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const distance = Number(btn.dataset.distance) || 500;
+                    const title = btn.querySelector('.quest-title')?.innerText || 'Dog Walk';
+                    const desc = btn.querySelector('.quest-desc')?.innerText || 'Walk with your buddy.';
+
+                    console.log(`🎮 DogQuest: Selected quest ${title} (${distance}m)`);
+                    gameState.currentTitle = title;
+                    gameState.questStartTime = Date.now();
+                    gameState.targetDistance = distance;
+                    gameState.currentDistance = 0;
+
+                    const activeTitle = document.getElementById('active-title');
+                    const activeDesc = document.getElementById('active-desc');
+                    if (activeTitle) activeTitle.innerText = title;
+                    if (activeDesc) activeDesc.innerText = desc;
+
+                    updateGameProgress(0, distance);
+                    CCQ.startTracking(distance);
+                    showPage('scene3');
+                });
+            });
+
+            // End Walk Early Button
+            const endBtn = document.getElementById('end-walk-btn');
+            if(endBtn) {
+                endBtn.addEventListener('click', () => {
+                    console.log('🎮 DogQuest: End walk clicked');
+                    endBtn.innerText = 'Saving...';
+                    // Tell Dart to stop GPS and save to Firestore.
+                    // Dart will automatically call onQuestFinished() when done.
+                    CCQ.finishQuest();
+                });
+            }
+
+            // Return to Dashboard Buttons (from any scene)
+            const homeBtns = ['return-home-btn', 'final-home-btn'];
+            homeBtns.forEach(id => {
+                const btn = document.getElementById(id);
+                if(btn) {
+                    btn.addEventListener('click', () => {
+                        console.log('🎮 DogQuest: Home button clicked');
+                        CCQ.goHome();
+                    });
+                }
+            });
+
+            // Do Another Quest Button (Loops back to start)
+            const anotherBtn = document.getElementById('another-quest-btn');
+            if(anotherBtn) {
+                anotherBtn.addEventListener('click', () => {
+                    console.log('🎮 DogQuest: Do another quest clicked');
+                    // Reset UI and go back to Scene 1
+                    document.getElementById('progress-bar-fill').style.width = '0%';
+                    document.getElementById('progress-percent-text').innerText = '0%';
+                    document.getElementById('progress-remaining-text').innerText = '--';
+                    
+                    gameState.questStartTime = null;
+                    gameState.currentDistance = 0;
+                    
+                    const endBtn = document.getElementById('end-walk-btn');
+                    if(endBtn) endBtn.innerText = 'End Walk Early';
+                    
+                    showPage('scene1');
+                });
+            }
+        });
+
+        // --- Functions Called by Dart ---
+
+        // Updates the progress bar as the user walks
+        function updateGameProgress(currentDistance, targetDistance) {
+            if (currentDistance < 0) currentDistance = 0;
+            if (currentDistance > targetDistance) currentDistance = targetDistance;
+
+            const percentage = Math.floor((currentDistance / targetDistance) * 100);
+            const remaining = Math.floor(targetDistance - currentDistance);
+
+            const fillEl = document.getElementById('progress-bar-fill');
+            const pctEl = document.getElementById('progress-percent-text');
+            const remEl = document.getElementById('progress-remaining-text');
+
+            gameState.currentDistance = currentDistance;
+            gameState.targetDistance = targetDistance;
+
+            if(fillEl) fillEl.style.width = percentage + '%';
+            if(pctEl) pctEl.innerText = percentage + '%';
+            if(remEl) remEl.innerText = remaining + 'm'; 
+        }
+
+        // Set buddy name from Dart
+        function setBuddyName(name) {
+            gameState.currentBuddyName = name;
+        }
+
+        // Restores the walk if the user closes and reopens the app.
+        // Recovers the quest difficulty title/description by matching against
+        // the original quest buttons via their data-distance attribute, so the
+        // resumed walk shows e.g. "EASY - Quick walk - 500 steps - 30 pts"
+        // instead of the placeholder "--".
+        function resumeWalk(currentDistance, targetDistance) {
+            showPage('scene3');
+            updateGameProgress(currentDistance, targetDistance);
+
+            const matchingBtn = document.querySelector(
+                '.quest-btn[data-distance="' + Math.round(targetDistance) + '"]'
+            );
+            const activeTitle = document.getElementById('active-title');
+            const activeDesc = document.getElementById('active-desc');
+            if (matchingBtn) {
+                const title =
+                    matchingBtn.querySelector('.quest-title')?.innerText || 'Dog Walk';
+                const desc =
+                    matchingBtn.querySelector('.quest-desc')?.innerText ||
+                    'Walk with your buddy.';
+                gameState.currentTitle = title;
+                gameState.targetDistance = targetDistance;
+                if (activeTitle) activeTitle.innerText = title;
+                if (activeDesc) activeDesc.innerText = desc;
+            } else {
+                // Fall back so the user at least sees something readable.
+                if (activeTitle) activeTitle.innerText = 'Dog Walk';
+                if (activeDesc)
+                    activeDesc.innerText = 'Resuming your walk in progress.';
+            }
+        }
+
+        // Triggered automatically by Dart when the distance is reached OR when "End Walk" data saves
+        function onQuestFinished(pointsGained) {
+            // Calculate duration in minutes
+            let duration = '--';
+            if (gameState.questStartTime) {
+                const durationMs = Date.now() - gameState.questStartTime;
+                const durationMins = Math.round(durationMs / 60000);
+                duration = durationMins + ' min';
+            }
+
+            // Update completion scene with stats
+            const finalPointsText = document.getElementById('final-points-text');
+            if (finalPointsText && pointsGained !== undefined) {
+                finalPointsText.innerText = '+' + pointsGained + ' points';
+            }
+            
+            const dogNameEl = document.getElementById('completion-dog-name');
+            if (dogNameEl) {
+                dogNameEl.innerText = gameState.currentBuddyName;
+            }
+
+            const distanceEl = document.getElementById('completion-distance');
+            if (distanceEl) {
+                distanceEl.innerText = Math.round(gameState.currentDistance) + 'm';
+            }
+
+            const timeEl = document.getElementById('completion-time');
+            if (timeEl) {
+                timeEl.innerText = duration;
+            }
+            
+            // Show the completion scene
+            showPage('scene4');
+        }
+
+        function setWeeklyQuestCount(n) {
+            const el = document.getElementById('quests-completed-text');
+            if (el) {
+                el.innerText = n + ' quest' + (n === 1 ? '' : 's') + ' completed so far this week!';
+            }
+        }
+
+    </script>
+</body>
+</html>

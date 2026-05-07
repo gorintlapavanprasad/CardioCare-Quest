@@ -1,0 +1,626 @@
+:: StoryTitle
+Daily Check-In
+
+
+:: StoryData
+{
+  "ifid": "D7E8F9A0-B1C2-4123-8DEF-456789012345",
+  "format": "SugarCube",
+  "format-version": "2.37.3",
+  "start": "Welcome",
+  "zoom": 1
+}
+
+
+:: StoryInit
+/*
+SYSTEM CODE — runs once at story start.
+Initializes the answers map. Each question passage writes its choice
+under the question's id; the Submit passage hands the whole map to
+`CCQ.submitResponse`.
+*/
+<<set $answers to {}>>
+
+
+:: Story Stylesheet [stylesheet]
+/*
+DAILY CHECK-IN — visual stylesheet ported from control_game.html.
+Same minimalist look the research team approved as the control arm
+for the comparison study (work-plan goal #8). Phone-box wrapper added
+so the Twinery preview matches the rest of the catalog.
+*/
+
+@font-face {
+  font-family: 'Nunito';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('fonts/Nunito-SemiBold.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Nunito';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('fonts/Nunito-Bold.ttf') format('truetype');
+}
+
+:root {
+  --bg: #f4f5f7;
+  --card: #ffffff;
+  --border: #d8dadf;
+  --text: #2d3140;
+  --muted: #6b7280;
+  --accent: #4a5b80;
+  --accent-light: #e7ecf6;
+}
+
+body, html {
+  margin: 0;
+  padding: 0;
+  font-family: 'Nunito', system-ui, sans-serif;
+  background: #c8ccd1;
+  color: var(--text);
+  -webkit-text-size-adjust: 100%;
+}
+
+/* body padding removed — was 1.5em 0, which left a visible empty
+   band above the in-game header on device. The .phone wrapper has
+   its own internal padding so content still has breathing room. */
+body { padding: 0; }
+
+#ui-bar { display: none; }
+
+#story {
+  margin: 0 auto;
+  max-width: 480px;
+  padding: 0;
+}
+
+.passage { padding: 0; margin: 0; }
+
+/* Phone-frame wrapper. The build-time viewport-override CSS strips
+   border-radius / box-shadow / max-width on device so the game fills
+   the WebView edge-to-edge. In twinery.org preview this stays a card. */
+.phone {
+  background: var(--bg);
+  border-radius: 32px;
+  overflow: hidden;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.18);
+  min-height: 720px;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 100%;
+  /* Top padding shrunk now that the new `.header` row owns the top
+     band of the screen and provides its own padding. The .phone's
+     padding only governs the body content underneath the header. */
+  padding: 0 24px 40px;
+  box-sizing: border-box;
+}
+
+/* In-game header — same convention as the other games. The bridge
+   auto-injects a `.menu-icon` (≡) into any `.header`, so we just
+   render the title here. Border-bottom separates it visually from
+   the question card content. Light theme to match Daily Check-In's
+   accent palette (other games' headers are dark; this one is
+   intentionally light per the control-arm design). */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 0;
+  margin: 0 0 12px;
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+  /* Negative horizontal margin to bleed the underline edge-to-edge
+     while the content stays within .phone's 24px horizontal padding. */
+  margin-left: -24px;
+  margin-right: -24px;
+  padding-left: 24px;
+  padding-right: 24px;
+}
+
+/* The bridge's `.menu-icon { color: rgba(255,255,255,0.95) !important }`
+   would render the burger invisible on this game's white-ish header.
+   Override with a dark color so it's legible on the light theme. */
+.header .menu-icon {
+  color: var(--text) !important;
+  text-shadow: none !important;
+}
+
+/* center-text variant — used by Welcome's "Submit" / "Done" / "Central
+ * Hub" passages where there's only a small chunk of content to show.
+ *
+ * Earlier this used `justify-content: center` which vertically centred
+ * EVERY flex child including the .header — so on the "Thank you"
+ * screen the title bar drifted into the middle of the phone and the
+ * top of the screen sat empty. Now we leave the flex direction's
+ * default top-anchored stacking and use `margin: auto` on the first
+ * post-header element (pushes it down) plus `margin-bottom: auto` on
+ * the last element (pulls it up) — net effect centres the body
+ * content between the pinned header and the bottom of the phone.
+ *
+ * The header itself gets `align-self: stretch` + `text-align: left`
+ * to win against the parent's `align-items: center` / `text-align:
+ * center`, preserving the full-width left-anchored title bar look.
+ */
+.phone.center-text {
+  align-items: center;
+  text-align: center;
+}
+.phone.center-text > .header {
+  align-self: stretch;
+  text-align: left;
+}
+/* `.header + *` is the adjacent sibling — the very first element
+   after the header. margin-top: auto on it absorbs all empty space
+   above, pushing the centred-content block toward the middle. */
+.phone.center-text > .header + * {
+  margin-top: auto;
+}
+.phone.center-text > *:last-child {
+  margin-bottom: auto;
+}
+
+h1 {
+  font-size: 26px;
+  font-weight: 700;
+  margin: 0 0 12px;
+}
+
+p.lead {
+  font-size: 18px;
+  color: var(--muted);
+  margin: 0 0 24px;
+  line-height: 1.45;
+}
+
+.progress-track {
+  height: 6px;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 24px;
+}
+.progress-fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.25s ease;
+}
+
+.question {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 20px;
+  margin-bottom: 16px;
+}
+
+.question-text {
+  font-size: 19px;
+  font-weight: 700;
+  margin: 0 0 16px;
+  line-height: 1.4;
+}
+
+.options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* SugarCube wraps each <<button>> output in <button class="macro-button">.
+   Style those to look like the original .option-btn — full-width pill,
+   muted background, accent border on hover. */
+.options button {
+  width: 100%;
+  text-align: left;
+  padding: 14px 16px;
+  background: var(--bg);
+  border: 2px solid var(--border);
+  border-radius: 10px;
+  font-family: 'Nunito', system-ui, sans-serif;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.options button:hover {
+  border-color: var(--accent);
+}
+
+.nav-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 24px;
+  gap: 12px;
+}
+
+.nav-row button {
+  flex: 1;
+  padding: 14px 18px;
+  border-radius: 12px;
+  font-family: 'Nunito', system-ui, sans-serif;
+  font-size: 17px;
+  font-weight: 700;
+  cursor: pointer;
+  border: none;
+  background: var(--card);
+  color: var(--text);
+  border: 2px solid var(--border);
+}
+
+/* The Welcome / Done primary CTA. */
+.primary-cta button {
+  width: 100%;
+  padding: 14px 18px;
+  border-radius: 12px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  font-family: 'Nunito', system-ui, sans-serif;
+  font-size: 17px;
+  font-weight: 700;
+  cursor: pointer;
+  margin-top: 12px;
+}
+
+.spinner {
+  display: inline-block;
+  width: 24px;
+  height: 24px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin-top: 16px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+
+:: UserScript [script]
+/*
+Auto passage telemetry — fires `passage_entered` for every passage
+entry via the FlutterBridge, snapshotting SugarCube state.variables.
+Same convention as the rest of the CardioCare Quest games. Best-effort,
+swallows errors.
+*/
+$(document).on(":passagestart", function (ev) {
+  try {
+    if (window.CCQ && typeof window.CCQ.telemetry === "function") {
+      var snap = {};
+      try { Object.assign(snap, SugarCube.State.variables); } catch (e) {}
+      CCQ.telemetry("passage_entered", {
+        passage: ev.passage.title,
+        vars: snap
+      });
+    }
+  } catch (e) { /* swallow */ }
+});
+
+
+:: Welcome [nobr]
+<div class="phone">
+  <div class="header"><span>Daily Check-In</span></div>
+  <h1>Daily Check-In</h1>
+  <p class="lead">
+    We have a few short questions about your day. There are no right or
+    wrong answers. Just answer the way it feels true to you.
+  </p>
+  <p class="lead">
+    The check-in takes about three minutes.
+  </p>
+  <div class="primary-cta">
+    <<button "Start">>
+      <<set $answers to {}>>
+      <<run
+        try {
+          if (window.CCQ && window.CCQ.telemetry) {
+            CCQ.telemetry("control_game_started", { questionCount: 8 });
+          }
+        } catch (e) {}
+      >>
+      <<goto "Q1 Med Today">>
+    <</button>>
+  </div>
+</div>
+
+
+:: Q1 Med Today [nobr]
+<div class="phone">
+  <div class="header"><span>Daily Check-In</span></div>
+  <div class="progress-track"><div class="progress-fill" style="width: 12.5%"></div></div>
+  <div class="question">
+    <div class="question-text">Did you take your blood pressure medicine today?</div>
+    <div class="options">
+      <<button "Yes">>
+        <<run State.variables.answers.med_today = "yes">>
+        <<goto "Q2 Moved Today">>
+      <</button>>
+      <<button "No">>
+        <<run State.variables.answers.med_today = "no">>
+        <<goto "Q2 Moved Today">>
+      <</button>>
+      <<button "I do not take any">>
+        <<run State.variables.answers.med_today = "none">>
+        <<goto "Q2 Moved Today">>
+      <</button>>
+    </div>
+  </div>
+  <div class="nav-row">
+    <<button "Back">><<goto "Welcome">><</button>>
+  </div>
+</div>
+
+
+:: Q2 Moved Today [nobr]
+<div class="phone">
+  <div class="header"><span>Daily Check-In</span></div>
+  <div class="progress-track"><div class="progress-fill" style="width: 25%"></div></div>
+  <div class="question">
+    <div class="question-text">Did you move your body today?</div>
+    <div class="options">
+      <<button "Yes, a lot">>
+        <<run State.variables.answers.moved_today = "a_lot">>
+        <<goto "Q3 Salty Food">>
+      <</button>>
+      <<button "A little">>
+        <<run State.variables.answers.moved_today = "a_little">>
+        <<goto "Q3 Salty Food">>
+      <</button>>
+      <<button "Not yet">>
+        <<run State.variables.answers.moved_today = "no">>
+        <<goto "Q3 Salty Food">>
+      <</button>>
+    </div>
+  </div>
+  <div class="nav-row">
+    <<button "Back">><<goto "Q1 Med Today">><</button>>
+  </div>
+</div>
+
+
+:: Q3 Salty Food [nobr]
+<div class="phone">
+  <div class="header"><span>Daily Check-In</span></div>
+  <div class="progress-track"><div class="progress-fill" style="width: 37.5%"></div></div>
+  <div class="question">
+    <div class="question-text">Did you eat any salty or fast food today?</div>
+    <div class="options">
+      <<button "No">>
+        <<run State.variables.answers.salty_food = "no">>
+        <<goto "Q4 Water">>
+      <</button>>
+      <<button "A little">>
+        <<run State.variables.answers.salty_food = "some">>
+        <<goto "Q4 Water">>
+      <</button>>
+      <<button "Yes, quite a bit">>
+        <<run State.variables.answers.salty_food = "yes">>
+        <<goto "Q4 Water">>
+      <</button>>
+    </div>
+  </div>
+  <div class="nav-row">
+    <<button "Back">><<goto "Q2 Moved Today">><</button>>
+  </div>
+</div>
+
+
+:: Q4 Water [nobr]
+<div class="phone">
+  <div class="header"><span>Daily Check-In</span></div>
+  <div class="progress-track"><div class="progress-fill" style="width: 50%"></div></div>
+  <div class="question">
+    <div class="question-text">Did you drink water today?</div>
+    <div class="options">
+      <<button "Yes, lots">>
+        <<run State.variables.answers.water = "lots">>
+        <<goto "Q5 Sleep">>
+      <</button>>
+      <<button "A little">>
+        <<run State.variables.answers.water = "some">>
+        <<goto "Q5 Sleep">>
+      <</button>>
+      <<button "Not yet">>
+        <<run State.variables.answers.water = "none">>
+        <<goto "Q5 Sleep">>
+      <</button>>
+    </div>
+  </div>
+  <div class="nav-row">
+    <<button "Back">><<goto "Q3 Salty Food">><</button>>
+  </div>
+</div>
+
+
+:: Q5 Sleep [nobr]
+<div class="phone">
+  <div class="header"><span>Daily Check-In</span></div>
+  <div class="progress-track"><div class="progress-fill" style="width: 62.5%"></div></div>
+  <div class="question">
+    <div class="question-text">How well did you sleep last night?</div>
+    <div class="options">
+      <<button "Very well">>
+        <<run State.variables.answers.sleep = 5>>
+        <<goto "Q6 Mood">>
+      <</button>>
+      <<button "Pretty well">>
+        <<run State.variables.answers.sleep = 4>>
+        <<goto "Q6 Mood">>
+      <</button>>
+      <<button "Okay">>
+        <<run State.variables.answers.sleep = 3>>
+        <<goto "Q6 Mood">>
+      <</button>>
+      <<button "Not very well">>
+        <<run State.variables.answers.sleep = 2>>
+        <<goto "Q6 Mood">>
+      <</button>>
+      <<button "Very badly">>
+        <<run State.variables.answers.sleep = 1>>
+        <<goto "Q6 Mood">>
+      <</button>>
+    </div>
+  </div>
+  <div class="nav-row">
+    <<button "Back">><<goto "Q4 Water">><</button>>
+  </div>
+</div>
+
+
+:: Q6 Mood [nobr]
+<div class="phone">
+  <div class="header"><span>Daily Check-In</span></div>
+  <div class="progress-track"><div class="progress-fill" style="width: 75%"></div></div>
+  <div class="question">
+    <div class="question-text">How are you feeling right now?</div>
+    <div class="options">
+      <<button "Great">>
+        <<run State.variables.answers.mood = 5>>
+        <<goto "Q7 Know BP">>
+      <</button>>
+      <<button "Good">>
+        <<run State.variables.answers.mood = 4>>
+        <<goto "Q7 Know BP">>
+      <</button>>
+      <<button "Okay">>
+        <<run State.variables.answers.mood = 3>>
+        <<goto "Q7 Know BP">>
+      <</button>>
+      <<button "Not great">>
+        <<run State.variables.answers.mood = 2>>
+        <<goto "Q7 Know BP">>
+      <</button>>
+      <<button "Bad">>
+        <<run State.variables.answers.mood = 1>>
+        <<goto "Q7 Know BP">>
+      <</button>>
+    </div>
+  </div>
+  <div class="nav-row">
+    <<button "Back">><<goto "Q5 Sleep">><</button>>
+  </div>
+</div>
+
+
+:: Q7 Know BP [nobr]
+<div class="phone">
+  <div class="header"><span>Daily Check-In</span></div>
+  <div class="progress-track"><div class="progress-fill" style="width: 87.5%"></div></div>
+  <div class="question">
+    <div class="question-text">Do you know what blood pressure is?</div>
+    <div class="options">
+      <<button "Yes">>
+        <<run State.variables.answers.know_bp = "yes">>
+        <<goto "Q8 Doctor Visit">>
+      <</button>>
+      <<button "Sort of">>
+        <<run State.variables.answers.know_bp = "sort_of">>
+        <<goto "Q8 Doctor Visit">>
+      <</button>>
+      <<button "Not really">>
+        <<run State.variables.answers.know_bp = "no">>
+        <<goto "Q8 Doctor Visit">>
+      <</button>>
+    </div>
+  </div>
+  <div class="nav-row">
+    <<button "Back">><<goto "Q6 Mood">><</button>>
+  </div>
+</div>
+
+
+:: Q8 Doctor Visit [nobr]
+<div class="phone">
+  <div class="header"><span>Daily Check-In</span></div>
+  <div class="progress-track"><div class="progress-fill" style="width: 100%"></div></div>
+  <div class="question">
+    <div class="question-text">When did you last see a doctor about your heart?</div>
+    <div class="options">
+      <<button "In the last few months">>
+        <<run State.variables.answers.doctor_visit = "recent">>
+        <<goto "Submit">>
+      <</button>>
+      <<button "A while ago">>
+        <<run State.variables.answers.doctor_visit = "ago">>
+        <<goto "Submit">>
+      <</button>>
+      <<button "I have not">>
+        <<run State.variables.answers.doctor_visit = "never">>
+        <<goto "Submit">>
+      <</button>>
+    </div>
+  </div>
+  <div class="nav-row">
+    <<button "Back">><<goto "Q7 Know BP">><</button>>
+  </div>
+</div>
+
+
+:: Submit [nobr]
+/*
+SAVING SPINNER. Fires CCQ.submitResponse to land the answers in
+`surveys/control_daily_checkin/responses/{auto}` via SurveyHooks. The
+700ms delay is cosmetic — OfflineQueue writes are fire-and-forget so
+the bridge call returns immediately, but giving the participant a
+moment to register that something happened feels less abrupt.
+*/
+<div class="phone center-text">
+  <div class="header"><span>Daily Check-In</span></div>
+  <h1>Saving your answers</h1>
+  <p class="lead">Just a moment…</p>
+  <div class="spinner" aria-label="Saving"></div>
+</div>
+
+<<run
+  try {
+    if (window.CCQ && window.CCQ.submitResponse) {
+      CCQ.submitResponse(State.variables.answers, {
+        surveyId: "control_daily_checkin",
+        pointsEarned: 10
+      });
+    }
+  } catch (e) { /* swallow */ }
+>>
+
+<<timed 700ms>>
+  <<goto "Done">>
+<</timed>>
+
+
+:: Done [nobr]
+<div class="phone center-text">
+  <div class="header"><span>Daily Check-In</span></div>
+  <h1>Thank you</h1>
+  <p class="lead">
+    Your answers help us learn more about how the program is working
+    for people like you.
+  </p>
+  <div class="primary-cta">
+    <<button "Back home">>
+      <<goto "Central Hub">>
+    <</button>>
+  </div>
+</div>
+
+
+:: Central Hub
+/*
+EXIT HATCH. Fires CCQ.goHome() so the Flutter host pops the WebView's
+route back to the dashboard. No UI on purpose — the host pops before
+the player sees anything; in twinery.org preview the bridge no-ops
+and the loading text is the visible result.
+*/
+<<run if (window.CCQ && typeof window.CCQ.goHome === "function") { window.CCQ.goHome(); }>>
+
+<div class="phone center-text">
+  <div class="header"><span>Daily Check-In</span></div>
+  <h1>Returning…</h1>
+  <p class="lead">Heading back to the dashboard.</p>
+</div>

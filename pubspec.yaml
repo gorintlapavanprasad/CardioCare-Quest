@@ -43,6 +43,15 @@ dependencies:
   # ^13.3.1 — earlier majors require intl <0.20.0 which conflicts with
   # the project's intl ^0.20.2.
   health: ^13.3.1
+  # NFC tag reading for auto-login. Each participant carries an NTAG
+  # card flashed with their Unique ID; tapping the card on the back of
+  # the device fills the login field and authenticates without typing.
+  # Manual ID entry stays in place as the alternative path on the same
+  # screen — `isAvailable()` gating in NfcService hides the NFC button
+  # on iPads / NFC-less devices so manual entry is the only visible
+  # option there. iOS requires Xcode capability + Info.plist key — see
+  # IOS_NFC_SETUP.md for the handoff steps.
+  nfc_manager: ^3.5.0
 
 dev_dependencies:
   flutter_test:
@@ -63,7 +72,6 @@ flutter:
     - assets/game/dog_quest/
     - assets/game/fonts/
     - assets/game/ccq_bridge.js
-    - assets/game/ccq_twee.js
     - assets/game/control_game.html
     - assets/game/salt_sludge.html
     - assets/game/bingo_bash.html

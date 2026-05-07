@@ -858,7 +858,12 @@ Then moves to next day or final result after Day 5.
 <<if $day lt 5>>
 <<set $day to $day + 1>>
 <a class="btn-primary" data-passage="Day Start">ON TO DAY <<print $day>></a>
-<a class="btn-secondary" data-passage="Central Hub">BACK TO CARDIOCAREQUEST</a>
+<!-- Per-day "BACK TO CARDIOCAREQUEST" removed — same call we made on
+     DASH. The burger menu (≡) in the header already exposes "Go to
+     dashboard" on every screen, so a second exit button after every
+     day was redundant + visually noisy. The Final Result screen at
+     the end of Day 5 still has the BACK button (it belongs there as
+     the "you finished, here's the way out" affordance). -->
 <<else>>
 <a class="btn-primary" data-passage="Final Result">SEE YOUR FINAL ARTERY</a>
 <</if>>
@@ -916,7 +921,12 @@ Score shown. Option to play again.
 <div class="spacer"></div>
 
 <a class="btn-primary" data-passage="Story innit">PLAY AGAIN</a>
-<a class="btn-secondary" data-passage="Central Hub">BACK TO CARDIOCAREQUEST</a>
+<!-- Direct goHome via .ccq-home-trigger — bridge intercepts the click
+     and fires CCQ.goHome() without trampolining through the Central
+     Hub passage (which previously just showed "Returning..." text and
+     a loop button, never actually exiting). Same convention as
+     Bingo Bash and DASH. -->
+<a class="btn-secondary ccq-home-trigger" href="javascript:void(0)">BACK TO CARDIOCAREQUEST</a>
 
 </div>
 </div>
@@ -924,20 +934,31 @@ Score shown. Option to play again.
 
 ::Central Hub [Important/Needed nobr]
 /*
-Placeholder passage. In the full app this returns
-the player to the CardioCareQuest main hub.
+EXIT HATCH. The visible "BACK TO CARDIOCAREQUEST" buttons now use
+`.ccq-home-trigger` and fire CCQ.goHome() directly, so this passage
+should rarely be reached anymore. Kept for safety: if any future
+flow lands here, the <<run>> below still pops the WebView back to
+the dashboard. Earlier this passage just showed "Returning..." text
+and a "PLAY SALT SLUDGE AGAIN" loop button — players who tapped
+exit got stuck on a loading-looking screen with no way out, which
+is exactly the bug the user reported.
 */
+<<run
+  try {
+    if (window.CCQ && typeof window.CCQ.goHome === "function") {
+      window.CCQ.goHome();
+    }
+  } catch (e) { /* swallow */ }
+>>
 
 <div class="phone">
 <div class="header"><span>Salt Sludge</span></div>
 <div class="content">
 
 <h2 class="intro-title">Returning</h2>
-<p class="narrative center">Returning to CardioCareQuest.</p>
+<p class="narrative center">Going back to CardioCareQuest.</p>
 
 <div class="spacer"></div>
-
-<a class="btn-primary" data-passage="Story innit">PLAY SALT SLUDGE AGAIN</a>
 
 </div>
 </div>

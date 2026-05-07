@@ -7,9 +7,13 @@ import 'package:geolocator/geolocator.dart';
 import 'package:provider/provider.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
+import 'package:get_it/get_it.dart';
+
+import 'package:cardio_care_quest/core/constants/firestore_paths.dart';
 import 'package:cardio_care_quest/core/hooks/hooks.dart';
 import 'package:cardio_care_quest/core/providers/user_data_manager.dart';
 import 'package:cardio_care_quest/core/services/location_service.dart';
+import 'package:cardio_care_quest/core/services/offline_queue.dart';
 import 'package:cardio_care_quest/core/services/session_manager.dart';
 
 /// Signature for game-specific bridge message handlers. Return `true` if the
@@ -168,6 +172,16 @@ class _TwineGameHostState extends State<TwineGameHost> {
   /// the movement [_sessionId] (per-walk, lives in MovementHooks writes).
   late final String _hostSessionId;
 
+  /// Wall-clock start of this host session — pairs with `_hostSessionId`
+  /// to compute the per-play duration written into the gameSessions
+  /// summary doc on exit.
+  late final DateTime _hostStartedAt;
+
+  /// One-shot guard so the gameSessions summary is written exactly
+  /// once per host instance regardless of how many exit paths fire
+  /// (completion → _endGame, then user backs out → _exitWithOptionalBpPrompt).
+  bool _sessionSummaryWritten = false;
+
   /// True once a HealthKit snapshot has been logged for this host
   /// session (either via [_endGame] on quest completion or via the
   /// fallback in [_exitWithOptionalBpPrompt] on early exit). Prevents a
@@ -183,8 +197,9 @@ class _TwineGameHostState extends State<TwineGameHost> {
   void initState() {
     super.initState();
     _targetDistance = widget.targetDistance;
+    _hostStartedAt = DateTime.now();
     _hostSessionId =
-        '${widget.gameId}_host_${DateTime.now().millisecondsSinceEpoch}';
+        '${widget.gameId}_host_${_hostStartedAt.millisecondsSinceEpoch}';
     SessionManager.startGame(widget.gameTitle);
     TelemetryHooks.logEvent(
       '${widget.gameId}_opened',
@@ -199,8 +214,14 @@ class _TwineGameHostState extends State<TwineGameHost> {
   }
 
   void _initWebView() {
+    // Tag the user agent with the current participant id so the
+    // inlined bridge JS can wipe stale per-user localStorage when
+    // a different participant launches a game on a shared device.
+    // See twine_questionnaire_host.dart for the rationale.
+    final pid = _uid.isEmpty ? 'anon' : _uid;
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setUserAgent('CCQApp/$pid')
       ..setBackgroundColor(Colors.white)
       ..setNavigationDelegate(
         NavigationDelegate(
@@ -308,7 +329,7 @@ class _TwineGameHostState extends State<TwineGameHost> {
       // Restore the saved buddy name from the user profile.
       try {
         final userDoc = await FirebaseFirestore.instance
-            .collection('userData')
+            .collection(FirestorePaths.userData)
             .doc(uid)
             .get();
         if (userDoc.exists && userDoc.data() != null) {
@@ -402,12 +423,17 @@ class _TwineGameHostState extends State<TwineGameHost> {
         }
       }
 
-      if (!hasOngoingWalk) {
-        _controller.runJavaScript("showPage('scene1');");
-      }
+      // Removed: `_controller.runJavaScript("showPage('scene1');")`.
+      // That line was a leftover from when games were legacy single-
+      // page HTMLs with display:none scene toggles. Now that every
+      // game is Twine, SugarCube auto-renders the configured start
+      // passage on load — calling showPage('scene1') after that just
+      // forced a second render of the same passage, which Dog Quest's
+      // welcome scene flashed visibly because it was its first paint.
+      // Resume case still uses resumeWalk above; no other game has
+      // ever defined showPage so the guarded call was a no-op there.
     } catch (e) {
       debugPrint('❌ ${widget.gameId} load error: $e');
-      _controller.runJavaScript("showPage('scene1');");
     }
   }
 
@@ -672,6 +698,16 @@ class _TwineGameHostState extends State<TwineGameHost> {
       ));
       _snapshotLogged = true;
 
+      // gameSessions summary doc — one row per host session in
+      // userData/{uid}/gameSessions. Same shape TwineQuestionnaireHost
+      // writes so a single query pulls every play across both hosts.
+      unawaited(_writeSessionSummary(
+        exitReason: 'completed',
+        distanceWalked: _distanceWalked.toInt(),
+        pointsEarned: pointsGained,
+        movementSessionId: sessionId,
+      ));
+
       final completedDistance = _distanceWalked.toInt();
 
       setState(() {
@@ -707,6 +743,49 @@ class _TwineGameHostState extends State<TwineGameHost> {
     }
   }
 
+  /// Write a gameSessions summary doc for this host session — netguage
+  /// CheckData-equivalent. One row per play of one game by one user.
+  /// Joins to telemetry events, MovementHooks LocationData/CheckData,
+  /// and any HealthKit snapshots by `sessionId` (well, `_hostSessionId`
+  /// — the per-walk movement sessionId is recorded as a separate
+  /// `movementSessionId` field for movement games that completed).
+  /// Mirrors `TwineQuestionnaireHost._writeSessionSummary` so a single
+  /// query against `userData/{uid}/gameSessions` enumerates every play
+  /// of every game type.
+  Future<void> _writeSessionSummary({
+    required String exitReason,
+    int distanceWalked = 0,
+    int pointsEarned = 0,
+    String? movementSessionId,
+  }) async {
+    if (_uid.isEmpty || _sessionSummaryWritten) return;
+    _sessionSummaryWritten = true;
+    final endedAt = DateTime.now();
+    final durationMs = endedAt.difference(_hostStartedAt).inMilliseconds;
+    try {
+      await GetIt.instance<OfflineQueue>().enqueue(PendingOp.set(
+        '${FirestorePaths.userData}/$_uid/gameSessions/$_hostSessionId',
+        {
+          'sessionId': _hostSessionId,
+          'userId': _uid,
+          'gameId': widget.gameId,
+          'gameTitle': widget.gameTitle,
+          'hostType': 'TwineGameHost',
+          'startedAt': OfflineFieldValue.timestampFrom(_hostStartedAt),
+          'endedAt': OfflineFieldValue.nowTimestamp(),
+          'durationMs': durationMs,
+          'exitReason': exitReason,
+          'distanceWalked': distanceWalked,
+          'pointsEarned': pointsEarned,
+          if (movementSessionId != null)
+            'movementSessionId': movementSessionId,
+        },
+      ));
+    } catch (e) {
+      debugPrint('TwineGameHost session summary write failed: $e');
+    }
+  }
+
   /// Single exit path used by GO_HOME, the leading back arrow, and the
   /// PopScope back-button handler. If the player exits before completing
   /// a walk (so [_endGame] never fired), we still log a HealthKit snapshot
@@ -723,6 +802,13 @@ class _TwineGameHostState extends State<TwineGameHost> {
       ));
       _snapshotLogged = true;
     }
+    // Session summary on the no-completion exit path. The
+    // `_sessionSummaryWritten` guard inside ensures this no-ops if
+    // `_endGame` already wrote one for a completed walk.
+    unawaited(_writeSessionSummary(
+      exitReason: 'exited_in_progress',
+      distanceWalked: _distanceWalked.toInt(),
+    ));
     if (mounted) Navigator.of(context).pop();
   }
 
@@ -801,6 +887,17 @@ class _TwineGameHostState extends State<TwineGameHost> {
 
   @override
   Widget build(BuildContext context) {
+    // No Flutter AppBar — the Twine HTMLs render their own header
+    // inside the WebView (`<div class="header">`), and the burger menu
+    // auto-injected by `ccq_bridge.js` provides "Go to dashboard".
+    // Stacking the native AppBar on top produced a redundant double-
+    // header eating ~110px of vertical space before the game content
+    // started. Removing it gives the game the full viewport.
+    //
+    // Exit paths still covered:
+    //   • Burger menu → "Go to dashboard"
+    //   • Android system back gesture (PopScope below)
+    //   • In-game completion buttons via CCQ.goHome
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) async {
@@ -811,33 +908,18 @@ class _TwineGameHostState extends State<TwineGameHost> {
         }
       },
       child: Scaffold(
-        backgroundColor: Colors.white,
-        appBar: AppBar(
-          backgroundColor: widget.appBarColor,
-          elevation: 0,
-          centerTitle: false,
-          iconTheme: const IconThemeData(color: Colors.white),
-          title: Text(
-            widget.gameTitle,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back),
-            onPressed: () async {
-              final shouldClose = await _confirmExit();
-              if (shouldClose && context.mounted) {
-                await _exitWithOptionalBpPrompt();
-              }
-            },
-          ),
-        ),
-        body: SafeArea(
-          bottom: false,
-          child: WebViewWidget(controller: _controller),
-        ),
+        // Dark navy fallback for any inset Android may carve out for
+        // the system status bar. Most Android builds already put the
+        // status bar ABOVE the activity's content area (opaque), so
+        // content starts below the bar with no inset needed.
+        // Earlier the WebView was wrapped in SafeArea(top:true) which
+        // added EXTRA padding on top of that — visually a stranded
+        // band of Scaffold bg between the OS status bar and the
+        // game's own header. Without SafeArea, the WebView fills all
+        // the way up so the game header sits directly under the
+        // status bar with no seam.
+        backgroundColor: const Color(0xFF1a1b2e),
+        body: WebViewWidget(controller: _controller),
       ),
     );
   }

@@ -5,6 +5,49 @@ library;
 
 import 'package:flutter/material.dart';
 
+/// Behaviour-change pillar a game targets. Used by the Game Catalog
+/// screen to group games into sections that mirror the research team's
+/// hypertension framework. Drives section headers + ordering.
+enum GameCategory {
+  exercise,
+  diet,
+  medication,
+  measurements,
+  education,
+}
+
+extension GameCategoryX on GameCategory {
+  String get label {
+    switch (this) {
+      case GameCategory.exercise:
+        return 'Exercise';
+      case GameCategory.diet:
+        return 'Diet';
+      case GameCategory.medication:
+        return 'Medication';
+      case GameCategory.measurements:
+        return 'Measurements';
+      case GameCategory.education:
+        return 'Education';
+    }
+  }
+
+  IconData get icon {
+    switch (this) {
+      case GameCategory.exercise:
+        return Icons.directions_walk;
+      case GameCategory.diet:
+        return Icons.restaurant;
+      case GameCategory.medication:
+        return Icons.medication;
+      case GameCategory.measurements:
+        return Icons.monitor_heart_outlined;
+      case GameCategory.education:
+        return Icons.school;
+    }
+  }
+}
+
 class GameStory {
   final String id;
   final String title;
@@ -16,6 +59,12 @@ class GameStory {
   final IconData iconData; // Mono Material icon used by game_catalog_screen
   final String color; // Hex color for card
   final String status; // 'active' or 'coming_soon'
+  final GameCategory category; // Pillar this game lives under in the catalog
+  // When false, the game is excluded from the Game Catalog grid. Used
+  // for games that are only reachable from a specific dashboard widget
+  // (e.g. Blood Pressure Log is launched from the latest-BP card, not
+  // the catalog, to discourage casual play of the BP-capture flow).
+  final bool showInCatalog;
 
   GameStory({
     required this.id,
@@ -28,6 +77,8 @@ class GameStory {
     required this.iconData,
     required this.color,
     required this.status,
+    required this.category,
+    this.showInCatalog = true,
   });
 }
 
@@ -57,6 +108,7 @@ Each movement counts. Choose the distance that is safe and realistic for you rig
       iconData: Icons.pets,
       color: '#2d7d6d',
       status: 'active',
+      category: GameCategory.exercise,
     ),
 
     // ─── COMING SOON GAMES (from assets) ───
@@ -81,6 +133,7 @@ Each square you mark off is a step towards a better understanding of your cardio
       iconData: Icons.casino,
       color: '#d4a574',
       status: 'active',
+      category: GameCategory.education,
     ),
 
     'dash_diet_game': GameStory(
@@ -104,6 +157,7 @@ Learn to make smart food choices, create balanced meals, and build a heart-healt
       iconData: Icons.restaurant_menu,
       color: '#2d7d6d',
       status: 'active',
+      category: GameCategory.diet,
     ),
 
     'salt_sludge': GameStory(
@@ -127,6 +181,7 @@ Five days. Five meals. One artery.
       iconData: Icons.science,
       color: '#546e7a',
       status: 'active',
+      category: GameCategory.diet,
     ),
 
     // Control condition for the comparison arm of the study (work-plan
@@ -152,6 +207,7 @@ There are no right or wrong answers. Your responses help the research team under
       iconData: Icons.checklist,
       color: '#4a5b80',
       status: 'active',
+      category: GameCategory.measurements,
     ),
 
     'vascular_village': GameStory(
@@ -175,15 +231,19 @@ Make choices about diet, exercise, and stress management to help your village th
       iconData: Icons.holiday_village,
       color: '#1b7373',
       status: 'active',
+      category: GameCategory.education,
     ),
 
-    // The relaxed-state BP capture game. Per professor's research
-    // protocol: BP should only be collected after a calming activity.
-    // Quiet Minute does the breathing exercise then asks for the BP
-    // reading — the only path now to log BP into Firestore.
+    // The relaxed-state BP capture game. Per the research protocol BP
+    // is only collected after a calming activity, so this is the *only*
+    // participant-facing path to log a reading. It is intentionally
+    // hidden from the Game Catalog — the dashboard's "latest reading"
+    // card has a play button that launches it directly. Surfacing it
+    // alongside the regular games invites casual play of the BP entry
+    // flow, which corrupts the measurement protocol.
     'quiet_minute': GameStory(
       id: 'quiet_minute',
-      title: 'Quiet Minute',
+      title: 'Blood Pressure Log',
       shortDescription: 'A short rest, then your blood pressure',
       narrative: '''
 Sit somewhere quiet. Breathe slowly for two minutes. Then take your blood pressure with your cuff and enter the numbers.
@@ -202,6 +262,8 @@ Your reading is most accurate when you are calm.
       iconData: Icons.self_improvement,
       color: '#3a6a94',
       status: 'active',
+      category: GameCategory.measurements,
+      showInCatalog: false,
     ),
   };
 
@@ -218,5 +280,29 @@ Your reading is most accurate when you are calm.
   // Get game by ID
   static GameStory? getGame(String id) {
     return games[id];
+  }
+
+  /// Catalog-facing list — drops games marked `showInCatalog: false`
+  /// (currently just the BP-capture flow). The Game Catalog screen
+  /// uses this; the BP card on the dashboard launches the hidden game
+  /// directly via [getGame].
+  static List<GameStory> getCatalogGames() {
+    return games.values
+        .where((g) => g.status == 'active' && g.showInCatalog)
+        .toList();
+  }
+
+  /// Catalog-facing games grouped by [GameCategory], in the canonical
+  /// order Exercise → Diet → Medication → Measurements → Education.
+  /// Empty categories are kept out of the map so the catalog screen
+  /// can simply iterate without tracking which sections to skip.
+  static Map<GameCategory, List<GameStory>> getCatalogGamesByCategory() {
+    final all = getCatalogGames();
+    final byCat = <GameCategory, List<GameStory>>{};
+    for (final cat in GameCategory.values) {
+      final inCat = all.where((g) => g.category == cat).toList();
+      if (inCat.isNotEmpty) byCat[cat] = inCat;
+    }
+    return byCat;
   }
 }

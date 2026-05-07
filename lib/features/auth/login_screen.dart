@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:io' show Platform;
+
 import 'package:cardio_care_quest/features/auth/auth_screen.dart';
 import 'package:cardio_care_quest/features/dashboard/screens/main_layout.dart';
 import 'package:flutter/material.dart';
@@ -8,6 +11,7 @@ import 'package:get_it/get_it.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/constants/firestore_paths.dart';
+import '../../core/services/nfc_service.dart';
 import '../../core/services/offline_queue.dart';
 // import 'auth_screen.dart'; // Uncomment if you still need this route
 // Routing to the HomeTab
@@ -23,14 +27,79 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _uniqueIdController = TextEditingController();
+  final NfcService _nfc = NfcService();
 
   bool _isLoginLoading = false;
   String? _currentUserDocId;
 
+  // NFC state — `_nfcAvailable` stays null until the capability probe
+  // returns so the UI doesn't briefly flash the NFC button on iPads /
+  // NFC-less devices before resolving to the manual-only layout.
+  bool? _nfcAvailable;
+  bool _nfcScanning = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _bootstrapNfc();
+  }
+
+  /// Probe the device for NFC support. On Android we ALSO start an
+  /// ambient scan immediately so the participant can simply tap their
+  /// card with no button press required (auto-login). iOS requires
+  /// an explicit user gesture to invoke Core NFC, so on iOS the
+  /// participant has to tap the "Tap NFC card" button first — same
+  /// button works on Android too as a fallback.
+  Future<void> _bootstrapNfc() async {
+    final available = await _nfc.isAvailable();
+    if (!mounted) return;
+    setState(() => _nfcAvailable = available);
+    if (available && Platform.isAndroid) {
+      // Fire-and-forget. Auto-triggered scans silently swallow
+      // failures (e.g. timeout) so the participant isn't pestered
+      // with snackbars they never asked for.
+      unawaited(_runNfcScan(autoTriggered: true));
+    }
+  }
+
   @override
   void dispose() {
+    // Cancel any in-flight scan before tearing down so the bridge
+    // doesn't outlive the screen. _nfc.stopScan is idempotent.
+    _nfc.stopScan();
     _uniqueIdController.dispose();
     super.dispose();
+  }
+
+  /// Drive an NFC scan to completion and feed the resulting ID into
+  /// the existing [_handleLogin] flow. [autoTriggered] is true for
+  /// the silent Android session that starts on screen mount, and
+  /// false when the participant pressed the button explicitly — the
+  /// distinction lets us silently swallow auto-scan failures.
+  Future<void> _runNfcScan({bool autoTriggered = false}) async {
+    if (_nfcScanning || _isLoginLoading) return;
+    setState(() => _nfcScanning = true);
+
+    final id = await _nfc.startScan();
+
+    if (!mounted) return;
+    setState(() => _nfcScanning = false);
+
+    if (id == null || id.isEmpty) {
+      if (!autoTriggered) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              "Couldn't read that card. Try again or enter your ID below.",
+            ),
+          ),
+        );
+      }
+      return;
+    }
+
+    _uniqueIdController.text = id;
+    await _handleLogin();
   }
 
   Future<void> _handleLogin() async {
@@ -221,6 +290,21 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ),
                           ),
                           const SizedBox(height: 32),
+                          // Auto-login (NFC) section — only rendered
+                          // when the device actually supports it.
+                          // iPads + NFC-less Androids skip straight
+                          // to the manual entry below, so they never
+                          // see a non-functional button.
+                          if (_nfcAvailable == true) ...[
+                            _buildPathLabel('AUTO LOGIN'),
+                            const SizedBox(height: 8),
+                            _buildNfcTapButton(),
+                            const SizedBox(height: 24),
+                            _buildOrDivider(),
+                            const SizedBox(height: 24),
+                            _buildPathLabel('MANUAL LOGIN'),
+                            const SizedBox(height: 8),
+                          ],
                           _buildUniqueIdField(),
                           const SizedBox(height: 20),
                           _buildPrimaryButton(),
@@ -369,6 +453,104 @@ class _LoginScreenState extends State<LoginScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  /// Section label sitting above the AUTO and MANUAL paths so
+  /// participants can tell at a glance which area is which. Subtle —
+  /// uppercase, small, muted — so it doesn't compete with the
+  /// primary buttons for attention.
+  Widget _buildPathLabel(String text) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 1.2,
+          color: AppColors.viridis1.withValues(alpha: 0.75),
+        ),
+      ),
+    );
+  }
+
+  /// NFC tap-to-login button. Visible only when [_nfcAvailable] is
+  /// true (i.e. the device has NFC hardware switched on). On Android
+  /// this is a redundant back-up to the auto-poll that fired when the
+  /// screen mounted; on iOS it's the only entry point since Apple's
+  /// Core NFC requires an explicit user gesture per scan session.
+  Widget _buildNfcTapButton() {
+    final scanning = _nfcScanning;
+    final disabled = _isLoginLoading;
+    return SizedBox(
+      width: double.infinity,
+      height: 64,
+      child: OutlinedButton(
+        onPressed: (scanning || disabled) ? null : () => _runNfcScan(),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.primary,
+          side: const BorderSide(color: AppColors.primary, width: 2),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            scanning
+                ? const SizedBox(
+                    height: 20,
+                    width: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AppColors.primary,
+                    ),
+                  )
+                : const Icon(Icons.contactless, size: 24),
+            const SizedBox(width: 12),
+            Flexible(
+              child: Text(
+                scanning
+                    ? "Hold your card to the back of the phone…"
+                    : "Tap your NFC card to log in",
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14,
+                  letterSpacing: 0.3,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Visual separator between AUTO and MANUAL login paths.
+  Widget _buildOrDivider() {
+    return Row(
+      children: [
+        const Expanded(
+          child: Divider(color: AppColors.cardOutline, thickness: 1),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Text(
+            "or",
+            style: TextStyle(
+              color: AppColors.viridis1.withValues(alpha: 0.7),
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.3,
+            ),
+          ),
+        ),
+        const Expanded(
+          child: Divider(color: AppColors.cardOutline, thickness: 1),
+        ),
+      ],
     );
   }
 }

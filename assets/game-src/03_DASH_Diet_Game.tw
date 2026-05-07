@@ -556,6 +556,7 @@ body {
 }
 
 
+
 ::UserScript [script]
 
 /* CardioCare Quest — auto passage telemetry.
@@ -573,6 +574,98 @@ $(document).on(":passagestart", function (ev) {
       });
     }
   } catch (e) { /* swallow */ }
+});
+
+
+/* DASH Diet Game — Meal Builder ingredient TOGGLE handler.
+   Replaces the earlier `<<linkreplace>>` markup which was one-way
+   (commit on first tap, no undo). With this handler, every
+   `.ing-wrap` is fully toggleable: tap to add → tap again to remove.
+   - $meal array is the source of truth for what's been added.
+   - $mealScore is recomputed delta-style as items are added/removed.
+   - The score bar's width is updated directly (not via SugarCube
+     re-render) so the bar moves smoothly inside the same passage.
+   - On re-entry to Meal Builder (e.g. via Restart), the handler
+     reconstructs the visual state from $meal so previously selected
+     items still show as Added.
+*/
+$(document).on(":passagedisplay", function (ev) {
+  if (!ev || !ev.passage || ev.passage.title !== "Meal Builder") return;
+
+  function refreshScoreBar() {
+    var fill = document.querySelector(".score-bar-fill");
+    if (!fill) return;
+    var score = (State.variables && State.variables.mealScore) || 0;
+    // Empty-to-full scale, NOT centred around 50%. Sum of all positive
+    // ingredient scores is +80 (10+15+15+10+10+10+5+5), so multiply
+    // by 1.25 to map a "perfect" meal (+80) to 100% width. Negative
+    // ingredients clamp at 0% — bar empties, doesn't drop below.
+    // Earlier formula was `score + 50` which painted an empty meal as
+    // a half-full bar before the player tapped anything; this is more
+    // intuitive ("nothing picked = empty bar").
+    var pct = Math.max(0, Math.min(100, score * 1.25));
+    fill.style.width = pct + "%";
+  }
+
+  function setSelected(wrap, selected) {
+    var nameSpan = wrap.querySelector(".ing-name");
+    var rawName = wrap.dataset.ingName || "";
+    if (selected) {
+      wrap.classList.add("selected");
+      if (nameSpan) {
+        nameSpan.textContent = "✓ Added";
+        nameSpan.classList.add("added-name");
+      }
+    } else {
+      wrap.classList.remove("selected");
+      if (nameSpan) {
+        nameSpan.textContent = rawName;
+        nameSpan.classList.remove("added-name");
+      }
+    }
+  }
+
+  var wraps = document.querySelectorAll(".ing-wrap");
+  for (var i = 0; i < wraps.length; i++) {
+    var wrap = wraps[i];
+    if (wrap.dataset.handlerAttached === "yes") continue;
+    wrap.dataset.handlerAttached = "yes";
+
+    var name = wrap.dataset.ingName || "";
+    var emoji = wrap.dataset.ingEmoji || "";
+    var fullLabel = emoji + " " + name;
+
+    // Restore previously-selected state if the player navigated away
+    // and back. Without this every Meal Builder revisit would render
+    // unselected even though $meal still contains the items.
+    var existingMeal = (State.variables && State.variables.meal) || [];
+    if (existingMeal.indexOf(fullLabel) !== -1) {
+      setSelected(wrap, true);
+    }
+
+    wrap.addEventListener("click", (function (wrap, name, emoji, fullLabel) {
+      return function () {
+        var scoreDelta = parseInt(wrap.dataset.ingScore || "0", 10);
+        var meal = (State.variables.meal || []).slice();
+        var idx = meal.indexOf(fullLabel);
+        if (idx !== -1) {
+          // UNSELECT — remove from $meal, undo score, revert visual.
+          meal.splice(idx, 1);
+          State.variables.mealScore =
+              (State.variables.mealScore || 0) - scoreDelta;
+          setSelected(wrap, false);
+        } else {
+          // SELECT — push to $meal, add score, mark as Added.
+          meal.push(fullLabel);
+          State.variables.mealScore =
+              (State.variables.mealScore || 0) + scoreDelta;
+          setSelected(wrap, true);
+        }
+        State.variables.meal = meal;
+        refreshScoreBar();
+      };
+    })(wrap, name, emoji, fullLabel));
+  }
 });
 
 
@@ -1028,7 +1121,12 @@ Moves to next round or meal builder after round 6.
 <<if $round lt 6>>
 <<set $round to $round + 1>>
 <a class="btn-primary" data-passage="Round Start">NEXT FOOD</a>
-<a class="btn-secondary" data-passage="Central Hub">BACK TO CARDIOCAREQUEST</a>
+<!-- Per-round "BACK TO CARDIOCAREQUEST" removed — the burger menu (≡)
+     in the header already exposes "Go to dashboard" on every screen,
+     so showing a second exit button after every food card was both
+     redundant and visually noisy. Exit-to-dashboard is now offered
+     only at the FINAL Result screen + the Meal Result screen, where
+     the player has actually finished the game. -->
 <<else>>
 <a class="btn-primary" data-passage="Meal Builder Intro">NOW BUILD A MEAL</a>
 <<set $round to $round + 1>>
@@ -1077,24 +1175,30 @@ Score bar reflects $mealScore.
 
 <div class="score-bar-wrap">
 <span class="score-label">Meal score</span>
-<div class="score-bar"><div class="score-bar-fill" @style="'width: ' + Math.max(0, Math.min(100, ($mealScore + 50))) + '%'"></div></div>
+<div class="score-bar"><div class="score-bar-fill" @style="'width: ' + Math.max(0, Math.min(100, $mealScore * 1.25)) + '%'"></div></div>
 </div>
 
 <div class="content">
 
+<!-- Each ingredient is a plain `<span class="ing-wrap">` with the
+     food's emoji / display name / score delta as data-attributes.
+     The `:passagedisplay` handler in UserScript wires up TOGGLE
+     behaviour on click — earlier this used SugarCube `<<linkreplace>>`
+     which is one-way (commits on first tap, no undo) so a player
+     who fat-fingered an item couldn't remove it. -->
 <div class="section-label">Proteins</div>
 <div class="ingredients-grid">
-<span id="ing01" class="ing-wrap"><<linkreplace '<span class="ing-emoji">🍚</span><span class="ing-name">Brown rice</span>'>><<run $meal.push("🍚 Brown rice"), State.variables.mealScore += 10, $("#ing01").addClass("selected")>><span class="ing-emoji">🍚</span><span class="ing-name added-name">✓ Added</span><</linkreplace>></span><span id="ing02" class="ing-wrap"><<linkreplace '<span class="ing-emoji">🍲</span><span class="ing-name">Beans</span>'>><<run $meal.push("🍲 Beans"), State.variables.mealScore += 15, $("#ing02").addClass("selected")>><span class="ing-emoji">🍲</span><span class="ing-name added-name">✓ Added</span><</linkreplace>></span><span id="ing03" class="ing-wrap"><<linkreplace '<span class="ing-emoji">🥓</span><span class="ing-name">Bacon</span>'>><<run $meal.push("🥓 Bacon"), State.variables.mealScore -= 15, $("#ing03").addClass("selected")>><span class="ing-emoji">🥓</span><span class="ing-name added-name">✓ Added</span><</linkreplace>></span><span id="ing04" class="ing-wrap"><<linkreplace '<span class="ing-emoji">🥛</span><span class="ing-name">Yogurt</span>'>><<run $meal.push("🥛 Yogurt"), State.variables.mealScore += 10, $("#ing04").addClass("selected")>><span class="ing-emoji">🥛</span><span class="ing-name added-name">✓ Added</span><</linkreplace>></span>
+<span class="ing-wrap" data-ing-name="Brown rice" data-ing-emoji="🍚" data-ing-score="10"><span class="ing-emoji">🍚</span><span class="ing-name">Brown rice</span></span><span class="ing-wrap" data-ing-name="Beans" data-ing-emoji="🍲" data-ing-score="15"><span class="ing-emoji">🍲</span><span class="ing-name">Beans</span></span><span class="ing-wrap" data-ing-name="Bacon" data-ing-emoji="🥓" data-ing-score="-15"><span class="ing-emoji">🥓</span><span class="ing-name">Bacon</span></span><span class="ing-wrap" data-ing-name="Yogurt" data-ing-emoji="🥛" data-ing-score="10"><span class="ing-emoji">🥛</span><span class="ing-name">Yogurt</span></span>
 </div>
 
 <div class="section-label">Vegetables and Fruit</div>
 <div class="ingredients-grid">
-<span id="ing05" class="ing-wrap"><<linkreplace '<span class="ing-emoji">🥬</span><span class="ing-name">Spinach</span>'>><<run $meal.push("🥬 Spinach"), State.variables.mealScore += 15, $("#ing05").addClass("selected")>><span class="ing-emoji">🥬</span><span class="ing-name added-name">✓ Added</span><</linkreplace>></span><span id="ing06" class="ing-wrap"><<linkreplace '<span class="ing-emoji">🍅</span><span class="ing-name">Tomato</span>'>><<run $meal.push("🍅 Tomato"), State.variables.mealScore += 10, $("#ing06").addClass("selected")>><span class="ing-emoji">🍅</span><span class="ing-name added-name">✓ Added</span><</linkreplace>></span><span id="ing07" class="ing-wrap"><<linkreplace '<span class="ing-emoji">🍌</span><span class="ing-name">Banana</span>'>><<run $meal.push("🍌 Banana"), State.variables.mealScore += 10, $("#ing07").addClass("selected")>><span class="ing-emoji">🍌</span><span class="ing-name added-name">✓ Added</span><</linkreplace>></span><span id="ing08" class="ing-wrap"><<linkreplace '<span class="ing-emoji">🍟</span><span class="ing-name">Potato chips</span>'>><<run $meal.push("🍟 Potato chips"), State.variables.mealScore -= 10, $("#ing08").addClass("selected")>><span class="ing-emoji">🍟</span><span class="ing-name added-name">✓ Added</span><</linkreplace>></span>
+<span class="ing-wrap" data-ing-name="Spinach" data-ing-emoji="🥬" data-ing-score="15"><span class="ing-emoji">🥬</span><span class="ing-name">Spinach</span></span><span class="ing-wrap" data-ing-name="Tomato" data-ing-emoji="🍅" data-ing-score="10"><span class="ing-emoji">🍅</span><span class="ing-name">Tomato</span></span><span class="ing-wrap" data-ing-name="Banana" data-ing-emoji="🍌" data-ing-score="10"><span class="ing-emoji">🍌</span><span class="ing-name">Banana</span></span><span class="ing-wrap" data-ing-name="Potato chips" data-ing-emoji="🍟" data-ing-score="-10"><span class="ing-emoji">🍟</span><span class="ing-name">Potato chips</span></span>
 </div>
 
 <div class="section-label">Extras</div>
 <div class="ingredients-grid">
-<span id="ing09" class="ing-wrap"><<linkreplace '<span class="ing-emoji">🍫</span><span class="ing-name">Dark chocolate</span>'>><<run $meal.push("🍫 Dark chocolate"), State.variables.mealScore += 5, $("#ing09").addClass("selected")>><span class="ing-emoji">🍫</span><span class="ing-name added-name">✓ Added</span><</linkreplace>></span><span id="ing10" class="ing-wrap"><<linkreplace '<span class="ing-emoji">🍜</span><span class="ing-name">Instant noodles</span>'>><<run $meal.push("🍜 Instant noodles"), State.variables.mealScore -= 20, $("#ing10").addClass("selected")>><span class="ing-emoji">🍜</span><span class="ing-name added-name">✓ Added</span><</linkreplace>></span><span id="ing11" class="ing-wrap"><<linkreplace '<span class="ing-emoji">💧</span><span class="ing-name">Water</span>'>><<run $meal.push("💧 Water"), State.variables.mealScore += 5, $("#ing11").addClass("selected")>><span class="ing-emoji">💧</span><span class="ing-name added-name">✓ Added</span><</linkreplace>></span><span id="ing12" class="ing-wrap"><<linkreplace '<span class="ing-emoji">🌭</span><span class="ing-name">Hot dog</span>'>><<run $meal.push("🌭 Hot dog"), State.variables.mealScore -= 15, $("#ing12").addClass("selected")>><span class="ing-emoji">🌭</span><span class="ing-name added-name">✓ Added</span><</linkreplace>></span>
+<span class="ing-wrap" data-ing-name="Dark chocolate" data-ing-emoji="🍫" data-ing-score="5"><span class="ing-emoji">🍫</span><span class="ing-name">Dark chocolate</span></span><span class="ing-wrap" data-ing-name="Instant noodles" data-ing-emoji="🍜" data-ing-score="-20"><span class="ing-emoji">🍜</span><span class="ing-name">Instant noodles</span></span><span class="ing-wrap" data-ing-name="Water" data-ing-emoji="💧" data-ing-score="5"><span class="ing-emoji">💧</span><span class="ing-name">Water</span></span><span class="ing-wrap" data-ing-name="Hot dog" data-ing-emoji="🌭" data-ing-score="-15"><span class="ing-emoji">🌭</span><span class="ing-name">Hot dog</span></span>
 </div>
 
 <a class="btn-primary" data-passage="Meal Result">SEE MY MEAL RESULT</a>
@@ -1115,7 +1219,7 @@ Lists what player picked.
 
 <div class="score-bar-wrap">
 <span class="score-label">Meal score</span>
-<div class="score-bar"><div class="score-bar-fill" @style="'width: ' + Math.max(0, Math.min(100, ($mealScore + 50))) + '%'"></div></div>
+<div class="score-bar"><div class="score-bar-fill" @style="'width: ' + Math.max(0, Math.min(100, $mealScore * 1.25)) + '%'"></div></div>
 </div>
 
 <div class="content">
@@ -1141,7 +1245,10 @@ Lists what player picked.
 <div class="spacer"></div>
 
 <a class="btn-primary" data-passage="Story innit">PLAY AGAIN</a>
-<a class="btn-secondary" data-passage="Central Hub">BACK TO CARDIOCAREQUEST</a>
+<!-- Direct goHome via the ccq-home-trigger class — the bridge
+     intercepts the click and fires CCQ.goHome() without trampolining
+     through the (now unused) Central Hub passage. -->
+<a class="btn-secondary ccq-home-trigger" href="javascript:void(0)">BACK TO CARDIOCAREQUEST</a>
 
 </div>
 </div>
@@ -1149,8 +1256,19 @@ Lists what player picked.
 
 ::Central Hub [Important/Needed nobr]
 /*
-Placeholder. In the full app this returns to CardioCareQuest hub.
+EXIT HATCH. Hit when the player taps "BACK TO CARDIOCAREQUEST" on
+either the Final Result or Meal Result screens. Fires CCQ.goHome() so
+the Flutter host pops the WebView route back to the dashboard.
+Previously had a "PLAY DASH GAME AGAIN" button that just looped back
+to Story innit, leaving participants no way to exit.
 */
+<<run
+  try {
+    if (window.CCQ && typeof window.CCQ.goHome === "function") {
+      window.CCQ.goHome();
+    }
+  } catch (e) { /* swallow */ }
+>>
 
 <div class="phone">
 <div class="header"><span>DASH Game</span></div>
@@ -1160,11 +1278,9 @@ Placeholder. In the full app this returns to CardioCareQuest hub.
 
 <h2 class="intro-title">Returning</h2>
 
-<p class="narrative center">Returning to CardioCareQuest.</p>
+<p class="narrative center">Going back to CardioCareQuest.</p>
 
 <div class="spacer"></div>
-
-<a class="btn-primary" data-passage="Story innit">PLAY DASH GAME AGAIN</a>
 
 </div>
 </div>

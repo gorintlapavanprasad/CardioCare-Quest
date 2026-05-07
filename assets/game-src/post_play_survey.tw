@@ -378,6 +378,15 @@ body {
   border-radius: 14px;
   padding: 4px;
   margin-bottom: 14px;
+  /* Flex-grow so the textarea fills the column instead of leaving a
+     large blank gradient between itself and the NEXT button. Q1-Q4
+     fill that space naturally with choice-tile lists; Q5 only has
+     this one input, so without flex-grow the leftover space pushed
+     by `.spacer` reads as a "blank screen behind". */
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 200px;
 }
 .text-input-wrap textarea {
   width: 100% !important;
@@ -390,7 +399,8 @@ body {
   resize: none !important;
   outline: none !important;
   box-sizing: border-box !important;
-  min-height: 110px !important;
+  min-height: 180px !important;
+  flex: 1 1 auto !important;
   border-radius: 12px !important;
   caret-color: #3b528b !important;
 }
@@ -944,10 +954,8 @@ END SURVEY Q5: Anything you wish the game had? Optional open text.
 </div>
 
 <div class="text-input-wrap">
-<textarea id="wish-input" rows="4"></textarea>
+<textarea id="wish-input" rows="7"></textarea>
 </div>
-
-<div class="spacer"></div>
 
 <a class="btn-primary" data-passage="SUS Intro">NEXT</a>
 

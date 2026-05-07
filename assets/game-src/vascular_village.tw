@@ -12,43 +12,68 @@ Vascular Village
 
 ::StoryInit
 <<script>>
+// Latest BP reading from Quiet Minute, but ONLY if it was logged
+// today (local timezone). The Welcome passage gates on $lastSys gt 0
+// to decide between "CONTINUE TO VILLAGE" (today's reading available)
+// and "START → Take a Quiet Minute first" (no reading today). Without
+// the per-day gate, a stale reading from any past day would satisfy
+// the gt-0 check and let the participant skip the Quiet Minute step
+// — the village would then show yesterday's number as if it were
+// current.
+//
+// `quietMinute_history` entries have shape {sys, dia, when: millis}.
+// We check `when` against today's midnight in local time.
+State.variables.lastSys = 0;
+State.variables.lastDia = 0;
 try {
   var qm = window.localStorage.getItem("quietMinute_history");
   if (qm) {
     var hist = JSON.parse(qm);
     if (hist && hist.length > 0) {
-      State.variables.lastSys = Number(hist[0].sys) || 0;
-      State.variables.lastDia = Number(hist[0].dia) || 0;
-    } else {
-      State.variables.lastSys = 0;
-      State.variables.lastDia = 0;
+      var entry = hist[0];
+      var todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      if (entry.when && entry.when >= todayStart.getTime()) {
+        State.variables.lastSys = Number(entry.sys) || 0;
+        State.variables.lastDia = Number(entry.dia) || 0;
+      }
     }
-  } else {
-    State.variables.lastSys = 0;
-    State.variables.lastDia = 0;
   }
-} catch (e) {
-  State.variables.lastSys = 0;
-  State.variables.lastDia = 0;
-}
+} catch (e) { /* keep $lastSys/$lastDia at 0 */ }
 
+// Header points start at 0 each session. Firestore is the canonical
+// total — each Result passage calls submitResponse which fires
+// SUBMIT_RESPONSE → SurveyHooks + PointsHooks, crediting
+// userData/{uid}.points on Firestore.
+State.variables.totalPoints = 0;
+State.variables.heartQuality = "";
+// Per-session completion flags for the 4 mini-quests. Result passages
+// flip them true; the Hub uses them to gate links + drive the
+// progress meter; StoryInit (here) resets them to false so each game
+// launch starts with a fresh village.
+State.variables.reallocateDone = false;
+State.variables.pumpDone = false;
+State.variables.clearDone = false;
+State.variables.stretchDone = false;
+
+// Voyage is the one flag that persists across launches — it's framed
+// as a daily bonus and would feel pointless if it just reset every
+// session. localStorage holds the last calendar date the participant
+// took it; if that matches today, $voyageDone starts true and the
+// Hub gates the link with an "Already taken today" pill. Tomorrow's
+// launch sees a different todayDate, the gate falls off, and the
+// bonus is available again.
+State.variables.todayDate = (new Date()).toISOString().slice(0, 10);
+State.variables.voyageDone = false;
 try {
   var sav = window.localStorage.getItem("vv_save");
   if (sav) {
     var s = JSON.parse(sav);
-    State.variables.totalPoints = Number(s.points) || 0;
-    State.variables.voyageDate = s.voyageDate || "";
-  } else {
-    State.variables.totalPoints = 0;
-    State.variables.voyageDate = "";
+    if (s.voyageDate && s.voyageDate === State.variables.todayDate) {
+      State.variables.voyageDone = true;
+    }
   }
-} catch (e) {
-  State.variables.totalPoints = 0;
-  State.variables.voyageDate = "";
-}
-
-State.variables.heartQuality = "";
-State.variables.todayDate = (new Date()).toISOString().slice(0, 10);
+} catch (e) { /* keep $voyageDone = false */ }
 <</script>>
 
 ::UserStylesheet [stylesheet]
@@ -161,6 +186,57 @@ body {
 .bp-bar-fill.stage1 { background: linear-gradient(90deg, #f0a020, #d04020); width: 75%; }
 .bp-bar-fill.stage2 { background: linear-gradient(90deg, #d04020, #8a1a25); width: 95%; }
 .bp-bar-fill.unset { background: rgba(255,255,255,0.25); width: 0%; }
+/* Session-progress fill. Width is set via SugarCube's `@style`
+   attribute evaluation (`@style="'width: ' + _progressPct + '%'"`)
+   so we don't need a class per percentage step. NOTE: plain
+   `<<print>>` inside a literal `style="..."` does NOT substitute —
+   SugarCube only processes the TwineScript attribute form prefixed
+   with `@`. (Salt Sludge and DASH Diet use the same `@style`
+   pattern.) The `transition: width 0.4s` on the base class doesn't
+   fire on passage re-render — the element is recreated each time —
+   but is preserved for any future JS-driven updates. */
+.bp-bar-fill.progress { background: linear-gradient(90deg, #5ec962, #21918c); }
+
+/* Tiny "X of 5 quests complete" caption under the progress bar. */
+.bp-progress-count {
+  text-align: center;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.65);
+  margin-top: 8px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+
+/* Celebration card shown when all 5 quests are complete — replaces
+   the quest list with a "village restored" message. The Finish
+   button below it is the explicit end-of-session trigger. */
+.all-done-card {
+  background: rgba(255, 255, 255, 0.10);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 18px;
+  padding: 24px 20px;
+  text-align: center;
+  margin: 8px 0 16px 0;
+}
+.all-done-emoji {
+  font-size: 48px;
+  line-height: 1;
+  margin-bottom: 12px;
+}
+.all-done-title {
+  font-size: 22px;
+  font-weight: bold;
+  color: rgba(255, 255, 255, 0.95);
+  margin-bottom: 8px;
+  font-family: "Times New Roman", Times, serif;
+}
+.all-done-blurb {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.7);
+  line-height: 1.5;
+  font-family: "Times New Roman", Times, serif;
+}
 
 .bp-row {
   display: flex;
@@ -352,6 +428,34 @@ body {
 .voyage-taken .quest-icon { color: #5ec962 !important; }
 .voyage-taken .quest-name { font-size: 15px !important; font-weight: bold !important; color: rgba(255,255,255,0.9) !important; margin: 0 0 2px 0 !important; line-height: 1.25 !important; }
 .voyage-taken .quest-blurb { font-size: 12px !important; color: rgba(255,255,255,0.6) !important; margin: 0 !important; line-height: 1.4 !important; }
+
+/* "Finish for Today" CTA on the Hub. Sits below the Daily Bonus list
+   and triggers CCQ.finishQuest() so the host pops the WebView and
+   records the session as complete. Pill-shaped, white-on-translucent
+   to read as secondary against the purple background. */
+.finish-row {
+  margin-top: 18px;
+  text-align: center;
+}
+.finish-row a.macro-link,
+.finish-row a.link-internal {
+  display: inline-block !important;
+  background-color: rgba(255, 255, 255, 0.15) !important;
+  border: 1px solid rgba(255, 255, 255, 0.35) !important;
+  color: #ffffff !important;
+  padding: 12px 28px !important;
+  border-radius: 22px !important;
+  font-size: 15px !important;
+  font-weight: bold !important;
+  letter-spacing: 0.4px !important;
+  text-decoration: none !important;
+  cursor: pointer !important;
+  font-family: "Times New Roman", Times, serif !important;
+}
+.finish-row a.macro-link:hover,
+.finish-row a.link-internal:hover {
+  background-color: rgba(255, 255, 255, 0.22) !important;
+}
 
 /* Quest stage cards inside quests */
 .quest-stage {
@@ -838,7 +942,14 @@ body {
 
 ::Hub [nobr]
 /*
-HUB. All zone logic inline. No setup functions.
+HUB. Per-session play-through: each of the 5 quests can be played
+exactly once per game launch. The Result passages flip the matching
+$xxDone flag and bounce back here; the flag count drives both the
+progress meter at the top and the gating around each quest link.
+When all five flags are true the village is "restored" — the quest
+list is replaced with a celebration card and the participant taps
+Finish to record the play. StoryInit resets every flag to false on
+the next launch, so the cycle starts over.
 */
 <<set _zk to "unset">>
 <<set _zl to "Take a Quiet Minute">>
@@ -859,14 +970,34 @@ HUB. All zone logic inline. No setup functions.
   <</if>>
 <</if>>
 
-<<set _voyageOk to ($voyageDate isnot $todayDate)>>
+/* Per-session progress: count completed quests so the meter and the
+   "X of 5" caption reflect what the player has done in this play. */
+<<set _doneCount to 0>>
+<<if $reallocateDone>><<set _doneCount to _doneCount + 1>><</if>>
+<<if $pumpDone>><<set _doneCount to _doneCount + 1>><</if>>
+<<if $clearDone>><<set _doneCount to _doneCount + 1>><</if>>
+<<if $stretchDone>><<set _doneCount to _doneCount + 1>><</if>>
+/* Voyage is intentionally NOT included in this count. It's a per-
+   day bonus, not part of the session's completion criteria — the
+   game ends at 4/4 mini-quests done. */
+<<set _progressPct to _doneCount * 25>>
+<<set _allDone to (_doneCount is 4)>>
+
+/* Once everything is complete, swap the BP-zone narrative for a
+   "you did it" mascot beat — the celebration card below is now the
+   primary call-to-action. */
+<<if _allDone>>
+  <<set _msg to "Beautiful work. The village is restored. Tap Finish to wrap up.">>
+<</if>>
+
 
 <div class="phone">
 <div class="header"><span>Vascular Village</span><span class="header-points">$totalPoints pts</span></div>
 
 <div class="bp-card">
-<div class="bp-label">Blood Pressure Meter</div>
-<div class="bp-bar"><div class="bp-bar-fill <<print _zk>>"></div></div>
+<div class="bp-label">Today's Progress</div>
+<div class="bp-bar"><div class="bp-bar-fill progress" @style="'width: ' + _progressPct + '%'"></div></div>
+<div class="bp-progress-count"><<print _doneCount>> of 4 quests complete</div>
 <<if $lastSys gt 0>>
 <div class="bp-row">
 <div class="bp-numbers">$lastSys<span class="slash">/</span>$lastDia</div>
@@ -902,31 +1033,90 @@ HUB. All zone logic inline. No setup functions.
 
 <div class="content">
 
+<<if _allDone>>
+
+<div class="all-done-card">
+<div class="all-done-emoji">🎉</div>
+<div class="all-done-title">Village restored</div>
+<div class="all-done-blurb">You've completed every quest in this session. Tap Finish to record this play — the village will be ready again next time you visit.</div>
+</div>
+
+<<else>>
+
 <div class="section-title">Quests</div>
 
 <div class="quest-list">
 
+<<if not $reallocateDone>>
 <<link '<span class="quest-icon">🧬</span><div class="quest-text-wrap"><div class="quest-name">Reallocate Resources</div><div class="quest-blurb">Send the right nutrients where they are needed.</div></div>'>>
 <<goto "Quest Reallocate">>
 <</link>>
+<<else>>
+<div class="voyage-taken">
+<span class="quest-icon">✓</span>
+<div class="quest-text-wrap">
+<div class="quest-name">Reallocate Resources</div>
+<div class="quest-blurb">Done</div>
+</div>
+</div>
+<</if>>
 
+<<if not $pumpDone>>
 <<link '<span class="quest-icon">💓</span><div class="quest-text-wrap"><div class="quest-name">Pump the Heart</div><div class="quest-blurb">Tap with the rhythm to keep blood flowing.</div></div>'>>
 <<goto "Quest Pump">>
 <</link>>
+<<else>>
+<div class="voyage-taken">
+<span class="quest-icon">✓</span>
+<div class="quest-text-wrap">
+<div class="quest-name">Pump the Heart</div>
+<div class="quest-blurb">Done</div>
+</div>
+</div>
+<</if>>
 
+<<if not $clearDone>>
 <<link '<span class="quest-icon">🧹</span><div class="quest-text-wrap"><div class="quest-name">Clear a Path</div><div class="quest-blurb">Clear plaque buildup from the artery walls.</div></div>'>>
 <<goto "Quest Clear">>
 <</link>>
+<<else>>
+<div class="voyage-taken">
+<span class="quest-icon">✓</span>
+<div class="quest-text-wrap">
+<div class="quest-name">Clear a Path</div>
+<div class="quest-blurb">Done</div>
+</div>
+</div>
+<</if>>
 
+<<if not $stretchDone>>
 <<link '<span class="quest-icon">🌊</span><div class="quest-text-wrap"><div class="quest-name">Stretch the Arteries</div><div class="quest-blurb">Guide your breath and stretch the walls.</div></div>'>>
 <<goto "Quest Stretch">>
 <</link>>
+<<else>>
+<div class="voyage-taken">
+<span class="quest-icon">✓</span>
+<div class="quest-text-wrap">
+<div class="quest-name">Stretch the Arteries</div>
+<div class="quest-blurb">Done</div>
+</div>
+</div>
+<</if>>
 
 </div>
 
+<</if>>
+
+/* Daily Bonus is intentionally OUTSIDE the if/else above. The voyage
+   is a per-day bonus (gated by $voyageDone, which StoryInit loads
+   from localStorage), not part of the session's completion criteria
+   — keeping it visible after the celebration card lets the player
+   still claim the bonus on the same launch. */
 <div class="section-title" style="margin-top: 16px;">Daily Bonus</div>
 
-<<if _voyageOk>>
+<div class="quest-list daily-bonus-list">
+
+<<if not $voyageDone>>
 <<link '<span class="quest-icon">🛤️</span><div class="quest-text-wrap"><div class="quest-name">Daily Blood Vessel Voyage</div><div class="quest-blurb">A short tour, +50 bonus points.</div></div>'>>
 <<goto "Voyage">>
 <</link>>
@@ -934,22 +1124,35 @@ HUB. All zone logic inline. No setup functions.
 <div class="voyage-taken">
 <span class="quest-icon">✓</span>
 <div class="quest-text-wrap">
-<div class="quest-name">Voyage taken today</div>
-<div class="quest-blurb">Come back tomorrow for another.</div>
+<div class="quest-name">Daily Blood Vessel Voyage</div>
+<div class="quest-blurb">Already taken today. Come back tomorrow.</div>
 </div>
 </div>
 <</if>>
+
+</div>
+
+<div class="finish-row">
+<<link 'Finish'>>
+<<run
+  try {
+    if (window.CCQ && typeof window.CCQ.finishQuest === "function") {
+      window.CCQ.finishQuest();
+    }
+  } catch (e) { console.error("[VV] finish:", e); }
+>>
+<</link>>
+</div>
 
 </div>
 </div>
 
 <<script>>
 setTimeout(function () {
-  var nodes = document.querySelectorAll('.quest-list a.macro-link, .quest-list a.link-internal');
-  nodes.forEach(function (a, i) {
-    a.classList.add('quest-card');
-    if (i === 4) a.classList.add('voyage-card');
-  });
+  document.querySelectorAll('.quest-list a.macro-link, .quest-list a.link-internal')
+    .forEach(function (a) { a.classList.add('quest-card'); });
+  document.querySelectorAll('.daily-bonus-list a.macro-link, .daily-bonus-list a.link-internal')
+    .forEach(function (a) { a.classList.add('voyage-card'); });
 }, 0);
 <</script>>
 
@@ -1024,10 +1227,22 @@ setTimeout(function () {
 
 
 ::Reallocate Result [nobr]
+<<set $reallocateDone to true>>
 <<set $totalPoints to $totalPoints + 100>>
-<<script>>
-try { window.localStorage.setItem("vv_save", JSON.stringify({ points: State.variables.totalPoints, voyageDate: State.variables.voyageDate || "" })); } catch (e) {}
-<</script>>
+<<run
+  /* Firestore-first: every quest completion crosses the bridge so
+     GameLogHooks credits userData/{uid}.points and writes a per-quest
+     record at userData/{uid}/gameLogs/{auto}. Per-action submit (vs.
+     one batch at finishQuest) guarantees we don't lose data if the
+     participant exits early. countAsCompletion: false skips the
+     surveysCompleted bump per quest — the host fires it once on
+     session exit instead. */
+  try {
+    if (window.CCQ && typeof window.CCQ.submitResponse === "function") {
+      window.CCQ.logQuestCompletion("reallocate", { pointsEarned: 100, countAsCompletion: false });
+    }
+  } catch (e) { console.error("[VV] submit:", e); }
+>>
 
 <div class="phone">
 <div class="header"><span>Reallocate Resources</span><span class="header-points">$totalPoints pts</span></div>
@@ -1114,14 +1329,19 @@ setTimeout(function () {
 
 
 ::Pump Result [nobr]
+<<set $pumpDone to true>>
 <<set _earned to 75>>
 <<if $heartQuality is "steady">><<set _earned to 100>>
 <<elseif $heartQuality is "shaky">><<set _earned to 50>>
 <</if>>
 <<set $totalPoints to $totalPoints + _earned>>
-<<script>>
-try { window.localStorage.setItem("vv_save", JSON.stringify({ points: State.variables.totalPoints, voyageDate: State.variables.voyageDate || "" })); } catch (e) {}
-<</script>>
+<<run
+  try {
+    if (window.CCQ && typeof window.CCQ.submitResponse === "function") {
+      window.CCQ.logQuestCompletion("pump", { pointsEarned: _earned, data: { quality: $heartQuality }, countAsCompletion: false });
+    }
+  } catch (e) { console.error("[VV] submit:", e); }
+>>
 
 <div class="phone">
 <div class="header"><span>Pump the Heart</span><span class="header-points">$totalPoints pts</span></div>
@@ -1207,10 +1427,15 @@ setTimeout(function () {
 
 
 ::Clear Result [nobr]
+<<set $clearDone to true>>
 <<set $totalPoints to $totalPoints + 100>>
-<<script>>
-try { window.localStorage.setItem("vv_save", JSON.stringify({ points: State.variables.totalPoints, voyageDate: State.variables.voyageDate || "" })); } catch (e) {}
-<</script>>
+<<run
+  try {
+    if (window.CCQ && typeof window.CCQ.submitResponse === "function") {
+      window.CCQ.logQuestCompletion("clear", { pointsEarned: 100, countAsCompletion: false });
+    }
+  } catch (e) { console.error("[VV] submit:", e); }
+>>
 
 <div class="phone">
 <div class="header"><span>Clear a Path</span><span class="header-points">$totalPoints pts</span></div>
@@ -1258,10 +1483,15 @@ try { window.localStorage.setItem("vv_save", JSON.stringify({ points: State.vari
 
 
 ::Stretch Result [nobr]
+<<set $stretchDone to true>>
 <<set $totalPoints to $totalPoints + 100>>
-<<script>>
-try { window.localStorage.setItem("vv_save", JSON.stringify({ points: State.variables.totalPoints, voyageDate: State.variables.voyageDate || "" })); } catch (e) {}
-<</script>>
+<<run
+  try {
+    if (window.CCQ && typeof window.CCQ.submitResponse === "function") {
+      window.CCQ.logQuestCompletion("stretch", { pointsEarned: 100, countAsCompletion: false });
+    }
+  } catch (e) { console.error("[VV] submit:", e); }
+>>
 
 <div class="phone">
 <div class="header"><span>Stretch the Arteries</span><span class="header-points">$totalPoints pts</span></div>
@@ -1283,10 +1513,22 @@ try { window.localStorage.setItem("vv_save", JSON.stringify({ points: State.vari
 
 
 ::Voyage [nobr]
-<<set $voyageDate to $todayDate>>
+<<set $voyageDone to true>>
 <<set $totalPoints to $totalPoints + 50>>
+<<run
+  try {
+    if (window.CCQ && typeof window.CCQ.submitResponse === "function") {
+      window.CCQ.logQuestCompletion("voyage", { pointsEarned: 50, countAsCompletion: false });
+    }
+  } catch (e) { console.error("[VV] submit:", e); }
+>>
 <<script>>
-try { window.localStorage.setItem("vv_save", JSON.stringify({ points: State.variables.totalPoints, voyageDate: State.variables.voyageDate })); } catch (e) {}
+// Voyage is per-day. Persist today's date so StoryInit gates the
+// voyage link as "Already taken today" on the next launch within
+// the same calendar date.
+try {
+  window.localStorage.setItem("vv_save", JSON.stringify({ voyageDate: State.variables.todayDate }));
+} catch (e) {}
 <</script>>
 
 <div class="phone">
@@ -1331,6 +1573,23 @@ try { window.localStorage.setItem("vv_save", JSON.stringify({ points: State.vari
 
 
 ::Central Hub [nobr]
+/*
+EXIT HATCH. The village's many "BACK TO VILLAGE" buttons all route to
+"Hub" (the in-game zone screen), not here — so this passage is only
+reachable if a future feature explicitly navigates to it. Burger menu
+"Go to dashboard" is the participant's primary exit. Kept this passage
+defensive-only: if it ever fires, it calls CCQ.goHome() so the Flutter
+host pops back to the dashboard rather than getting stuck. Replaced
+the previous "RESTART VASCULAR VILLAGE" button (which looped back to
+Welcome) with a no-op spinner UI.
+*/
+<<run
+  try {
+    if (window.CCQ && typeof window.CCQ.goHome === "function") {
+      window.CCQ.goHome();
+    }
+  } catch (e) { /* swallow */ }
+>>
 
 <div class="phone">
 <div class="header"><span>Vascular Village</span><span class="header-points">$totalPoints pts</span></div>
@@ -1339,11 +1598,9 @@ try { window.localStorage.setItem("vv_save", JSON.stringify({ points: State.vari
 <span class="hero-emoji">🏘️</span>
 
 <h2 class="intro-title">Returning</h2>
-<p class="narrative center">Returning to CardioCareQuest. The platform will open Quiet Minute next.</p>
+<p class="narrative center">Going back to CardioCareQuest.</p>
 
 <div class="spacer"></div>
-
-<a class="btn-primary" data-passage="Welcome">RESTART VASCULAR VILLAGE</a>
 
 </div>
 </div>

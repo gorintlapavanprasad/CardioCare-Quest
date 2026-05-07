@@ -1,27 +1,24 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:cardio_care_quest/core/providers/user_data_manager.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:cardio_care_quest/core/constants/firestore_paths.dart';
 import 'package:cardio_care_quest/core/hooks/hooks.dart';
 import 'package:cardio_care_quest/core/services/health_service.dart';
 import 'package:cardio_care_quest/core/widgets/sync_badge.dart';
 import '../../../core/theme/app_colors.dart';
-import '../widgets/daily_task_card.dart';
-import '../widgets/health_pillar_tile.dart';
-import '../widgets/celebration_modal.dart';
+import '../widgets/game_detail_dialog.dart';
 import 'coming_soon_screen.dart';
 import 'game_catalog_screen.dart';
-import '../../blood_pressure/bp_log_screen.dart';
-import '../../education/health_education_screen.dart';
-import '../../exercise_log/exercise_log_screen.dart';
-import '../../medication_reminder/medication_reminder_screen.dart';
-import '../../family_circle/family_circle_screen.dart';
-import '../../measurements/measurements_screen.dart';
-import '../../statistics/heart_statistics_screen.dart';
-import '../../games/dash_diet_game/diet_log_screen.dart';
+import '../../games/custom_games/build_game_screen.dart';
+import '../../games/custom_games/custom_game.dart';
+import '../../games/custom_games/custom_games_repository.dart';
+import '../../games/custom_games/custom_games_section.dart';
+import '../../games/game_stories.dart';
+import '../../games/quiet_minute.dart';
 import '../../survey/post_play_survey.dart';
+import '../../../core/services/favorites_service.dart';
 
 class HomeTab extends StatefulWidget {
   const HomeTab({super.key});
@@ -75,6 +72,13 @@ class _HomeTabState extends State<HomeTab> {
       // Only fetch if data is not already loaded
       if (provider.userData == null) {
         await provider.fetchUserData();
+      }
+      // Hydrate the favourites cache for this participant. Cheap if
+      // already loaded (FavoritesService.load short-circuits when the
+      // id matches the cached one).
+      final pid = provider.uid;
+      if (pid.isNotEmpty) {
+        await FavoritesService.instance.load(pid);
       }
     } catch (e) {
       debugPrint('Error ensuring user data is loaded: $e');
@@ -221,10 +225,29 @@ class _HomeTabState extends State<HomeTab> {
                       _buildLatestBPCard(context, sys, dia),
                       const SizedBox(height: 32),
                       _buildGameMenuRow(context),
-                      const SizedBox(height: 32),
-                      _buildSectionTitle("Health Pillars"),
-                      _buildHealthPillarsGrid(context),
-
+                      // "Your Goals" — participant-built custom games
+                      // from the Design Your Own Game flow. Lives just
+                      // under the menu row so the result of pressing
+                      // "Design Your Own Game" appears right where you
+                      // expect it. Hidden when the participant hasn't
+                      // created any goals yet.
+                      const CustomGamesSection(),
+                    ],
+                  ),
+                ),
+                // Favourites strip is intentionally outside the horizontal-20
+                // padding so the horizontally-scrolling card list can extend
+                // edge-to-edge. Keeps the favourite-heart corner of the
+                // rightmost card from getting clipped at the viewport edge
+                // and lets the next card "peek" in to signal scrollability.
+                // The section title is re-aligned with siblings via internal
+                // padding inside _buildFavoritesSection.
+                _buildFavoritesSection(context),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                       const SizedBox(height: 32),
                       _buildSectionTitle("Feedback"),
                       _buildPostPlaySurveyCard(context),
@@ -241,8 +264,8 @@ class _HomeTabState extends State<HomeTab> {
   }
 
   /// Bottom-of-dashboard entry point for the post-play survey
-  /// (work-plan goal #9). Lives below the Health Pillars grid because
-  /// it's a once-per-session feedback prompt, not a daily quest.
+  /// (work-plan goal #9). Once-per-session feedback prompt, lives at
+  /// the bottom of the dashboard below the game menu row.
   Widget _buildPostPlaySurveyCard(BuildContext context) {
     return Material(
       color: Colors.white,
@@ -309,198 +332,233 @@ class _HomeTabState extends State<HomeTab> {
     );
   }
 
-  // --- 🏥 HEALTH PILLARS (Aligned with Research "Decks") [cite: 245-246] ---
-  Widget _buildHealthPillarsGrid(BuildContext context) {
-    return GridView.count(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisCount: 2,
-      crossAxisSpacing: 12,
-      mainAxisSpacing: 12,
-      childAspectRatio: 1.7,
-      children: [
-        _pillar(context, Icons.favorite, "Heart", const HeartStatisticsScreen()),
-        _pillar(context, Icons.directions_walk, "Movement", const ExerciseLogScreen()),
-        _pillar(context, Icons.restaurant, "Plate", const DietLogScreen()),
-        _pillar(context, Icons.school, "Education", const HealthEducationScreen()),
-        _pillar(context, Icons.medication, "Medicine", const MedicationReminderScreen()),
-        _pillar(
-          context,
-          Icons.monitor_heart_outlined,
-          "Measurements",
-          const MeasurementsScreen(),
-        ),
-      ],
-    );
-  }
+  /// Favourites strip — horizontally-scrollable list of games the
+  /// participant has starred via the GameDetailDialog. Listens to
+  /// [FavoritesService.favorites] so adding / removing a star in the
+  /// catalog dialog instantly reflects here without a manual refresh.
+  /// Returns an empty box when the participant has no favourites yet
+  /// so the dashboard doesn't show a stranded "Favourites" header
+  /// above an empty space.
+  Widget _buildFavoritesSection(BuildContext context) {
+    final uid = context.select<UserDataProvider, String>((p) => p.uid);
+    return ValueListenableBuilder<Set<String>>(
+      valueListenable: FavoritesService.instance.favorites,
+      builder: (context, favIds, _) {
+        if (favIds.isEmpty) return const SizedBox.shrink();
 
-  Widget _pillar(
-    BuildContext context,
-    IconData icon,
-    String title,
-    Widget screen,
-  ) {
-    return HealthPillarTile(
-      icon: icon,
-      title: title,
-      onTap: () async {
-        final dynamic result = await Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => screen),
+        // Catalog favourites — resolve ids → GameStory in catalog
+        // order so the strip stays consistent regardless of star order.
+        final catalogFavs = GameCatalog.games.values
+            .where((g) => favIds.contains(g.id))
+            .toList();
+
+        // Custom favourites — pulled from Firestore via the same
+        // CustomGamesRepository stream the catalog accordion uses.
+        // Wrapping the strip in a StreamBuilder keeps the custom tiles
+        // live: starring/unstarring or editing a custom game on
+        // another device updates this strip without a manual refresh.
+        return StreamBuilder<List<CustomGame>>(
+          stream: uid.isEmpty
+              ? const Stream<List<CustomGame>>.empty()
+              : CustomGamesRepository.instance.watch(uid),
+          builder: (context, snap) {
+            final allCustom = snap.data ?? const <CustomGame>[];
+            final customFavs =
+                allCustom.where((c) => favIds.contains(c.id)).toList();
+
+            if (catalogFavs.isEmpty && customFavs.isEmpty) {
+              return const SizedBox.shrink();
+            }
+
+            // Render catalog favourites first, then custom favourites
+            // — same pattern the catalog screen uses (curated content
+            // before user-authored content).
+            final tiles = <Widget>[
+              ...catalogFavs.map((g) => _FavoriteGameTile(game: g)),
+              ...customFavs.map(
+                (c) => _FavoriteCustomGameTile(game: c),
+              ),
+            ];
+
+            return Padding(
+              padding: const EdgeInsets.only(top: 32),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Title gets its own horizontal-20 padding now that the
+                  // whole favourites section sits outside the dashboard's
+                  // shared content padding — keeps it visually aligned
+                  // with "Health Status" / "Feedback" above and below.
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: _buildSectionTitle("Favourites"),
+                  ),
+                  SizedBox(
+                    height: 124,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      // 20px on left aligns the first card with the
+                      // section title and the rest of the dashboard;
+                      // 20px on right keeps the last card off the screen
+                      // edge so its favourite-heart corner stays visible.
+                      // The strip is horizontally scrollable, so cards
+                      // beyond the viewport remain reachable.
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      itemCount: tiles.length,
+                      separatorBuilder: (_, __) => const SizedBox(width: 12),
+                      itemBuilder: (context, index) => tiles[index],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
         );
-        if (result is int && context.mounted) {
-          showCelebrationModal(context, message: "Goal Met!", pointsGained: result);
-        } else if (result == true && context.mounted) {
-          showCelebrationModal(context, message: "Goal Met!", pointsGained: 25);
-        }
       },
     );
   }
 
   // --- 📱 UI HELPERS ---
 
-  Widget _buildFamilySnippet(BuildContext context) {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection(FirestorePaths.userData)
-          .snapshots(),
-      builder: (context, snapshot) {
-        int totalSteps = 0;
-        if (snapshot.hasData) {
-          for (var doc in snapshot.data!.docs) {
-            final data = doc.data() as Map<String, dynamic>;
-            totalSteps += (data['totalSteps'] as num?)?.toInt() ?? 0;
-          }
-        }
-
-        return GestureDetector(
-          onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const FamilyCircleScreen()),
-          ),
-          child: Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: AppColors.accent.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(
-                color: AppColors.accent.withValues(alpha: 0.3),
-              ),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.group, color: AppColors.accent, size: 36),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        "Shared Quest",
-                        style: TextStyle(
-                          color: AppColors.accent,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        "$totalSteps / 10,000 steps together",
-                        style: const TextStyle(
-                          color: AppColors.subtitle,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Icon(
-                  Icons.arrow_forward_ios,
-                  color: AppColors.accent.withValues(alpha: 0.5),
-                  size: 16,
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
+  /// Latest blood pressure reading. Whole card is now tappable — both
+  /// the body and the trailing play button launch the Blood Pressure
+  /// Log (the renamed Quiet Minute Twine game), which is now the only
+  /// participant-facing path to record a reading. Replaces the older
+  /// `Icons.favorite_rounded` heart accent that was just decorative.
   Widget _buildLatestBPCard(BuildContext context, String sys, String dia) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: () => _openBloodPressureLog(context),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.cardBorder),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.accent.withValues(alpha: 0.08),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                "LATEST READING",
-                style: TextStyle(
-                  color: AppColors.subtitle,
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 0.6,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.baseline,
-                textBaseline: TextBaseline.alphabetic,
-                children: [
-                  Text(
-                    sys,
-                    style: const TextStyle(
-                      fontSize: 44,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.title,
-                    ),
-                  ),
-                  Text(
-                    "/$dia",
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.title.withValues(alpha: 0.3),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  const Text(
-                    "mmHg",
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: AppColors.subtitle,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.cardBorder),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.accent.withValues(alpha: 0.08),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
               ),
             ],
           ),
-          const Icon(
-            Icons.favorite_rounded,
-            color: AppColors.primary,
-            size: 36,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      "LATEST READING",
+                      style: TextStyle(
+                        color: AppColors.subtitle,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.6,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.baseline,
+                      textBaseline: TextBaseline.alphabetic,
+                      children: [
+                        Text(
+                          sys,
+                          style: const TextStyle(
+                            fontSize: 44,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.title,
+                          ),
+                        ),
+                        Text(
+                          "/$dia",
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.title.withValues(alpha: 0.3),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        const Text(
+                          "mmHg",
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: AppColors.subtitle,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      "Tap to record a new reading",
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.subtitle,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Play button — launches the Blood Pressure Log game.
+              // Distinct from the rest of the card so participants who
+              // are reading numbers know there's an explicit "do this
+              // now" affordance.
+              Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  color: AppColors.primary,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.primary.withValues(alpha: 0.25),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.play_arrow_rounded,
+                  color: Colors.white,
+                  size: 32,
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
+  }
+
+  /// Pushes the Blood Pressure Log (the Twine BP-capture game).
+  /// Single helper so both the card body's InkWell and the trailing
+  /// play button hit the same route. Awaits the pop and then
+  /// refetches userData so the dashboard's "Latest reading" card
+  /// reflects the freshly-logged BP without a manual refresh —
+  /// previously the participant logged a reading and came back to
+  /// see the OLD value still on the card until the next app launch.
+  Future<void> _openBloodPressureLog(BuildContext context) async {
+    final provider =
+        Provider.of<UserDataProvider>(context, listen: false);
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const QuietMinuteGame()),
+    );
+    if (!mounted) return;
+    if (provider.uid.isNotEmpty) {
+      // Fire-and-forget — the optimistic local bump from PointsHooks
+      // inside the host has already updated the provider; this
+      // reconciles against the server-resolved values once the
+      // OfflineQueue has drained.
+      unawaited(provider.fetchUserData());
+    }
   }
 
   Widget _buildPremiumHeader(BuildContext context, String name, int points) {
@@ -542,25 +600,6 @@ class _HomeTabState extends State<HomeTab> {
     );
   }
 
-  Widget _buildResearchStatsBar(int logs, String avgBp) {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.viridis4.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Expanded(child: _buildStatItem("Logs", "$logs")),
-          _buildStatDivider(),
-          Expanded(child: _buildStatItem("Avg BP", avgBp)),
-        ],
-      ),
-    );
-  }
-
   Widget _buildGameMenuRow(BuildContext context) {
     return Row(
       children: [
@@ -583,10 +622,7 @@ class _HomeTabState extends State<HomeTab> {
             icon: Icons.add_circle_outline,
             onTap: () => Navigator.push(
               context,
-              MaterialPageRoute(
-                builder: (_) =>
-                    const ComingSoonScreen(featureName: 'Design Your Own Game'),
-              ),
+              MaterialPageRoute(builder: (_) => const BuildGameScreen()),
             ),
           ),
         ),
@@ -657,25 +693,6 @@ class _HomeTabState extends State<HomeTab> {
     );
   }
 
-  Widget _buildDailyBPQuest(BuildContext context, bool completed) {
-    return DailyTaskCard(
-      task: "Log your blood pressure",
-      completed: completed,
-      onToggle: () async {
-        final dynamic result = await Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const BPLogScreen()),
-        );
-        if (!context.mounted) return;
-        if (result is int) {
-          showCelebrationModal(context, message: "Goal Met!", pointsGained: result);
-        } else if (result == true) {
-          showCelebrationModal(context, message: "Goal Met!", pointsGained: 50);
-        }
-      },
-    );
-  }
-
   Widget _buildSectionTitle(String title, {String? actionText}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12.0),
@@ -704,58 +721,148 @@ class _HomeTabState extends State<HomeTab> {
     );
   }
 
-  Widget _buildStatItem(String label, String value) {
-    return Column(
-      children: [
-        Text(
-          label.toUpperCase(),
-          style: const TextStyle(
-            fontSize: 9,
-            fontWeight: FontWeight.w900,
-            color: AppColors.subtitle,
+}
+
+/// Compact card used in the dashboard's Favourites strip. Square-ish,
+/// shows the game's mono icon + title + a tiny heart in the corner so
+/// the participant can confirm at a glance "yes, this is a favourite."
+/// Tapping opens the same [GameDetailDialog] the catalog uses — Play
+/// button to launch, heart toggle to unstar without going through the
+/// catalog. Per-tile-direct-launch was tried earlier but participants
+/// wanted a way to remove a star from the dashboard, and reusing the
+/// dialog keeps the play UX consistent across both entry points.
+class _FavoriteGameTile extends StatelessWidget {
+  final GameStory game;
+
+  const _FavoriteGameTile({required this.game});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: () => showGameDetailDialog(context, game),
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          width: 96,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.cardBorder),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.accent.withValues(alpha: 0.08),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Stack(
+            children: [
+              Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const SizedBox(height: 4),
+                  Icon(game.iconData, color: AppColors.primary, size: 36),
+                  const SizedBox(height: 8),
+                  Text(
+                    game.title,
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.title,
+                      height: 1.2,
+                    ),
+                  ),
+                ],
+              ),
+              const Positioned(
+                top: 0,
+                right: 0,
+                child: Icon(
+                  Icons.favorite,
+                  size: 14,
+                  color: Colors.redAccent,
+                ),
+              ),
+            ],
           ),
         ),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: const TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: AppColors.title,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildStatDivider() {
-    return Container(
-      height: 30,
-      width: 1,
-      color: AppColors.viridis4.withValues(alpha: 0.2),
-    );
-  }
-
-  Widget _buildExpandButton(BuildContext context, String title) {
-    return OutlinedButton(
-      style: OutlinedButton.styleFrom(
-        minimumSize: const Size.fromHeight(52),
-        backgroundColor: Colors.white,
-        side: BorderSide(color: AppColors.cardBorder),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        foregroundColor: AppColors.title,
       ),
-      onPressed: () {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('$title coming soon'),
-            duration: const Duration(milliseconds: 900),
+    );
+  }
+}
+
+/// Compact tile for a starred custom game on the dashboard's
+/// Favourites strip. Same visual size as `_FavoriteGameTile` but pulls
+/// data from a `CustomGame`. Tapping opens the custom variant of the
+/// [GameDetailDialog] so participants can preview, launch, or unstar
+/// the goal without navigating into the catalog.
+class _FavoriteCustomGameTile extends StatelessWidget {
+  final CustomGame game;
+
+  const _FavoriteCustomGameTile({required this.game});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: () => showCustomGameDetailDialog(context, game),
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          width: 96,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.cardBorder),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.accent.withValues(alpha: 0.08),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
-        );
-      },
-      child: Text(
-        title,
-        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+          child: Stack(
+            children: [
+              Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const SizedBox(height: 4),
+                  Icon(game.iconData, color: AppColors.primary, size: 36),
+                  const SizedBox(height: 8),
+                  Text(
+                    game.title,
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.title,
+                      height: 1.2,
+                    ),
+                  ),
+                ],
+              ),
+              const Positioned(
+                top: 0,
+                right: 0,
+                child: Icon(
+                  Icons.favorite,
+                  size: 14,
+                  color: Colors.redAccent,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
