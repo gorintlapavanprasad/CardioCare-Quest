@@ -5,6 +5,15 @@
 
 <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
 
+    <!-- NFC auto-login. Participants carry an NTAG card flashed with
+         their Unique ID; tapping it on the device fills the login
+         field and authenticates without typing. android:required="false"
+         on the feature so devices without NFC hardware (older / cheaper
+         Androids, all iPads) still install the APK and just fall back
+         to manual ID entry. -->
+    <uses-permission android:name="android.permission.NFC" />
+    <uses-feature android:name="android.hardware.nfc" android:required="false" />
+
     <!-- Health Connect read permissions. The values mirror what HealthService
          requests in Dart; keep them in sync. -->
     <uses-permission android:name="android.permission.health.READ_HEART_RATE" />
