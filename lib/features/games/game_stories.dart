@@ -265,6 +265,67 @@ Your reading is most accurate when you are calm.
       category: GameCategory.measurements,
       showInCatalog: false,
     ),
+
+    // Medication-pillar games. Pill Path is the daily-adherence
+    // tracker; Quiet Landscape is a guided-breathing experience that
+    // happens to also capture a calm-state BP reading. Both author
+    // their state to localStorage today — wire them through the
+    // SurveyHooks / DailyLogHooks bridge in a future iteration to
+    // get the records into Firestore.
+    'pill_path': GameStory(
+      id: 'pill_path',
+      title: 'Pill Path',
+      shortDescription: 'Mark your daily medicine and watch the path build',
+      narrative: '''
+Each day you take your medicine, you tap a pill on your path. After seven days the path is complete and a gentle celebration plays. You can also mark a pill as caregiver-assisted on days when someone helped.
+
+The path builds even on days you missed — those days simply stay empty. The point is honest tracking, not a perfect streak.
+      ''',
+      medicalContext:
+          'Daily adherence to blood-pressure medication is the single largest controllable factor in long-term hypertension outcomes. Tracking adherence — including caregiver assistance — gives the care team a realistic view of how the regimen is working in real life rather than in clinic.',
+      benefits: [
+        'Build a daily medication habit',
+        'Track honest adherence',
+        'Acknowledge caregiver help',
+        'Visual reward each week',
+      ],
+      emoji: '💊',
+      iconData: Icons.medication,
+      color: '#2d7d6d',
+      status: 'active',
+      category: GameCategory.medication,
+    ),
+
+    // Quiet Landscape is NOT a standalone catalog entry — it's the
+    // BP-capture trampoline that Vascular Village launches when the
+    // village needs today's reading. Quiet Minute remains the
+    // dashboard's BG log card; Quiet Landscape is the in-village
+    // alternative with the longer breathing settle. `showInCatalog:
+    // false` hides it from the Game Catalog grid; the entry still
+    // exists so `game_launcher.dart` can resolve "quiet_landscape"
+    // when Vascular Village's <<run window.CCQ.launchGame("quiet_landscape")>>
+    // crosses the bridge.
+    'quiet_landscape': GameStory(
+      id: 'quiet_landscape',
+      title: 'Quiet Landscape',
+      shortDescription: 'Breathing scene + BP capture (in-village)',
+      narrative: '''
+Sixteen slow breaths over a calm landscape. The scene shifts as you breathe — clouds drift, light moves. When the sequence ends you record your cuff reading.
+      ''',
+      medicalContext:
+          'Slow paced breathing engages the parasympathetic nervous system, lowering heart rate and softening vessel tone. Practicing this before a measurement returns the reading closer to your true resting baseline rather than capturing a stressed spike.',
+      benefits: [
+        'Longer settle before reading',
+        'Calmer baseline',
+        'Visual breath pacing',
+      ],
+      emoji: '🌅',
+      iconData: Icons.spa,
+      color: '#3a6a94',
+      status: 'active',
+      showInCatalog: false,
+      category: GameCategory.medication,
+    ),
   };
 
   // Get all active games

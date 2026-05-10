@@ -59,6 +59,9 @@ class NfcService {
       debugPrint('NfcService: scan already in progress');
       return null;
     }
+    // Clear the previous diagnostic so callers don't show stale text
+    // from an earlier scan while this one is still pending.
+    lastDiagnostic = null;
     final completer = Completer<String?>();
     _scanning = true;
 
@@ -107,39 +110,100 @@ class NfcService {
   // Recovered text gets `_normaliseId`'d (trimmed, whitespace stripped).
   // ────────────────────────────────────────────────────────────────────
 
+  /// Most recent diagnostic from a parse attempt. Populated even on
+  /// success (e.g. "parsed Text record (en) → 'P-001'") so the login
+  /// screen can surface what was extracted, and on failure with the
+  /// reason ("tag had no NDEF data", "no recognisable record types").
+  /// Read-only from outside; cleared by the next `startScan` call.
+  String? lastDiagnostic;
+
   String? _extractParticipantId(NfcTag tag) {
+    lastDiagnostic = null;
     try {
       final ndef = Ndef.from(tag);
-      if (ndef == null) return null;
+      if (ndef == null) {
+        lastDiagnostic = 'Tag had no NDEF data — likely a blank tag or '
+            'a non-NDEF format (Mifare Classic etc.). Re-flash with '
+            'a Text record.';
+        debugPrint('NfcService: $lastDiagnostic');
+        return null;
+      }
       final cached = ndef.cachedMessage;
-      if (cached == null || cached.records.isEmpty) return null;
+      if (cached == null || cached.records.isEmpty) {
+        lastDiagnostic = 'Tag is NDEF but carries no records.';
+        debugPrint('NfcService: $lastDiagnostic');
+        return null;
+      }
+
+      // Walk every record; first non-empty parse wins. We also keep
+      // a per-record diagnostic so a tag with multiple records that
+      // ALL fail produces a useful summary at the end.
+      final perRecord = <String>[];
 
       for (final record in cached.records) {
         final tnf = record.typeNameFormat;
+        final typeStr = String.fromCharCodes(record.type);
+        final payloadLen = record.payload.length;
 
         if (tnf == NdefTypeNameFormat.nfcWellknown) {
-          final type = String.fromCharCodes(record.type);
-          if (type == 'T') {
+          if (typeStr == 'T') {
             final text = _decodeTextPayload(record.payload);
-            if (text != null && text.isNotEmpty) return _normaliseId(text);
-          } else if (type == 'U') {
+            if (text != null && text.isNotEmpty) {
+              final id = _normaliseId(text);
+              lastDiagnostic = 'Parsed NDEF Text record → "$id"';
+              debugPrint('NfcService: $lastDiagnostic');
+              return id;
+            }
+            perRecord.add('T record (${payloadLen}B) — empty after decode');
+          } else if (typeStr == 'U') {
             final uri = _decodeUriPayload(record.payload);
             if (uri != null && uri.isNotEmpty) {
-              return _normaliseId(_idFromUri(uri));
+              final id = _normaliseId(_idFromUri(uri));
+              if (id.isNotEmpty) {
+                lastDiagnostic =
+                    'Parsed NDEF URI record "$uri" → "$id"';
+                debugPrint('NfcService: $lastDiagnostic');
+                return id;
+              }
             }
+            perRecord.add('U record (${payloadLen}B) — could not extract id');
+          } else {
+            perRecord.add('Well-known type "$typeStr" — not handled');
           }
         } else {
           // Last-resort raw UTF-8 — covers tags written outside the
-          // canonical Text / URI formats.
+          // canonical Text / URI formats. Surrounds the decode in a
+          // try/catch in case the bytes aren't valid UTF-8 at all.
           try {
             final raw =
                 utf8.decode(record.payload, allowMalformed: true).trim();
-            if (raw.isNotEmpty) return _normaliseId(raw);
-          } catch (_) {/* fall through */}
+            if (raw.isNotEmpty) {
+              final id = _normaliseId(raw);
+              if (id.isNotEmpty) {
+                lastDiagnostic = 'Parsed non-NDEF record (TNF=${tnf.name}, '
+                    'type="$typeStr") as raw UTF-8 → "$id"';
+                debugPrint('NfcService: $lastDiagnostic');
+                return id;
+              }
+            }
+            perRecord.add(
+              'TNF=${tnf.name} type="$typeStr" — UTF-8 decode produced empty',
+            );
+          } catch (_) {
+            perRecord.add(
+              'TNF=${tnf.name} type="$typeStr" — UTF-8 decode failed',
+            );
+          }
         }
       }
+
+      lastDiagnostic =
+          'Tag had ${cached.records.length} record(s) but none yielded '
+          'a Unique ID: ${perRecord.join('; ')}';
+      debugPrint('NfcService: $lastDiagnostic');
     } catch (e) {
-      debugPrint('NfcService: parse error — $e');
+      lastDiagnostic = 'Parse threw: $e';
+      debugPrint('NfcService: $lastDiagnostic');
     }
     return null;
   }

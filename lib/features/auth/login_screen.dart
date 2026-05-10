@@ -11,7 +11,9 @@ import 'package:get_it/get_it.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/constants/firestore_paths.dart';
+import '../../core/hooks/telemetry_hooks.dart';
 import '../../core/services/nfc_service.dart';
+import '../../core/services/activity_logs.dart';
 import '../../core/services/offline_queue.dart';
 // import 'auth_screen.dart'; // Uncomment if you still need this route
 // Routing to the HomeTab
@@ -37,6 +39,16 @@ class _LoginScreenState extends State<LoginScreen> {
   // NFC-less devices before resolving to the manual-only layout.
   bool? _nfcAvailable;
   bool _nfcScanning = false;
+
+  /// Inline status banner shown above the NFC button. Replaces the
+  /// fleeting snackbar feedback we used to rely on — earlier the
+  /// research team hit "scanned but nothing happened" because the
+  /// auto-triggered scan would silently swallow parse failures, and
+  /// any login error that fired afterwards used a snackbar that
+  /// disappeared in a few seconds. The banner persists until the
+  /// next NFC outcome (success, failure, retry), so the participant
+  /// always has a clear signal about what just happened.
+  _NfcStatus? _nfcStatus;
 
   @override
   void initState() {
@@ -73,33 +85,111 @@ class _LoginScreenState extends State<LoginScreen> {
 
   /// Drive an NFC scan to completion and feed the resulting ID into
   /// the existing [_handleLogin] flow. [autoTriggered] is true for
-  /// the silent Android session that starts on screen mount, and
-  /// false when the participant pressed the button explicitly — the
-  /// distinction lets us silently swallow auto-scan failures.
+  /// the ambient Android session that starts on screen mount, and
+  /// false when the participant pressed the button explicitly.
+  ///
+  /// Both paths surface visible feedback now (the inline status
+  /// banner). Earlier the auto-triggered scan would swallow parse
+  /// failures so the participant was left wondering whether the
+  /// chime they heard meant anything.
   Future<void> _runNfcScan({bool autoTriggered = false}) async {
     if (_nfcScanning || _isLoginLoading) return;
-    setState(() => _nfcScanning = true);
+    setState(() {
+      _nfcScanning = true;
+      _nfcStatus = const _NfcStatus(
+        level: _NfcStatusLevel.info,
+        message:
+            'Hold your NFC card to the back of the phone to log in.',
+      );
+    });
+
+    unawaited(TelemetryHooks.logEvent(
+      'nfc_scan_started',
+      parameters: {'autoTriggered': autoTriggered},
+    ));
 
     final id = await _nfc.startScan();
+    final diagnostic = _nfc.lastDiagnostic;
 
     if (!mounted) return;
     setState(() => _nfcScanning = false);
 
     if (id == null || id.isEmpty) {
-      if (!autoTriggered) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              "Couldn't read that card. Try again or enter your ID below.",
-            ),
-          ),
+      // Surface the diagnostic from NfcService so the team can see
+      // WHY the card didn't read (no NDEF, unsupported types, empty
+      // payload, etc.) instead of a generic "couldn't read" message.
+      // Same banner copy for autoTriggered and manual scans now —
+      // silent failures on the Android auto-scan were the original
+      // bug report.
+      setState(() {
+        _nfcStatus = _NfcStatus(
+          level: _NfcStatusLevel.warn,
+          message: 'Card scanned but no Unique ID was found on it.',
+          detail: diagnostic ??
+              'No diagnostic available — the scan may have been '
+              'cancelled before a tag was detected.',
         );
+      });
+      unawaited(TelemetryHooks.logEvent(
+        'nfc_scan_no_id',
+        parameters: {
+          'autoTriggered': autoTriggered,
+          'diagnostic': ?diagnostic,
+        },
+      ));
+      // Restart the ambient listener so the participant can simply
+      // re-tap. Previously after a failed auto-scan they'd have to
+      // press the manual button; on a real device with a good tag
+      // most "failures" are actually mis-taps (off-axis, too quick)
+      // that succeed on a second try.
+      if (autoTriggered && Platform.isAndroid && mounted) {
+        await Future<void>.delayed(const Duration(milliseconds: 600));
+        if (mounted && !_nfcScanning && !_isLoginLoading) {
+          unawaited(_runNfcScan(autoTriggered: true));
+        }
       }
       return;
     }
 
+    setState(() {
+      _nfcStatus = _NfcStatus(
+        level: _NfcStatusLevel.success,
+        message: 'Read your card — logging in as $id…',
+        detail: diagnostic,
+      );
+    });
+    unawaited(TelemetryHooks.logEvent(
+      'nfc_scan_id_read',
+      parameters: {
+        'id': id,
+        'autoTriggered': autoTriggered,
+        'diagnostic': ?diagnostic,
+      },
+    ));
+
     _uniqueIdController.text = id;
     await _handleLogin();
+
+    // If we're still on the screen after _handleLogin, the login
+    // path didn't navigate — usually because Firestore threw and
+    // _handleLogin's catch block surfaced a snackbar. The snackbar
+    // disappears after ~4s, so we mirror the failure into the
+    // persistent banner so the participant has lasting context for
+    // what they just saw at the bottom of the screen.
+    if (!mounted) return;
+    setState(() {
+      _nfcStatus = _NfcStatus(
+        level: _NfcStatusLevel.error,
+        message: 'Read "$id" from your card, but logging in failed.',
+        detail:
+            'See the message at the bottom of the screen. You can '
+            'also enter the ID manually below to retry.',
+      );
+    });
+    unawaited(TelemetryHooks.logEvent(
+      'nfc_login_after_scan_failed',
+      parameters: {'id': id, 'autoTriggered': autoTriggered},
+    ));
   }
 
   Future<void> _handleLogin() async {
@@ -116,6 +206,47 @@ class _LoginScreenState extends State<LoginScreen> {
     }
 
     setState(() => _isLoginLoading = true);
+
+    // Drop any leftover user state from the previous session BEFORE
+    // we kick off the auth + fetch round-trip. Without this, a
+    // pre-existing UserDataProvider map from participant A would
+    // remain visible to readers (dashboard, WebView host's UA
+    // stamp, GET_TODAY_BP bridge handler) for the entire duration
+    // of the Firestore query — long enough on a slow connection
+    // for participant B to land on the dashboard, open Vascular
+    // Village, and have the WebView's UA + localStorage tagged
+    // with A's UID. fetchUserData below also performs this wipe
+    // when it detects a participant switch, but doing it here
+    // makes the leak window zero-length even if the await chain
+    // gets reordered by a future refactor.
+    Provider.of<UserDataProvider>(context, listen: false).clearData();
+
+    // Drain the persistent Hive queues before swapping participants.
+    // OfflineQueue + activity_logs are global singletons; if A had
+    // unsynced writes when their session ended, those rows sit in
+    // the same Hive box B now uses. The path strings are baked in
+    // at enqueue time (e.g. `userData/A/dailyLogs/...`) so they'd
+    // sync to A's record correctly — but they'd sync under B's
+    // Firebase auth context, which can fail security rules and
+    // leave A's data permanently stuck in the queue.
+    //
+    // Strategy: try ONE quick best-effort sync to flush A's writes
+    // (max ~3s — short enough that the participant doesn't notice),
+    // then drop whatever's left. We deliberately accept the risk of
+    // dropping a few unsynced writes for the outgoing participant
+    // over the certainty of cross-participant queue contamination
+    // for the incoming one. Same pattern for activity_logs.
+    final queue = GetIt.instance<OfflineQueue>();
+    try {
+      await queue.syncToFirestore().timeout(
+            const Duration(seconds: 3),
+            onTimeout: () {/* best effort; drop remainder below */},
+          );
+    } catch (_) { /* network down etc — proceed to clear */ }
+    await queue.clear();
+    try {
+      await GetIt.instance<LoggingService>().clearLogs();
+    } catch (_) { /* non-fatal */ }
 
     try {
       final firestore = FirebaseFirestore.instance;
@@ -299,6 +430,10 @@ class _LoginScreenState extends State<LoginScreen> {
                             _buildPathLabel('AUTO LOGIN'),
                             const SizedBox(height: 8),
                             _buildNfcTapButton(),
+                            if (_nfcStatus != null) ...[
+                              const SizedBox(height: 12),
+                              _buildNfcStatusBanner(_nfcStatus!),
+                            ],
                             const SizedBox(height: 24),
                             _buildOrDivider(),
                             const SizedBox(height: 24),
@@ -553,4 +688,134 @@ class _LoginScreenState extends State<LoginScreen> {
       ],
     );
   }
+
+  /// Inline banner that displays the most recent NFC outcome under
+  /// the NFC tap button. Persists across re-renders until the next
+  /// scan replaces it. Color + icon vary by [_NfcStatusLevel] so the
+  /// participant can read the state at a glance:
+  ///   * info     — neutral blue (scan started, ambient listener)
+  ///   * success  — green (id read, login starting)
+  ///   * warn     — amber  (tag read, no id; or autoTriggered restart)
+  ///   * error    — red    (login failed after a successful read)
+  ///
+  /// `detail` is rendered below the headline in smaller text — for
+  /// info / success it's the NfcService diagnostic ("Parsed NDEF
+  /// Text record → 'P-001'"), for warn / error it's actionable next-
+  /// step copy or the diagnostic from the failed parse so the
+  /// research team can debug without logcat.
+  Widget _buildNfcStatusBanner(_NfcStatus status) {
+    final palette = _statusPalette(status.level);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: palette.background,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: palette.border),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(palette.icon, color: palette.foreground, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  status.message,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: palette.foreground,
+                    height: 1.35,
+                  ),
+                ),
+                if (status.detail != null && status.detail!.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    status.detail!,
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w500,
+                      color: palette.foreground.withValues(alpha: 0.85),
+                      height: 1.4,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static _NfcStatusPalette _statusPalette(_NfcStatusLevel level) {
+    switch (level) {
+      case _NfcStatusLevel.info:
+        return const _NfcStatusPalette(
+          background: Color(0xFFE7ECF6),
+          border: Color(0xFFB7C4DD),
+          foreground: Color(0xFF1F3A66),
+          icon: Icons.contactless_outlined,
+        );
+      case _NfcStatusLevel.success:
+        return const _NfcStatusPalette(
+          background: Color(0xFFD6F5D8),
+          border: Color(0xFF8FCB94),
+          foreground: Color(0xFF1A5A1F),
+          icon: Icons.check_circle_outline,
+        );
+      case _NfcStatusLevel.warn:
+        return const _NfcStatusPalette(
+          background: Color(0xFFFFF0C2),
+          border: Color(0xFFE3C868),
+          foreground: Color(0xFF7A4F00),
+          icon: Icons.error_outline,
+        );
+      case _NfcStatusLevel.error:
+        return const _NfcStatusPalette(
+          background: Color(0xFFF8C3C8),
+          border: Color(0xFFD18A91),
+          foreground: Color(0xFF8A1A25),
+          icon: Icons.cancel_outlined,
+        );
+    }
+  }
+}
+
+/// Severity of the NFC status banner — drives icon + colour.
+enum _NfcStatusLevel { info, success, warn, error }
+
+/// Plain-data row backing the inline NFC status banner. Stored in
+/// state instead of triggered through a snackbar so the message
+/// persists until the participant takes their next action — earlier
+/// the team's "scanned but nothing happened" reports were partly
+/// because the snackbar evidence vanished after 4 seconds and they
+/// never saw it.
+class _NfcStatus {
+  final _NfcStatusLevel level;
+  final String message;
+  final String? detail;
+  const _NfcStatus({
+    required this.level,
+    required this.message,
+    this.detail,
+  });
+}
+
+/// Visual tokens used by the status banner — kept as a small struct
+/// so the level→colour map lives in one place.
+class _NfcStatusPalette {
+  final Color background;
+  final Color border;
+  final Color foreground;
+  final IconData icon;
+  const _NfcStatusPalette({
+    required this.background,
+    required this.border,
+    required this.foreground,
+    required this.icon,
+  });
 }

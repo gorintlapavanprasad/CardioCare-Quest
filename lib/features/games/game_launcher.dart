@@ -13,6 +13,8 @@ import 'control_game.dart';
 import 'dash_diet_twine_game.dart';
 import 'dog_quest.dart';
 import 'game_stories.dart';
+import 'pill_path.dart';
+import 'quiet_landscape.dart';
 import 'quiet_minute.dart';
 import 'salt_sludge.dart';
 import 'vascular_village_game.dart';
@@ -47,6 +49,12 @@ void launchGameStory(BuildContext context, GameStory game) {
       // Hidden from the catalog (`showInCatalog: false`) but reachable
       // here in case it's ever favourited via some other entry point.
       screen = const QuietMinuteGame();
+      break;
+    case 'pill_path':
+      screen = const PillPathGame();
+      break;
+    case 'quiet_landscape':
+      screen = const QuietLandscapeGame();
       break;
   }
   Navigator.push(

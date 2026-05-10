@@ -9,8 +9,9 @@ import 'package:cardio_care_quest/core/services/health_service.dart';
 import 'package:cardio_care_quest/core/widgets/sync_badge.dart';
 import '../../../core/theme/app_colors.dart';
 import '../widgets/game_detail_dialog.dart';
-import 'coming_soon_screen.dart';
 import 'game_catalog_screen.dart';
+import '../../community/community_stats_screen.dart';
+import '../../health/health_stats_screen.dart';
 import '../../games/custom_games/build_game_screen.dart';
 import '../../games/custom_games/custom_game.dart';
 import '../../games/custom_games/custom_games_repository.dart';
@@ -248,6 +249,17 @@ class _HomeTabState extends State<HomeTab> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // Watch & Health — entry-point to the live
+                      // HealthKit / Health Connect dashboard. Sits
+                      // just above Feedback so the participant can
+                      // see fresh vitals without scrolling all the
+                      // way back up to the BP card. Only visible to
+                      // the participant themself; data is
+                      // userData/{uid}/healthSnapshots, not cohort-
+                      // wide.
+                      const SizedBox(height: 32),
+                      _buildSectionTitle("Watch & Health"),
+                      _buildHealthStatsCard(context),
                       const SizedBox(height: 32),
                       _buildSectionTitle("Feedback"),
                       _buildPostPlaySurveyCard(context),
@@ -260,6 +272,82 @@ class _HomeTabState extends State<HomeTab> {
           ),
         );
       },
+    );
+  }
+
+  /// Dashboard entry-point to the Health Stats screen. Same card
+  /// language as the other "drilldown" tiles on the dashboard
+  /// (Latest BP, Post-play survey) — icon on the left, two lines
+  /// of copy in the middle, chevron on the right. Subtitle copy
+  /// adapts to whether the participant is likely to have data:
+  /// at the dashboard level we don't query Firestore (would slow
+  /// the home render), so we just promise "live readings" and let
+  /// the screen itself surface the empty state when relevant.
+  Widget _buildHealthStatsCard(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const HealthStatsScreen(),
+            ),
+          );
+        },
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.cardBorder),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.accent.withValues(alpha: 0.08),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.watch_outlined,
+                color: AppColors.primary,
+                size: 32,
+              ),
+              const SizedBox(width: 16),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Health Stats',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.title,
+                      ),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      'Live heart rate, steps, calories and more from '
+                      'your Apple Watch.',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: AppColors.subtitle,
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right, color: AppColors.subtitle),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -635,8 +723,7 @@ class _HomeTabState extends State<HomeTab> {
             onTap: () => Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) =>
-                    const ComingSoonScreen(featureName: 'Community Statistics'),
+                builder: (_) => const CommunityStatsScreen(),
               ),
             ),
           ),

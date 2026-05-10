@@ -1,0 +1,1019 @@
+::StoryTitle
+Quiet Landscape
+
+::StoryData
+{
+  "ifid": "A1B2C3D4-E5F6-4890-ABCD-567890123456",
+  "format": "SugarCube",
+  "format-version": "2.37.3",
+  "start": "Story innit",
+  "zoom": 1
+}
+
+::StoryInit
+<<script>>
+/*
+  Load shared BP history from localStorage.
+  Same key as Quiet Minute so Vascular Village reads continuity.
+*/
+try {
+  var hist = window.localStorage.getItem("quietMinute_history");
+  State.variables.history = hist ? JSON.parse(hist) : [];
+} catch (e) {
+  State.variables.history = [];
+}
+
+State.variables.currentSys = 0;
+State.variables.currentDia = 0;
+State.variables.currentSeed = Math.floor(Math.random() * 1000);
+State.variables.currentCompletion = 0;
+<</script>>
+
+::UserStylesheet [stylesheet]
+/*
+  QUIET LANDSCAPE
+  Two-minute breath-painted landscape.
+  Same family as Salt Sludge / Vascular Village / Pill Path / Survey.
+
+  CardioCareQuest viridis palette (canonical across all games):
+    #440154  deep purple   — phone gradient stop 1
+    #3b528b  blue          — phone gradient stop 2 / focus accent
+    #21918c  teal          — phone gradient stop 3 / landscape mid
+    #5ec962  green          — landscape mid / verdict good
+    #fde725  yellow         — primary CTA / sun / moon
+    #f4f1d8  cream          — page background
+  The 16-stop landscape gradient walks the full viridis ramp by
+  design — that's what makes the breathing scene "shift" as the
+  participant breathes. It's the canonical demonstration of the
+  palette in motion.
+*/
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+
+body {
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif;
+  background-color: #f4f1d8;
+  padding: 16px 12px;
+  font-size: 18px;
+  line-height: 1.5;
+  color: #1a1a1a;
+}
+
+#ui-bar { display: none; }
+
+#story {
+  margin: 0 auto;
+  max-width: 400px;
+  width: 100%;
+}
+
+.passage { padding: 0; margin: 0; font-size: 1em; }
+
+.phone {
+  background: linear-gradient(180deg, #440154 0%, #3b528b 50%, #21918c 100%);
+  border-radius: 28px;
+  overflow: hidden;
+  box-shadow: 0 8px 30px rgba(60, 30, 80, 0.22);
+  color: #ffffff;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-height: 680px;
+}
+.phone *, .phone *::before, .phone *::after {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.phone p, .phone div, .phone span {
+  word-wrap: break-word !important;
+  overflow-wrap: break-word !important;
+  white-space: normal !important;
+  max-width: 100% !important;
+}
+
+/* Header */
+.header {
+  padding: 14px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: bold;
+  color: #ffffff;
+  font-size: 17px;
+  background-color: rgba(0, 0, 0, 0.22);
+  flex: 0 0 auto;
+}
+.header-mini {
+  font-size: 13px;
+  font-weight: bold;
+  color: #fde725;
+  letter-spacing: 0.04em;
+}
+
+/* Content */
+.content {
+  padding: 20px 22px 22px 22px;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+}
+.spacer { flex: 1 1 auto; min-height: 14px; }
+
+/* Welcome screen */
+.intro-title {
+  text-align: center;
+  font-size: 32px;
+  font-weight: bold;
+  margin: 0 0 14px 0;
+  letter-spacing: 0.02em;
+  color: #ffffff;
+  line-height: 1.25;
+}
+.narrative {
+  font-size: 18px;
+  line-height: 1.6;
+  margin: 0 0 14px 0;
+  color: #ffffff !important;
+}
+.narrative.center { text-align: center; }
+.narrative:last-of-type { margin-bottom: 0; }
+
+.help-text {
+  margin: 12px 0 0 0;
+  text-align: center;
+  font-size: 13px;
+  opacity: 0.7;
+  line-height: 1.5;
+  color: #ffffff;
+}
+
+/* Buttons */
+.btn-primary,
+.phone a.btn-primary,
+.phone a.btn-primary.link-internal,
+.phone a.btn-primary.macro-link {
+  display: block !important;
+  width: 100% !important;
+  padding: 18px !important;
+  background-color: #fde725 !important;
+  color: #2a1a4a !important;
+  border: none !important;
+  border-radius: 14px !important;
+  font-weight: bold !important;
+  font-size: 16px !important;
+  letter-spacing: 0.1em !important;
+  text-align: center !important;
+  text-decoration: none !important;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif !important;
+  cursor: pointer !important;
+  margin-bottom: 10px !important;
+  box-sizing: border-box !important;
+  min-height: 56px !important;
+}
+.btn-primary:last-child,
+.phone a.btn-primary:last-child { margin-bottom: 0 !important; }
+
+.btn-secondary,
+.phone a.btn-secondary {
+  display: block !important;
+  width: 100% !important;
+  padding: 14px !important;
+  background-color: transparent !important;
+  border: 1px solid rgba(255, 255, 255, 0.35) !important;
+  color: rgba(255, 255, 255, 0.9) !important;
+  border-radius: 14px !important;
+  font-size: 13px !important;
+  letter-spacing: 0.06em !important;
+  text-align: center !important;
+  text-decoration: none !important;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif !important;
+  box-sizing: border-box !important;
+  margin-bottom: 0 !important;
+  min-height: 44px !important;
+}
+
+/* The breathing/landscape stage */
+.breathe-stage {
+  background: linear-gradient(180deg, #2a1a4a 0%, #1a3a6a 100%);
+  border-radius: 16px;
+  padding: 16px 12px 14px 12px;
+  margin-bottom: 14px;
+  position: relative;
+  overflow: hidden;
+}
+
+.breathe-prompt-wrap {
+  position: relative;
+  height: 28px;
+  width: 100%;
+  margin-bottom: 16px;
+  text-align: center;
+}
+.breathe-prompt {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  font-size: 16px;
+  letter-spacing: 0.04em;
+  color: #ffffff;
+  opacity: 0;
+}
+.breathe-prompt.in { animation: bpIn 8s ease-in-out infinite; }
+.breathe-prompt.out { animation: bpOut 8s ease-in-out infinite; }
+@keyframes bpIn {
+  0% { opacity: 0; }
+  6% { opacity: 1; }
+  44% { opacity: 1; }
+  52% { opacity: 0; }
+  100% { opacity: 0; }
+}
+@keyframes bpOut {
+  0% { opacity: 0; }
+  52% { opacity: 0; }
+  58% { opacity: 1; }
+  94% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* Breathing circle */
+.breathe-circle-wrap {
+  width: 100%;
+  height: 96px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 12px;
+  position: relative;
+}
+.breathe-circle {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, rgba(253, 231, 37, 0.65), rgba(94, 201, 98, 0.25));
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  box-shadow: 0 0 40px rgba(253, 231, 37, 0.3);
+  animation: breatheAnim 8s ease-in-out infinite;
+}
+@keyframes breatheAnim {
+  0% { width: 50px; height: 50px; opacity: 0.7; }
+  45% { width: 90px; height: 90px; opacity: 1; }
+  55% { width: 90px; height: 90px; opacity: 1; }
+  100% { width: 50px; height: 50px; opacity: 0.7; }
+}
+
+/* The landscape canvas */
+.landscape-canvas {
+  width: 100%;
+  height: 220px;
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  background: linear-gradient(180deg, #1a0a2a 0%, #2a1a4a 100%);
+  margin-bottom: 12px;
+}
+
+.land-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* Each band animates in sequence over 128s total (16 breaths × 8s) */
+.land-band {
+  transform-origin: bottom center;
+  transform: scaleY(0);
+  opacity: 0;
+  animation: bandRise 8s ease-out forwards;
+}
+@keyframes bandRise {
+  0% { transform: scaleY(0); opacity: 0; }
+  50% { transform: scaleY(1); opacity: 1; }
+  100% { transform: scaleY(1); opacity: 1; }
+}
+
+.land-band.b1 { animation-delay: 0s; }
+.land-band.b2 { animation-delay: 8s; }
+.land-band.b3 { animation-delay: 16s; }
+.land-band.b4 { animation-delay: 24s; }
+.land-band.b5 { animation-delay: 32s; }
+.land-band.b6 { animation-delay: 40s; }
+.land-band.b7 { animation-delay: 48s; }
+.land-band.b8 { animation-delay: 56s; }
+.land-band.b9 { animation-delay: 64s; }
+.land-band.b10 { animation-delay: 72s; }
+.land-band.b11 { animation-delay: 80s; }
+.land-band.b12 { animation-delay: 88s; }
+.land-band.b13 { animation-delay: 96s; }
+.land-band.b14 { animation-delay: 104s; }
+.land-band.b15 { animation-delay: 112s; }
+.land-band.b16 { animation-delay: 120s; }
+
+/* The sun/moon fades in across the full 128s */
+.land-sun {
+  opacity: 0;
+  animation: sunRise 128s ease-in forwards;
+}
+@keyframes sunRise {
+  0% { opacity: 0; }
+  100% { opacity: 0.95; }
+}
+
+/* Timer bar across the bottom of the stage */
+.breathe-timer {
+  margin: 4px 4px 0 4px;
+  height: 4px;
+  background-color: rgba(255, 255, 255, 0.15);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.breathe-timer-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #fde725, #5ec962);
+  width: 0%;
+  animation: timerFill 128s linear forwards;
+}
+@keyframes timerFill {
+  from { width: 0%; }
+  to { width: 100%; }
+}
+.breathe-timer-text {
+  text-align: center;
+  font-size: 11px;
+  opacity: 0.7;
+  letter-spacing: 0.08em;
+  margin-top: 8px;
+  margin-bottom: 0;
+  color: #ffffff;
+}
+
+/* BP entry */
+.entry-card {
+  background-color: rgba(255, 255, 255, 0.10);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 14px;
+  padding: 16px 14px;
+  margin-bottom: 14px;
+  text-align: center;
+}
+.entry-prompt {
+  font-size: 18px;
+  font-weight: bold;
+  margin: 0 0 10px 0;
+  color: #ffffff;
+  line-height: 1.35;
+}
+.entry-help {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.8);
+  margin: 0 0 16px 0;
+  line-height: 1.45;
+}
+
+.input-row {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 14px;
+  width: 100%;
+  box-sizing: border-box;
+}
+.input-card {
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  background-color: #ffffff;
+  border-radius: 14px;
+  padding: 14px 12px;
+  text-align: center;
+  color: #1a1a1a;
+  overflow: hidden;
+}
+.input-label {
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  color: #666;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  font-weight: bold;
+}
+.input-card input,
+.input-card input[type="text"],
+.input-card input[type="number"],
+.input-card input[type="tel"] {
+  display: block !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+  border: none !important;
+  background-color: #ffffff !important;
+  background: #ffffff !important;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif !important;
+  font-size: 38px !important;
+  font-weight: bold !important;
+  text-align: center !important;
+  color: #1a1a1a !important;
+  caret-color: #3b528b !important;
+  outline: none !important;
+  padding: 0 0 4px 0 !important;
+  margin: 0 !important;
+  border-bottom: 2px solid #d8d8d8 !important;
+  -moz-appearance: textfield !important;
+  -webkit-text-fill-color: #1a1a1a !important;
+}
+.input-card input::-webkit-outer-spin-button,
+.input-card input::-webkit-inner-spin-button {
+  -webkit-appearance: none !important;
+  margin: 0 !important;
+}
+.input-card input:focus {
+  border-bottom-color: #3b528b !important;
+  background-color: #ffffff !important;
+  color: #1a1a1a !important;
+  -webkit-text-fill-color: #1a1a1a !important;
+}
+.input-card input::selection {
+  background-color: #3b528b !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+.input-card input::-moz-selection {
+  background-color: #3b528b !important;
+  color: #ffffff !important;
+}
+.input-card input:-webkit-autofill,
+.input-card input:-webkit-autofill:hover,
+.input-card input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 100px #ffffff inset !important;
+  -webkit-text-fill-color: #1a1a1a !important;
+}
+.input-unit {
+  font-size: 11px;
+  color: #888;
+  margin-top: 8px;
+}
+
+/* Result card */
+.result-card {
+  background-color: #ffffff;
+  border-radius: 16px;
+  padding: 18px 16px;
+  color: #1a1a1a;
+  text-align: center;
+  margin-bottom: 14px;
+  box-shadow: 0 4px 16px rgba(40, 20, 60, 0.22);
+}
+.result-headline {
+  font-size: 22px;
+  font-weight: bold;
+  color: #1a5a1f;
+  margin: 0 0 12px 0;
+  line-height: 1.3;
+}
+.result-thumb {
+  width: 100%;
+  height: 130px;
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 12px;
+  background: linear-gradient(180deg, #1a0a2a 0%, #2a1a4a 100%);
+  position: relative;
+}
+.result-thumb svg { width: 100%; height: 100%; display: block; }
+.result-bp {
+  font-size: 32px;
+  font-weight: bold;
+  color: #1a1a1a;
+  margin: 8px 0 4px 0;
+  line-height: 1;
+}
+.result-bp .slash {
+  opacity: 0.4;
+  font-weight: normal;
+  margin: 0 4px;
+}
+.result-bp-units {
+  font-size: 12px;
+  color: #888;
+  letter-spacing: 0.1em;
+  margin: 0;
+}
+
+/* Gallery */
+.gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.gallery-item {
+  background-color: #ffffff;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(40, 20, 60, 0.18);
+}
+.gallery-thumb {
+  width: 100%;
+  height: 88px;
+  background: linear-gradient(180deg, #1a0a2a 0%, #2a1a4a 100%);
+  position: relative;
+}
+.gallery-thumb svg { width: 100%; height: 100%; display: block; }
+.gallery-meta {
+  padding: 8px 10px;
+  text-align: center;
+}
+.gallery-bp {
+  font-size: 16px;
+  font-weight: bold;
+  color: #1a1a1a;
+  margin: 0;
+  line-height: 1.2;
+}
+.gallery-date {
+  font-size: 10px;
+  color: #888;
+  margin: 3px 0 0 0;
+  letter-spacing: 0.04em;
+}
+.gallery-empty {
+  text-align: center;
+  padding: 40px 20px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+/* Skip dialog */
+.skip-dialog {
+  background-color: rgba(255, 255, 255, 0.10);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 14px;
+  padding: 18px;
+  margin-bottom: 14px;
+  text-align: center;
+}
+.skip-dialog-text {
+  font-size: 16px;
+  margin: 0 0 14px 0;
+  color: #ffffff;
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .breathe-circle { animation-duration: 0.01ms !important; }
+  .breathe-prompt { animation-duration: 0.01ms !important; }
+  .land-band { animation-duration: 0.01ms !important; }
+  .land-sun { animation-duration: 0.01ms !important; }
+  .breathe-timer-fill { animation-duration: 128s !important; }
+}
+
+@media (min-width: 480px) {
+  body { padding: 32px 16px; }
+  .phone { min-height: 760px; }
+}
+
+
+::Story innit
+<<goto "Welcome">>
+
+
+::Welcome [nobr]
+/*
+WELCOME SCREEN.
+First-time and returning users see the same intro, plus a Gallery button if they have history.
+*/
+
+<div class="phone">
+<div class="header"><span>Quiet Landscape</span><span class="header-mini"><<print $history.length>> readings</span></div>
+<div class="content">
+
+<div style="text-align: center;">
+<svg width="110" height="110" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" style="display: block; margin: 16px auto;">
+  <defs>
+    <radialGradient id="qlMascotA" cx="40%" cy="35%" r="65%">
+      <stop offset="0%" stop-color="#a5e5a8"/>
+      <stop offset="60%" stop-color="#5ec962"/>
+      <stop offset="100%" stop-color="#21918c"/>
+    </radialGradient>
+  </defs>
+  <path d="M50 8 C 72 8, 88 22, 90 46 C 92 68, 78 90, 52 92 C 28 94, 10 78, 10 52 C 10 28, 28 8, 50 8 Z" fill="url(#qlMascotA)" stroke="#1a5a3a" stroke-width="1.5"/>
+  <ellipse cx="38" cy="46" rx="5" ry="7" fill="#1a1a1a"/>
+  <ellipse cx="62" cy="46" rx="5" ry="7" fill="#1a1a1a"/>
+  <ellipse cx="40" cy="44" rx="1.5" ry="2" fill="#ffffff"/>
+  <ellipse cx="64" cy="44" rx="1.5" ry="2" fill="#ffffff"/>
+  <path d="M40 64 Q 50 72, 60 64" stroke="#1a1a1a" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+</svg>
+</div>
+
+<h1 class="intro-title">Quiet Landscape</h1>
+
+<p class="narrative center">Two minutes of breathing.</p>
+
+<p class="narrative center">Watch a landscape paint itself with each breath you take. When it is done, take your blood pressure reading.</p>
+
+<div class="spacer"></div>
+
+<a class="btn-primary" data-passage="Breathe">START</a>
+<<if $history.length gt 0>>
+<a class="btn-secondary" data-passage="Gallery">SEE PAST READINGS</a>
+<</if>>
+
+<p class="help-text">Sit comfortably. Have your cuff ready.</p>
+
+</div>
+</div>
+
+
+::Breathe [nobr]
+/*
+TWO-MINUTE BREATHING + LANDSCAPE PAINT.
+Auto-advances to BP Entry after 128 seconds.
+*/
+
+<<set _seed to $currentSeed>>
+
+<div class="phone">
+<div class="header"><span>Quiet Landscape</span><span class="header-mini">2 minutes</span></div>
+<div class="content">
+
+<div class="breathe-stage">
+
+<div class="breathe-prompt-wrap">
+<div class="breathe-prompt in">breathe in</div>
+<div class="breathe-prompt out">breathe out</div>
+</div>
+
+<div class="breathe-circle-wrap">
+<div class="breathe-circle"></div>
+</div>
+
+<div class="landscape-canvas" id="landscape-live">
+<svg class="land-svg" viewBox="0 0 400 220" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Sun/moon fades in across the full session -->
+  <circle class="land-sun" cx="320" cy="50" r="28" fill="#fde725" opacity="0.8"/>
+  <circle class="land-sun" cx="320" cy="50" r="42" fill="#fde725" opacity="0.18"/>
+
+  <!-- 16 layered bands, deepest at bottom -->
+  <rect class="land-band b1"  x="0" y="200" width="400" height="20" fill="#440154"/>
+  <rect class="land-band b2"  x="0" y="190" width="400" height="14" fill="#48196b"/>
+  <rect class="land-band b3"  x="0" y="178" width="400" height="16" fill="#3b528b"/>
+  <rect class="land-band b4"  x="0" y="164" width="400" height="18" fill="#2c6a8e"/>
+  <rect class="land-band b5"  x="0" y="148" width="400" height="20" fill="#21918c"/>
+  <rect class="land-band b6"  x="0" y="132" width="400" height="20" fill="#2aa884"/>
+  <rect class="land-band b7"  x="0" y="118" width="400" height="18" fill="#3cbb75"/>
+  <rect class="land-band b8"  x="0" y="104" width="400" height="18" fill="#5ec962"/>
+  <rect class="land-band b9"  x="0" y="90"  width="400" height="18" fill="#84d44b"/>
+  <rect class="land-band b10" x="0" y="76"  width="400" height="18" fill="#a8db34"/>
+  <rect class="land-band b11" x="0" y="62"  width="400" height="18" fill="#c8df2d"/>
+  <rect class="land-band b12" x="0" y="48"  width="400" height="18" fill="#dde318"/>
+  <rect class="land-band b13" x="0" y="36"  width="400" height="14" fill="#fde725"/>
+  <rect class="land-band b14" x="0" y="24"  width="400" height="14" fill="#f8e76c"/>
+  <rect class="land-band b15" x="0" y="14"  width="400" height="12" fill="#f4ec9c"/>
+  <rect class="land-band b16" x="0" y="0"   width="400" height="16" fill="#f7f1c6"/>
+</svg>
+</div>
+
+<div class="breathe-timer"><div class="breathe-timer-fill"></div></div>
+<p class="breathe-timer-text">Two minutes. Match your breath to the circle.</p>
+
+</div>
+
+<div class="spacer"></div>
+
+<a class="btn-secondary" data-passage="Skip Confirm">END EARLY</a>
+
+</div>
+</div>
+
+<<timed 128s>><<set $currentCompletion to 1.0>><<goto "BP Entry">><</timed>>
+
+
+::Skip Confirm [nobr]
+/*
+Confirms the user wants to skip the breathing portion.
+Records partial completion based on time elapsed (we approximate by checking if it was within first 30s, etc., but simplest is just half).
+*/
+<<set $currentCompletion to 0.5>>
+
+<div class="phone">
+<div class="header"><span>Quiet Landscape</span></div>
+<div class="content">
+
+<div class="skip-dialog">
+<p class="skip-dialog-text">End the breathing now and take your reading?</p>
+</div>
+
+<p class="narrative center">For the most accurate reading, the full two minutes of rest helps. But if you need to stop, that is fine.</p>
+
+<div class="spacer"></div>
+
+<a class="btn-primary" data-passage="BP Entry">YES, TAKE MY READING</a>
+<a class="btn-secondary" data-passage="Breathe">GO BACK TO BREATHING</a>
+
+</div>
+</div>
+
+
+::BP Entry [nobr]
+/*
+ENTER SYS / DIA from cuff.
+*/
+
+<div class="phone">
+<div class="header"><span>Quiet Landscape</span><span class="header-mini">Reading</span></div>
+<div class="content">
+
+<div class="entry-card">
+<p class="entry-prompt">Take your reading now</p>
+<p class="entry-help">Use your blood pressure cuff. Type the two numbers below.</p>
+</div>
+
+<div class="input-row">
+<div class="input-card">
+<div class="input-label">Top</div>
+<input type="text" inputmode="numeric" pattern="[0-9]*" id="ql-sys">
+<div class="input-unit">systolic</div>
+</div>
+<div class="input-card">
+<div class="input-label">Bottom</div>
+<input type="text" inputmode="numeric" pattern="[0-9]*" id="ql-dia">
+<div class="input-unit">diastolic</div>
+</div>
+</div>
+
+<div class="spacer"></div>
+
+<button class="btn-primary" id="ql-save-btn">SAVE READING</button>
+<a class="btn-secondary" data-passage="Welcome">CANCEL</a>
+
+</div>
+</div>
+
+<<script>>
+setTimeout(function () {
+  var sysEl = document.getElementById("ql-sys");
+  var diaEl = document.getElementById("ql-dia");
+  var btn = document.getElementById("ql-save-btn");
+  if (sysEl) sysEl.focus();
+  if (btn && btn.dataset.bound !== "1") {
+    btn.dataset.bound = "1";
+    btn.addEventListener("click", function (e) {
+      e.preventDefault();
+      var s = Number(sysEl ? sysEl.value : 0);
+      var d = Number(diaEl ? diaEl.value : 0);
+      if (s < 60 || s > 250 || d < 30 || d > 160 || isNaN(s) || isNaN(d)) {
+        alert("Those numbers look outside the usual range. Please check and try again.");
+        return;
+      }
+      State.variables.currentSys = s;
+      State.variables.currentDia = d;
+      Engine.play("Save Reading");
+    });
+  }
+}, 0);
+<</script>>
+
+
+::Save Reading [nobr]
+/*
+Persists the reading to localStorage and routes to Result.
+
+Important: this passage is [nobr], which collapses the body of every
+nested <<script>> macro onto a single line at render time. Single-
+line `//` comments inside the script would swallow everything after
+them on the collapsed line — including the `})();` close and the
+localStorage write. That used to silently break the BP handoff to
+Vascular Village (Quiet Landscape would log to Firestore via the
+LOG_BP bridge below, but `quietMinute_history` would never get
+written, so Vascular Village's Hub re-render still saw "no reading
+today" and looped the participant back to the trampoline). Fixed by
+using only `/* … */` block comments inside any <<script>> in a [nobr]
+passage. Same constraint applies to the Gallery passage's render
+script and to every <<script>> block in pill_path.tw.
+*/
+<<script>>
+(function () {
+  var hist = State.variables.history || [];
+  hist.unshift({
+    sys: State.variables.currentSys,
+    dia: State.variables.currentDia,
+    when: Date.now(),
+    landscape: {
+      breaths: 16,
+      completion: State.variables.currentCompletion || 1.0,
+      seed: State.variables.currentSeed || 0
+    }
+  });
+  /* Cap at 100 entries */
+  if (hist.length > 100) hist = hist.slice(0, 100);
+  State.variables.history = hist;
+  try {
+    window.localStorage.setItem("quietMinute_history", JSON.stringify(hist));
+  } catch (e) {}
+})();
+<</script>>
+<<script>>
+/*
+ Firestore-first: push the BP through the same LOG_BP bridge channel
+ Quiet Minute uses. Routes to DailyLogHooks.logBP →
+ userData/{uid}/dailyLogs/{today}/bpReadings/{auto}, bumps points +
+ measurementsTaken on userData/{uid}, and writes the immutable events
+ row. Mood defaults to 2 (neutral) since Quiet Landscape doesn't
+ capture mood — the participant's calm-state assumption is implicit
+ in the breathing exercise that preceded the reading. <<script>> body
+ is pure JS so we use State.variables directly.
+*/
+try {
+  if (window.CCQ && typeof window.CCQ.logBP === "function") {
+    window.CCQ.logBP(
+      State.variables.currentSys,
+      State.variables.currentDia,
+      2
+    );
+  }
+} catch (e) { console.error("[QuietLandscape] logBP:", e); }
+<</script>>
+<<goto "Result">>
+
+
+::Result [nobr]
+/*
+Show the painted landscape thumbnail with the BP reading underneath.
+
+DONE button uses `class="ccq-home-trigger"` instead of a passage
+link. The bridge JS captures clicks on that class and fires
+`window.CCQ.goHome()` → host's `_performExit` pops this route with
+the freshly-logged BP map; Vascular Village underneath catches the
+result, injects $lastSys / $lastDia, and re-renders Hub. The old
+`data-passage="Welcome"` wiring just looped the participant back
+to Quiet Landscape's intro screen — they had to find the burger
+menu to actually leave.
+*/
+
+<<set _zone to "ok">>
+<<set _zoneLabel to "">>
+<<if $currentSys lt 120 and $currentDia lt 80>>
+  <<set _zoneLabel to "Normal range">>
+<<elseif $currentSys lt 130 and $currentDia lt 80>>
+  <<set _zoneLabel to "Slightly elevated">>
+<<elseif $currentSys lt 140 and $currentDia lt 90>>
+  <<set _zoneLabel to "Stage 1">>
+<<else>>
+  <<set _zoneLabel to "Stage 2, talk to your doctor">>
+<</if>>
+
+<div class="phone">
+<div class="header"><span>Quiet Landscape</span><span class="header-mini">Saved</span></div>
+<div class="content">
+
+<div class="result-card">
+<p class="result-headline">Reading saved</p>
+
+<div class="result-thumb">
+<svg viewBox="0 0 400 130" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+<circle cx="320" cy="32" r="18" fill="#fde725" opacity="0.85"/>
+<circle cx="320" cy="32" r="28" fill="#fde725" opacity="0.18"/>
+<rect x="0" y="120" width="400" height="14" fill="#440154"/>
+<rect x="0" y="112" width="400" height="10" fill="#48196b"/>
+<rect x="0" y="104" width="400" height="10" fill="#3b528b"/>
+<rect x="0" y="94"  width="400" height="11" fill="#2c6a8e"/>
+<rect x="0" y="84"  width="400" height="11" fill="#21918c"/>
+<rect x="0" y="74"  width="400" height="11" fill="#2aa884"/>
+<rect x="0" y="65"  width="400" height="10" fill="#3cbb75"/>
+<rect x="0" y="56"  width="400" height="10" fill="#5ec962"/>
+<rect x="0" y="48"  width="400" height="9"  fill="#84d44b"/>
+<rect x="0" y="40"  width="400" height="9"  fill="#a8db34"/>
+<rect x="0" y="32"  width="400" height="9"  fill="#c8df2d"/>
+<rect x="0" y="24"  width="400" height="9"  fill="#dde318"/>
+<rect x="0" y="16"  width="400" height="9"  fill="#fde725"/>
+<rect x="0" y="9"   width="400" height="8"  fill="#f8e76c"/>
+<rect x="0" y="3"   width="400" height="7"  fill="#f4ec9c"/>
+<rect x="0" y="0"   width="400" height="4"  fill="#f7f1c6"/>
+</svg>
+</div>
+
+<p class="result-bp">$currentSys<span class="slash">/</span>$currentDia</p>
+<p class="result-bp-units">mmHg · <<print _zoneLabel>></p>
+</div>
+
+<div class="spacer"></div>
+
+<a class="btn-primary" data-passage="Gallery">SEE ALL READINGS</a>
+<a class="btn-secondary ccq-home-trigger">DONE</a>
+
+</div>
+</div>
+
+
+::Gallery [nobr]
+/*
+Show a grid of past landscapes with their BP numbers.
+Most recent first.
+
+Reachable from two passages — Welcome's "SEE PAST READINGS" link
+AND Result's "SEE ALL READINGS" link. The BACK button used to hard-
+code `data-passage="Welcome"`, which broke the post-save flow:
+participant saved a reading → Result → SEE ALL READINGS → Gallery
+→ BACK landed them on Welcome instead of Result, and the Result
+screen (with its DONE button to exit) was no longer reachable.
+The preamble script below stashes the previous passage title in
+$galleryReturnTo so the BACK link can return to it dynamically.
+*/
+
+<<script>>
+/*
+  Compute where to return to when the user taps BACK. State.history
+  holds past moments; the current Gallery moment was just pushed,
+  so [length - 2] is the passage the participant came from
+  (typically "Welcome" or "Result"). Falls back to Welcome if the
+  history is shorter than expected (defensive — shouldn't happen
+  in the normal flow, but a back-button arriving here from
+  outside the expected paths shouldn't crash).
+*/
+try {
+  var hist = State.history || [];
+  var prevMoment = hist.length >= 2 ? hist[hist.length - 2] : null;
+  State.variables.galleryReturnTo =
+      (prevMoment && prevMoment.title) || "Welcome";
+} catch (e) {
+  State.variables.galleryReturnTo = "Welcome";
+}
+<</script>>
+
+<div class="phone">
+<div class="header"><span>Past Readings</span><span class="header-mini"><<print $history.length>> total</span></div>
+<div class="content">
+
+<<if $history.length is 0>>
+<div class="gallery-empty">
+<p>No readings yet.</p>
+<p style="margin-top: 10px;">Take your first one to start your gallery.</p>
+</div>
+<<else>>
+<div class="gallery-grid" id="gallery-grid"></div>
+<</if>>
+
+<div class="spacer"></div>
+
+/*
+The `@data-passage` attribute directive (the `@` prefix) tells
+SugarCube to evaluate the value as a TwineScript expression and
+use the result as the rendered attribute value. Earlier we tried
+`data-passage="<<print $galleryReturnTo>>"` but plain HTML
+attributes only get $-variable substitution — the surrounding
+`<<print>>` macro doesn't run, so the rendered attribute becomes
+literally `<<print Result>>` and SugarCube errors with "the
+passage <<print Result>> does not exist". The `@` prefix is the
+documented way to interpolate a variable into an attribute.
+*/
+<a class="btn-primary" @data-passage="$galleryReturnTo">BACK</a>
+
+</div>
+</div>
+
+<<script>>
+setTimeout(function () {
+  var grid = document.getElementById("gallery-grid");
+  if (!grid) return;
+  var hist = State.variables.history || [];
+  var html = "";
+  hist.forEach(function (entry) {
+    var d = new Date(entry.when || 0);
+    var dateStr = (d.getMonth() + 1) + "/" + d.getDate();
+    var seed = (entry.landscape && entry.landscape.seed) || 0;
+    var completion = (entry.landscape && entry.landscape.completion) || 1.0;
+    /* Generate a thumbnail SVG that varies subtly by seed (sun position) and completion (band count) */
+    var sunX = 80 + (seed % 240);
+    var bandsToShow = Math.max(4, Math.round(16 * completion));
+    var bandHtml = "";
+    var palette = ["#440154","#48196b","#3b528b","#2c6a8e","#21918c","#2aa884","#3cbb75","#5ec962","#84d44b","#a8db34","#c8df2d","#dde318","#fde725","#f8e76c","#f4ec9c","#f7f1c6"];
+    var totalH = 88;
+    var bandH = totalH / 16;
+    for (var i = 0; i < bandsToShow; i++) {
+      var y = totalH - ((i + 1) * bandH);
+      bandHtml += '<rect x="0" y="' + y + '" width="400" height="' + (bandH + 0.5) + '" fill="' + palette[i] + '"/>';
+    }
+    html +=
+      '<div class="gallery-item">' +
+      '<div class="gallery-thumb">' +
+      '<svg viewBox="0 0 400 88" preserveAspectRatio="none">' +
+      '<circle cx="' + sunX + '" cy="22" r="14" fill="#fde725" opacity="0.8"/>' +
+      '<circle cx="' + sunX + '" cy="22" r="22" fill="#fde725" opacity="0.18"/>' +
+      bandHtml +
+      '</svg>' +
+      '</div>' +
+      '<div class="gallery-meta">' +
+      '<p class="gallery-bp">' + entry.sys + ' / ' + entry.dia + '</p>' +
+      '<p class="gallery-date">' + dateStr + '</p>' +
+      '</div>' +
+      '</div>';
+  });
+  grid.innerHTML = html;
+}, 0);
+<</script>>

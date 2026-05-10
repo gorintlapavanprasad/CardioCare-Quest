@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'app_colors.dart';
 
 class AppTheme {
@@ -8,44 +7,56 @@ class AppTheme {
       useMaterial3: true,
       brightness: Brightness.light,
       scaffoldBackgroundColor: AppColors.background,
-      
-      // Typography: DM Sans throughout. Sans-serif is more readable for the
-      // target audience (disabled, elderly, hypertension patients) than the
-      // previous serif-for-titles pattern. Hierarchy comes from weight + size.
-      textTheme: GoogleFonts.dmSansTextTheme().copyWith(
-        displayLarge: GoogleFonts.dmSans(
+
+      // Typography: Atkinson Hyperlegible throughout. Designed by the
+      // Braille Institute specifically to maximise legibility for
+      // readers with low vision — distinct letterforms (especially
+      // I/l/1, O/0, b/d, p/q) reduce the misreads our elderly +
+      // visually-impaired participants are most likely to make.
+      // Hierarchy comes from weight + size; the four TTF files are
+      // bundled locally (see pubspec.yaml + assets/fonts/) so the
+      // app works fully offline with the chosen typeface.
+      fontFamily: 'Atkinson Hyperlegible',
+      textTheme: const TextTheme(
+        displayLarge: TextStyle(
+          fontFamily: 'Atkinson Hyperlegible',
           fontWeight: FontWeight.w900,
           color: AppColors.title,
           fontSize: 32,
         ),
-        headlineMedium: GoogleFonts.dmSans(
+        headlineMedium: TextStyle(
+          fontFamily: 'Atkinson Hyperlegible',
           fontWeight: FontWeight.w700,
           color: AppColors.title,
           fontSize: 24,
         ),
-        titleLarge: GoogleFonts.dmSans(
+        titleLarge: TextStyle(
+          fontFamily: 'Atkinson Hyperlegible',
           fontWeight: FontWeight.bold,
           color: AppColors.title,
           fontSize: 18,
         ),
-        bodyLarge: GoogleFonts.dmSans(
+        bodyLarge: TextStyle(
+          fontFamily: 'Atkinson Hyperlegible',
           fontSize: 16,
           color: AppColors.body,
           height: 1.6,
           letterSpacing: 0.3,
         ),
-        bodyMedium: GoogleFonts.dmSans(
+        bodyMedium: TextStyle(
+          fontFamily: 'Atkinson Hyperlegible',
           fontSize: 14,
           color: AppColors.body,
           height: 1.5,
         ),
-        labelSmall: GoogleFonts.dmSans(
+        labelSmall: TextStyle(
+          fontFamily: 'Atkinson Hyperlegible',
           fontSize: 12,
           fontWeight: FontWeight.w600,
           color: AppColors.subtitle,
         ),
       ),
-      
+
       // Card Style: High-fidelity with subtle shadow and border
       cardTheme: CardThemeData(
         color: AppColors.cardBg,
@@ -63,7 +74,8 @@ class AppTheme {
           foregroundColor: AppColors.btnText,
           minimumSize: const Size.fromHeight(56),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          textStyle: GoogleFonts.dmSans(
+          textStyle: const TextStyle(
+            fontFamily: 'Atkinson Hyperlegible',
             fontWeight: FontWeight.w800,
             fontSize: 16,
             letterSpacing: 0.8,
@@ -76,7 +88,8 @@ class AppTheme {
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           foregroundColor: AppColors.primary,
-          textStyle: GoogleFonts.dmSans(
+          textStyle: const TextStyle(
+            fontFamily: 'Atkinson Hyperlegible',
             fontWeight: FontWeight.w600,
             fontSize: 14,
           ),
@@ -100,11 +113,13 @@ class AppTheme {
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: AppColors.primary, width: 2),
         ),
-        hintStyle: GoogleFonts.dmSans(
+        hintStyle: const TextStyle(
+          fontFamily: 'Atkinson Hyperlegible',
           color: AppColors.placeholder,
           fontSize: 14,
         ),
-        labelStyle: GoogleFonts.dmSans(
+        labelStyle: const TextStyle(
+          fontFamily: 'Atkinson Hyperlegible',
           color: AppColors.title,
           fontSize: 14,
           fontWeight: FontWeight.w600,
@@ -112,16 +127,17 @@ class AppTheme {
       ),
 
       // App Bar Style
-      appBarTheme: AppBarTheme(
+      appBarTheme: const AppBarTheme(
         backgroundColor: Colors.white,
         elevation: 0,
         centerTitle: false,
-        titleTextStyle: GoogleFonts.dmSans(
+        titleTextStyle: TextStyle(
+          fontFamily: 'Atkinson Hyperlegible',
           color: AppColors.title,
           fontSize: 24,
           fontWeight: FontWeight.bold,
         ),
-        iconTheme: const IconThemeData(color: AppColors.title),
+        iconTheme: IconThemeData(color: AppColors.title),
       ),
 
       // Colors

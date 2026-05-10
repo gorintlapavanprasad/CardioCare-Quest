@@ -14,15 +14,25 @@ Bingo Bash
 ::UserStylesheet [stylesheet]
 /* ============================================================
    BINGO BASH — visual stylesheet
-   Arial font, light viridis palette, click handler on cells
-   (no passage refresh on click), compact phone height.
+   Arial font, click handler on cells (no passage refresh on
+   click), compact phone height.
+
+   CardioCareQuest viridis palette (canonical across all games):
+     #440154  deep purple   — phone gradient stop 1
+     #3b528b  blue          — phone gradient stop 2
+     #21918c  teal          — phone gradient stop 3 / marked cell
+     #5ec962  green          — win banner / success
+     #fde725  yellow         — title / FREE / primary CTA
+     #f4f1d8  cream          — page background
+   2026-05-10: phone gradient + dark-text accent (#1a1a1a) replaced
+   to align with viridis anchor stops.
    ============================================================ */
 
 * { box-sizing: border-box; }
 
 body {
-  font-family: Arial, Helvetica, sans-serif;
-  background-color: #c8ccd1;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif;
+  background-color: #f4f1d8;
   margin: 0;
   padding: 1.5em 0;
 }
@@ -44,7 +54,7 @@ body {
 
 /* Phone frame — compact, soft dark viridis teal */
 .phone {
-  background: linear-gradient(180deg, #1a3a3a 0%, #21505a 100%);
+  background: linear-gradient(180deg, #440154 0%, #3b528b 50%, #21918c 100%);
   border-radius: 32px;
   overflow: hidden;
   box-shadow: 0 8px 30px rgba(0,0,0,0.18);
@@ -55,7 +65,7 @@ body {
   flex-direction: column;
   width: 100%;
   max-width: 100%;
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
 .phone *, .phone *::before, .phone *::after {
@@ -63,7 +73,7 @@ body {
   overflow-wrap: break-word;
   max-width: 100%;
   box-sizing: border-box;
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
 .phone p, .phone div {
@@ -76,7 +86,7 @@ body {
 /* Header */
 .header {
   padding: 14px 20px;
-  background-color: #14292a;
+  background-color: rgba(0, 0, 0, 0.22);
   color: #ffffff;
   display: flex;
   justify-content: space-between;
@@ -100,7 +110,7 @@ body {
   z-index: 2;
 }
 .bingo-title {
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif;
   font-size: 24px;
   color: #fde725;
   font-weight: bold;
@@ -144,7 +154,7 @@ body {
   font-size: 16px !important;
   text-decoration: none !important;
   border: 1px solid rgba(255,255,255,0.2) !important;
-  font-family: Arial, Helvetica, sans-serif !important;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif !important;
 }
 
 /* Win banner */
@@ -192,14 +202,14 @@ body {
   text-align: center !important;
   font-size: 11px !important;
   font-weight: bold !important;
-  color: #14292a !important;
+  color: #1a1a1a !important;
   cursor: pointer !important;
   min-height: 70px !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
   line-height: 1.2 !important;
-  font-family: Arial, Helvetica, sans-serif !important;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif !important;
   text-decoration: none !important;
   box-sizing: border-box !important;
   width: calc(20% - 2px) !important;
@@ -245,7 +255,7 @@ body {
 /* Free space center cell */
 .bingo-cell.free {
   background-color: #fde725 !important;
-  color: #14292a !important;
+  color: #1a1a1a !important;
   font-style: italic;
 }
 
@@ -289,7 +299,7 @@ body {
   line-height: 1;
 }
 .welcome-title {
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif;
   font-size: 32px;
   font-weight: bold;
   color: #fde725;
@@ -348,7 +358,7 @@ body {
 .goal-text {
   flex: 1;
   background-color: #b5e6cf;
-  color: #14292a;
+  color: #1a1a1a;
   border-radius: 16px;
   padding: 10px 14px;
   font-size: 13px;
@@ -373,7 +383,7 @@ body {
   font-weight: bold;
   color: rgba(255,255,255,0.85);
   text-align: right;
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 .goal-edit-input {
   flex: 1;
@@ -386,16 +396,16 @@ body {
      overridden by the system on autofill / focus). */
   color-scheme: light;
   background-color: #b5e6cf !important;
-  color: #14292a !important;
-  -webkit-text-fill-color: #14292a;
-  caret-color: #14292a;
+  color: #1a1a1a !important;
+  -webkit-text-fill-color: #1a1a1a;
+  caret-color: #1a1a1a;
   border: 2px solid transparent;
   border-radius: 16px;
   padding: 10px 14px;
   font-size: 13px;
   font-weight: bold;
   text-align: left;
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif;
   outline: none;
   transition: border-color 0.15s, background-color 0.15s;
   -webkit-appearance: none;
@@ -405,13 +415,13 @@ body {
   /* Same !important guard so the Android WebView's focused-input dark
      theme doesn't paint over our white. */
   background-color: #ffffff !important;
-  color: #14292a !important;
-  -webkit-text-fill-color: #14292a;
+  color: #1a1a1a !important;
+  -webkit-text-fill-color: #1a1a1a;
   border-color: #fde725 !important;
 }
 .goal-edit-input:disabled {
   background-color: #fde725;
-  color: #14292a;
+  color: #1a1a1a;
   font-style: italic;
   cursor: not-allowed;
   opacity: 0.85;
@@ -423,7 +433,7 @@ body {
 .phone a.btn-primary.link-internal,
 .phone a.btn-primary.macro-link {
   background-color: #fde725 !important;
-  color: #14292a !important;
+  color: #1a1a1a !important;
   border: none !important;
   border-radius: 14px !important;
   padding: 16px !important;
@@ -432,7 +442,7 @@ body {
   letter-spacing: 0.08em !important;
   text-align: center !important;
   text-decoration: none !important;
-  font-family: Arial, Helvetica, sans-serif !important;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif !important;
   display: block !important;
   width: 100% !important;
   cursor: pointer !important;
@@ -451,7 +461,7 @@ body {
   letter-spacing: 0.05em !important;
   text-align: center !important;
   text-decoration: none !important;
-  font-family: Arial, Helvetica, sans-serif !important;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif !important;
   display: block !important;
   width: 100% !important;
   box-sizing: border-box !important;
@@ -471,11 +481,17 @@ body {
 ::UserScript [script]
 
 /* CardioCare Quest — auto passage telemetry.
-   Fires `passage_entered` for every passage entry via the FlutterBridge.
-   Snapshots SugarCube state.variables so researchers see the player's
-   path plus key in-game state. Best-effort; swallows errors. */
+   Fires `passage_entered` for every USER-VISIBLE passage entry.
+   Routing-only stubs ("Story innit", "Returning") are skipped so the
+   research timeline isn't padded with redirect spam — those passages
+   just <<goto>> elsewhere within a single render frame and have no
+   participant interaction worth logging.
+   Best-effort; swallows errors. */
+var ROUTING_ONLY_PASSAGES = ["Story innit", "Returning"];
 $(document).on(":passagestart", function (ev) {
   try {
+    if (!ev || !ev.passage) return;
+    if (ROUTING_ONLY_PASSAGES.indexOf(ev.passage.title) >= 0) return;
     if (window.CCQ && typeof window.CCQ.telemetry === "function") {
       var snap = {};
       try { Object.assign(snap, SugarCube.State.variables); } catch (e) {}
@@ -549,31 +565,53 @@ $(document).on(':passagedisplay', function () {
     if (marked[i]) cell.classList.add('marked');
   });
 
-  /* Helper: check all 12 bingo lines and update banner */
-  function checkAndUpdateBanner() {
+  /* Helper: check all 12 bingo lines and update banner.
+     Returns the winning line indices if any, or null otherwise.
+     The click handler uses the return value to decide whether to
+     fire the canonical "bingo won" submit event. */
+  var BINGO_LINES = [
+    [0,1,2,3,4], [5,6,7,8,9], [10,11,12,13,14], [15,16,17,18,19], [20,21,22,23,24],
+    [0,5,10,15,20], [1,6,11,16,21], [2,7,12,17,22], [3,8,13,18,23], [4,9,14,19,24],
+    [0,6,12,18,24], [4,8,12,16,20]
+  ];
+  function findWinningLine() {
     var m = State.variables.marked;
-    var lines = [
-      [0,1,2,3,4], [5,6,7,8,9], [10,11,12,13,14], [15,16,17,18,19], [20,21,22,23,24],
-      [0,5,10,15,20], [1,6,11,16,21], [2,7,12,17,22], [3,8,13,18,23], [4,9,14,19,24],
-      [0,6,12,18,24], [4,8,12,16,20]
-    ];
-    var won = lines.some(function (line) {
-      return line.every(function (i) { return m[i]; });
-    });
+    for (var k = 0; k < BINGO_LINES.length; k++) {
+      var line = BINGO_LINES[k];
+      var allMarked = true;
+      for (var p = 0; p < line.length; p++) {
+        if (!m[line[p]]) { allMarked = false; break; }
+      }
+      if (allMarked) return line;
+    }
+    return null;
+  }
+  function checkAndUpdateBanner() {
+    var winLine = findWinningLine();
     var banner = document.querySelector('.win-banner');
-    if (won && !banner) {
+    if (winLine && !banner) {
       var b = document.createElement('div');
       b.className = 'win-banner';
       b.innerHTML = '<div class="win-title">BINGO!</div><div class="win-body">Five in a row. Your blood pressure thanks you.</div>';
       grid.parentNode.insertBefore(b, grid);
       State.variables.hasWon = true;
-    } else if (!won && banner) {
+      return winLine;
+    } else if (!winLine && banner) {
       banner.remove();
       State.variables.hasWon = false;
     }
+    return null;
   }
 
-  /* Click handler on cells: toggle, save, check win */
+  /* Click handler on cells: toggle the mark, fire a per-tap
+     telemetry event (so the research timeline captures EVERY
+     change, not just the initial state at passage entry), then
+     check for a win. On the FIRST win of the session, fire a
+     canonical SUBMIT_RESPONSE so userData/{uid}.surveysCompleted
+     bumps and the events row marks the bingo as a research
+     completion. countAsCompletion: true fires only once per
+     session via the bridge's "alreadySubmittedThisSession" flag
+     below — re-marking after a win doesn't double-credit. */
   grid.addEventListener('click', function (e) {
     e.preventDefault();
     var target = e.target;
@@ -586,7 +624,46 @@ $(document).on(':passagedisplay', function () {
     var m = State.variables.marked;
     m[idx] = !m[idx];
     target.classList.toggle('marked');
-    checkAndUpdateBanner();
+
+    /* Per-tap telemetry — captures the ACTUAL board state with
+       this cell's new value, so research data sees what cells
+       the participant actually marked rather than just the
+       passage-entry snapshot. */
+    try {
+      if (window.CCQ && typeof window.CCQ.telemetry === "function") {
+        CCQ.telemetry("bingo_cell_toggled", {
+          idx: idx,
+          nowMarked: m[idx],
+          goal: (State.variables.goals || [])[idx],
+          /* slice() so the telemetry payload is a snapshot, not
+             a live reference that could be mutated later. */
+          marked: m.slice(),
+          markedCount: m.filter(function (v) { return v; }).length
+        });
+      }
+    } catch (e) { /* swallow */ }
+
+    var winLine = checkAndUpdateBanner();
+
+    /* SUBMIT_RESPONSE on first win this session. Subsequent
+       re-marks after winning don't re-fire — without the guard,
+       a participant who tapped to un-mark and re-mark a winning
+       cell would credit themselves twice. */
+    if (winLine && !grid.dataset.bingoSubmitted) {
+      grid.dataset.bingoSubmitted = 'yes';
+      try {
+        if (window.CCQ && typeof window.CCQ.submitResponse === "function") {
+          CCQ.submitResponse({
+            playerName: State.variables.playerName,
+            marked: m.slice(),
+            goals: (State.variables.goals || []).slice(),
+            hasWon: true,
+            winLine: winLine.slice(),
+            markedCount: m.filter(function (v) { return v; }).length
+          }, { pointsEarned: 50, countAsCompletion: true });
+        }
+      } catch (e) { /* swallow */ }
+    }
   });
 
   /* Shuffle handler: randomize goals, keep Free space at center, reset marks */
@@ -817,6 +894,22 @@ back to Story innit, leaving participants with no way to exit.
 */
 <<run
   try {
+    /* Capture the FINAL board state before exiting. Without this,
+       a participant who marks several cells but exits without
+       hitting bingo leaves no record of which cells they marked —
+       the per-tap telemetry rows are there, but a single "exit
+       state" event makes the analyst's job easier. Fires before
+       goHome so the bridge has time to queue the write. */
+    if (window.CCQ && typeof window.CCQ.telemetry === "function") {
+      var m = State.variables.marked || [];
+      window.CCQ.telemetry("bingo_exit_state", {
+        playerName: State.variables.playerName,
+        marked: m.slice(),
+        goals: (State.variables.goals || []).slice(),
+        hasWon: !!State.variables.hasWon,
+        markedCount: m.filter(function (v) { return v; }).length
+      });
+    }
     if (window.CCQ && typeof window.CCQ.goHome === "function") {
       window.CCQ.goHome();
     }

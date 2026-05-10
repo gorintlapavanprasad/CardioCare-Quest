@@ -16,13 +16,21 @@ DASH Diet Game
    DASH DIET GAME — visual stylesheet
    Phone-frame UI, viridis dark gradient (purple-blue-teal-green-yellow),
    large emoji food cards. Sister game to Salt Sludge.
+
+   CardioCareQuest viridis palette (canonical across all games):
+     #440154  deep purple   — phone gradient stop 1
+     #3b528b  blue          — phone gradient stop 2
+     #21918c  teal          — phone gradient stop 3 / meter correct
+     #5ec962  green          — selected / verdict good (#0a3d12 deep)
+     #fde725  yellow         — primary CTA / attention / in-text links
+     #f4f1d8  cream          — page background
    ============================================================ */
 
 * { box-sizing: border-box; }
 
 body {
-  font-family: "Times New Roman", Times, serif;
-  background-color: #c8ccd1;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif;
+  background-color: #f4f1d8;
   margin: 0;
   padding: 1.5em 0;
 }
@@ -44,7 +52,7 @@ body {
 
 /* Phone frame — viridis purple-blue gradient */
 .phone {
-  background: linear-gradient(180deg, #1a1232 0%, #2c2256 50%, #3b528b 100%);
+  background: linear-gradient(180deg, #440154 0%, #3b528b 50%, #21918c 100%);
   border-radius: 32px;
   overflow: hidden;
   box-shadow: 0 8px 30px rgba(0,0,0,0.18);
@@ -284,7 +292,7 @@ body {
   letter-spacing: 0.08em !important;
   text-align: center !important;
   text-decoration: none !important;
-  font-family: "Times New Roman", Times, serif !important;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif !important;
   cursor: pointer !important;
   border: 2px solid !important;
   box-sizing: border-box !important;
@@ -299,9 +307,9 @@ body {
 .choice-btn.raises,
 .phone a.choice-btn.raises,
 .phone a.choice-btn.raises.macro-link {
-  background-color: #6b3d80 !important;
+  background-color: #440154 !important;
   color: #ffffff !important;
-  border-color: #6b3d80 !important;
+  border-color: #440154 !important;
 }
 
 /* Result card on Food Result screen */
@@ -333,7 +341,7 @@ body {
   margin: 0 0 14px 0;
 }
 .result-verdict.correct { color: #21918c; }
-.result-verdict.wrong { color: #6b3d80; }
+.result-verdict.wrong { color: #440154; }
 .result-explain {
   font-size: 16px;
   line-height: 1.6;
@@ -376,7 +384,7 @@ body {
   padding: 16px 8px !important;
   cursor: pointer !important;
   text-align: center !important;
-  font-family: "Times New Roman", Times, serif !important;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif !important;
   display: flex !important;
   flex-direction: column !important;
   align-items: center !important;
@@ -491,10 +499,15 @@ body {
   text-align: center;
   margin-bottom: 10px;
 }
+/* Verdict colors map to viridis stops in their natural order:
+   strong = teal (mid viridis), moderate = green (75%), mixed =
+   warm-amber semantic-warning (off-palette by design — same
+   convention Vascular Village uses for BP stage-1), weak = deep
+   purple (low end of viridis, "off the bottom of the scale"). */
 .meal-list-card .meal-verdict.strong { color: #21918c; }
-.meal-list-card .meal-verdict.moderate { color: #5ec962; color: #2a8a3a; }
-.meal-list-card .meal-verdict.mixed { color: #b08a00; }
-.meal-list-card .meal-verdict.weak { color: #6b3d80; }
+.meal-list-card .meal-verdict.moderate { color: #5ec962; }
+.meal-list-card .meal-verdict.mixed { color: #f0a020; }
+.meal-list-card .meal-verdict.weak { color: #440154; }
 .meal-list-card .meal-explain {
   font-size: 15px;
   line-height: 1.55;
@@ -517,7 +530,7 @@ body {
   width: 100% !important;
   padding: 16px !important;
   background-color: #fde725 !important;
-  color: #1a1232 !important;
+  color: #2a1a4a !important;
   border: none !important;
   border-radius: 14px !important;
   font-weight: bold !important;
@@ -525,7 +538,7 @@ body {
   letter-spacing: 0.1em !important;
   text-align: center !important;
   text-decoration: none !important;
-  font-family: "Times New Roman", Times, serif !important;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif !important;
   cursor: pointer !important;
   margin-bottom: 10px !important;
   box-sizing: border-box !important;
@@ -545,7 +558,7 @@ body {
   letter-spacing: 0.05em !important;
   text-align: center !important;
   text-decoration: none !important;
-  font-family: "Times New Roman", Times, serif !important;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif !important;
   box-sizing: border-box !important;
 }
 
@@ -695,6 +708,10 @@ You do not need to edit this.
 <<set $lastFood to "">>
 <<set $lastCorrect to false>>
 <<set $meal to []>>
+/* One-shot guard so Meal Result's submitResponse fires exactly once
+   per play-through. Reset on Story innit so PLAY AGAIN gets a fresh
+   shot. See ::Meal Result for the submit body. */
+<<set $submittedThisSession to false>>
 
 <<goto "Welcome">>
 
@@ -1212,7 +1229,38 @@ Score bar reflects $mealScore.
 MEAL RESULT: Shows what meal does to BP.
 Personalized message based on $mealScore.
 Lists what player picked.
+
+The <<run>> below fires the canonical SUBMIT_RESPONSE event so
+research data sees a DASH Diet play landing in
+`surveys/dash_diet_game/responses/{auto}` and a
+`survey_response_submitted` event with surveyId='dash_diet_game'.
+The Community Stats engagement-bar query keys on the surveyId,
+so without this firing the Diet category bar would stay at 0
+no matter how many participants finish the game. Guarded by a
+session flag so PLAY AGAIN doesn't double-credit.
 */
+
+<<if not $submittedThisSession>>
+<<set $submittedThisSession to true>>
+<<run
+  try {
+    if (window.CCQ && typeof window.CCQ.submitResponse === "function") {
+      var verdict = "weak";
+      if (State.variables.mealScore >= 30) { verdict = "strong"; }
+      else if (State.variables.mealScore >= 10) { verdict = "moderate"; }
+      else if (State.variables.mealScore >= 0) { verdict = "mixed"; }
+      window.CCQ.submitResponse({
+        playerName: State.variables.playerName,
+        quizScore: State.variables.score,
+        quizWrong: State.variables.wrong,
+        mealScore: State.variables.mealScore,
+        meal: State.variables.meal,
+        verdict: verdict
+      }, { pointsEarned: 50, countAsCompletion: true });
+    }
+  } catch (e) { /* swallow */ }
+>>
+<</if>>
 
 <div class="phone">
 <div class="header"><span>DASH Game</span><span class="round-label">Your meal</span></div>

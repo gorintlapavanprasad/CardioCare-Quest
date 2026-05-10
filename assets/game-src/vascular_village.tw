@@ -12,14 +12,17 @@ Vascular Village
 
 ::StoryInit
 <<script>>
-// Latest BP reading from Quiet Minute, but ONLY if it was logged
-// today (local timezone). The Welcome passage gates on $lastSys gt 0
-// to decide between "CONTINUE TO VILLAGE" (today's reading available)
-// and "START → Take a Quiet Minute first" (no reading today). Without
-// the per-day gate, a stale reading from any past day would satisfy
-// the gt-0 check and let the participant skip the Quiet Minute step
-// — the village would then show yesterday's number as if it were
-// current.
+// Latest BP reading from Quiet Landscape (the in-village BP capture
+// trampoline) — or, historically, Quiet Minute. Both games write to
+// the SAME `quietMinute_history` localStorage key, so this read works
+// regardless of which one logged the entry. We only honor a reading
+// if it was logged today (local timezone). The Welcome passage gates
+// on $lastSys gt 0 to decide between "CONTINUE TO VILLAGE" (today's
+// reading available) and "START → settle with Quiet Landscape first"
+// (no reading today). Without the per-day gate, a stale reading from
+// any past day would satisfy the gt-0 check and let the participant
+// skip the BP step — the village would then show yesterday's number
+// as if it were current.
 //
 // `quietMinute_history` entries have shape {sys, dia, when: millis}.
 // We check `when` against today's midnight in local time.
@@ -40,6 +43,21 @@ try {
     }
   }
 } catch (e) { /* keep $lastSys/$lastDia at 0 */ }
+
+// Cross-WebView fallback: webview_flutter on Android does not always
+// share localStorage across WebViewController instances. A BP saved
+// in Quiet Landscape's WebView won't show up in this WebView's
+// `quietMinute_history`, so the read above can come back empty even
+// when the participant entered a reading today. Ask the host for
+// the canonical Firestore value via the bridge — host responds
+// asynchronously by injecting $lastSys / $lastDia and re-rendering
+// the current passage. Welcome / Hub then renders with the right
+// gate. Safe to call regardless of localStorage state; the host
+// short-circuits when no reading from today exists on userData.
+if (State.variables.lastSys === 0 &&
+    window.CCQ && typeof window.CCQ.getTodayBP === "function") {
+  try { window.CCQ.getTodayBP(); } catch (e) { /* swallow */ }
+}
 
 // Header points start at 0 each session. Firestore is the canonical
 // total — each Result passage calls submitResponse which fires
@@ -81,6 +99,18 @@ try {
   VASCULAR VILLAGE
   Phone-first, tight Salt-Sludge-style layout.
   Pale viridis-cream page, deep purple-to-teal phone interior.
+
+  CardioCareQuest viridis palette (canonical across all games):
+    #440154  deep purple   — phone gradient stop 1
+    #3b528b  blue          — phone gradient stop 2 / nav button
+    #21918c  teal          — phone gradient stop 3 / progress end
+    #5ec962  green          — progress start / zone normal
+    #fde725  yellow         — primary CTA / heart / points
+    #f4f1d8  cream          — page background
+  BP zone colors (#fde725 elevated → #f0a020 stage1 → #d04020 /
+  #8a1a25 stage2) intentionally use warm tones — clinical
+  staging convention. The plaque cell brown (#8a4a30) is scenic
+  illustration and stays.
 */
 
 * { box-sizing: border-box; }
@@ -88,7 +118,7 @@ try {
 html, body { margin: 0; padding: 0; }
 
 body {
-  font-family: "Times New Roman", Times, serif;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif;
   background-color: #f4f1d8;
   padding: 16px 12px;
   font-size: 16px;
@@ -229,13 +259,13 @@ body {
   font-weight: bold;
   color: rgba(255, 255, 255, 0.95);
   margin-bottom: 8px;
-  font-family: "Times New Roman", Times, serif;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 .all-done-blurb {
   font-size: 14px;
   color: rgba(255, 255, 255, 0.7);
   line-height: 1.5;
-  font-family: "Times New Roman", Times, serif;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
 .bp-row {
@@ -368,7 +398,7 @@ body {
   align-items: center !important;
   gap: 12px !important;
   text-align: left !important;
-  font-family: "Times New Roman", Times, serif !important;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif !important;
   box-shadow: 0 2px 8px rgba(40, 20, 60, 0.18) !important;
   transition: transform 0.15s ease !important;
   width: 100% !important;
@@ -422,7 +452,7 @@ body {
   flex-direction: row !important;
   align-items: center !important;
   gap: 12px !important;
-  font-family: "Times New Roman", Times, serif !important;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif !important;
   min-height: 60px !important;
 }
 .voyage-taken .quest-icon { color: #5ec962 !important; }
@@ -450,7 +480,7 @@ body {
   letter-spacing: 0.4px !important;
   text-decoration: none !important;
   cursor: pointer !important;
-  font-family: "Times New Roman", Times, serif !important;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif !important;
 }
 .finish-row a.macro-link:hover,
 .finish-row a.link-internal:hover {
@@ -514,7 +544,7 @@ body {
   font-size: 12px !important;
   cursor: pointer !important;
   text-decoration: none !important;
-  font-family: "Times New Roman", Times, serif !important;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
@@ -546,7 +576,7 @@ body {
   justify-content: center !important;
   background-color: #fde725 !important;
   color: #2a1a4a !important;
-  font-family: "Times New Roman", Times, serif !important;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif !important;
   border: none !important;
   border-radius: 50% !important;
   width: 130px !important;
@@ -620,7 +650,7 @@ body {
   align-items: center !important;
   justify-content: center !important;
   font-size: 20px !important;
-  font-family: "Times New Roman", Times, serif !important;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif !important;
   transition: background-color 0.2s ease !important;
   min-width: 0 !important;
 }
@@ -807,7 +837,7 @@ body {
   letter-spacing: 0.1em !important;
   text-align: center !important;
   text-decoration: none !important;
-  font-family: "Times New Roman", Times, serif !important;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif !important;
   cursor: pointer !important;
   margin-bottom: 8px !important;
   box-sizing: border-box !important;
@@ -831,7 +861,7 @@ body {
   letter-spacing: 0.06em !important;
   text-align: center !important;
   text-decoration: none !important;
-  font-family: "Times New Roman", Times, serif !important;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif !important;
   box-sizing: border-box !important;
   margin-bottom: 0 !important;
 }
@@ -894,7 +924,7 @@ body {
 <p class="help-text">Latest reading: $lastSys / $lastDia mmHg</p>
 <<else>>
 <a class="btn-primary" data-passage="No Reading">START</a>
-<p class="help-text">First take a Quiet Minute to log your blood pressure.</p>
+<p class="help-text">First settle with Quiet Landscape and log your blood pressure.</p>
 <</if>>
 
 </div>
@@ -925,15 +955,15 @@ body {
 </svg>
 </div>
 
-<h2 class="intro-title">Take a Quiet Minute first</h2>
+<h2 class="intro-title">Settle with Quiet Landscape first</h2>
 
-<p class="narrative">The village needs your blood pressure before today's quests. That comes from the Quiet Minute game.</p>
+<p class="narrative">The village needs your blood pressure before today's quests. That comes from the Quiet Landscape game — sixteen slow breaths over a calm scene, then your cuff reading.</p>
 
-<p class="narrative">Two minutes of rest, one reading from your cuff, then come back here.</p>
+<p class="narrative">A few minutes of paced breathing, one reading from your cuff, then come back here.</p>
 
 <div class="spacer"></div>
 
-<a class="btn-primary" data-passage="Launch Quiet Minute">OPEN QUIET MINUTE</a>
+<a class="btn-primary" data-passage="Launch Quiet Minute">OPEN QUIET LANDSCAPE</a>
 <a class="btn-secondary" data-passage="Hub">SKIP, GO TO VILLAGE</a>
 
 </div>
@@ -951,9 +981,56 @@ list is replaced with a celebration card and the participant taps
 Finish to record the play. StoryInit resets every flag to false on
 the next launch, so the cycle starts over.
 */
+<<script>>
+/* Self-heal $lastSys / $lastDia from localStorage on every render.
+   Belt-and-suspenders for the Quiet Landscape trampoline (legacy
+   "Quiet Minute" passage name): when the participant logs a BP from
+   inside Vascular Village, Quiet Landscape pops back here and the
+   host JS-injects the new SugarCube vars + calls Engine.play("Hub").
+   That re-render sometimes lands before the State mutation surfaces
+   on the first pass — the participant sees `--/--` until they
+   navigate Hub → Quest → Result → Hub once. StoryInit already does
+   this exact read at game launch; doing it again on every Hub entry
+   ensures the BP card always reflects the freshest reading
+   regardless of the path that got us here. Both Quiet Landscape and
+   Quiet Minute write to the same `quietMinute_history` key, so this
+   read is source-agnostic. */
+try {
+  var qm = window.localStorage.getItem("quietMinute_history");
+  if (qm) {
+    var hist = JSON.parse(qm);
+    if (hist && hist.length > 0) {
+      var entry = hist[0];
+      var todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      if (entry.when && entry.when >= todayStart.getTime()) {
+        State.variables.lastSys = Number(entry.sys) || 0;
+        State.variables.lastDia = Number(entry.dia) || 0;
+      }
+    }
+  }
+} catch (e) { /* keep prior values */ }
+
+/*
+  Self-correcting fallback: if Hub renders with $lastSys still 0
+  AFTER reading localStorage, ask the host for today's BP via the
+  bridge. This covers the case where a child Quiet Landscape host
+  popped back to us with the BP map but the parent's runJavaScript
+  injection raced the WebView resume and didn't paint, AND the
+  per-WebView localStorage isolation kept Quiet Landscape's own
+  write from reaching this WebView. The host responds by seeding
+  this WebView's localStorage AND calling Engine.show() — Hub
+  then redisplays with the correct BP without the participant
+  having to navigate Hub → mini-quest → Hub to "wake up" the gate.
+*/
+if ((!State.variables.lastSys || State.variables.lastSys === 0) &&
+    window.CCQ && typeof window.CCQ.getTodayBP === "function") {
+  try { window.CCQ.getTodayBP(); } catch (e) { /* swallow */ }
+}
+<</script>>
 <<set _zk to "unset">>
-<<set _zl to "Take a Quiet Minute">>
-<<set _msg to "Take a Quiet Minute and the village will see your reading.">>
+<<set _zl to "Settle with Quiet Landscape">>
+<<set _msg to "Settle with Quiet Landscape and the village will see your reading.">>
 <<if $lastSys gt 0>>
   <<if $lastSys lt 120 and $lastDia lt 80>>
     <<set _zk to "normal">><<set _zl to "Normal">>
@@ -1608,16 +1685,25 @@ Welcome) with a no-op spinner UI.
 
 ::Launch Quiet Minute [nobr]
 /*
-TRAMPOLINE PASSAGE — invoked by the "OPEN QUIET MINUTE" button on the
-intro screen. Fires the LAUNCH_GAME bridge call so the Flutter host
-pushes Quiet Minute on top of this game, then immediately navigates to
-Hub so Vascular Village settles there underneath. When Quiet Minute
-ends, the host injects $lastSys/$lastDia into our SugarCube state and
-re-renders Hub so the village reflects the fresh reading.
+TRAMPOLINE PASSAGE — invoked by the "OPEN QUIET LANDSCAPE" button on
+the intro screen. Despite the legacy passage name (kept stable so any
+historical telemetry/links still resolve), this launches Quiet
+Landscape, NOT Quiet Minute. Per the 2026-05-10 dry-run-2 feedback,
+Quiet Minute remains the dashboard BG log card and Quiet Landscape
+becomes Vascular Village's in-game BP capture (longer breathing
+settle before reading). Both games write to the same
+`quietMinute_history` localStorage key, so the StoryInit /
+Hub-render BP read paths keep working unchanged.
+
+Fires LAUNCH_GAME so the Flutter host pushes Quiet Landscape on top
+of this game, then immediately navigates to Hub so Vascular Village
+settles there underneath. When the BP capture ends, the host injects
+$lastSys / $lastDia into our SugarCube state and re-renders Hub so
+the village reflects the fresh reading.
 */
 <<run
   if (window.CCQ && typeof window.CCQ.launchGame === "function") {
-    window.CCQ.launchGame("quiet_minute");
+    window.CCQ.launchGame("quiet_landscape");
   }
 >>
 <<goto "Hub">>

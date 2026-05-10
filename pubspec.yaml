@@ -79,6 +79,26 @@ flutter:
     - assets/game/vascular_village.html
     - assets/game/quiet_minute.html
     - assets/game/post_play_survey.html
+    - assets/game/pill_path.html
+    - assets/game/quiet_landscape.html
+    # Atkinson Hyperlegible — bundled locally so the font ships in
+    # the APK / IPA and works fully offline. The Twine games' CSS
+    # (@font-face declarations injected by `ccq_bridge.js`) loads
+    # them via relative paths at `../fonts/Atkinson_Hyperlegible/...`
+    # from each compiled HTML's location.
+    - assets/fonts/Atkinson_Hyperlegible/
+
+  fonts:
+    - family: Atkinson Hyperlegible
+      fonts:
+        - asset: assets/fonts/Atkinson_Hyperlegible/AtkinsonHyperlegible-Regular.ttf
+        - asset: assets/fonts/Atkinson_Hyperlegible/AtkinsonHyperlegible-Italic.ttf
+          style: italic
+        - asset: assets/fonts/Atkinson_Hyperlegible/AtkinsonHyperlegible-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/Atkinson_Hyperlegible/AtkinsonHyperlegible-BoldItalic.ttf
+          weight: 700
+          style: italic
 
 flutter_icons:
   android: true

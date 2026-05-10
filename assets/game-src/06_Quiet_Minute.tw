@@ -29,13 +29,28 @@ try {
 
 
 :: Story Stylesheet [stylesheet]
-/* Quiet Minute — calm rest then BP entry. Strict alignment system. */
+/* Quiet Minute — calm rest then BP entry. Strict alignment system.
+
+   CardioCareQuest viridis palette (canonical across all games — see
+   matplotlib/R viridis: dark-purple → blue → teal → green → yellow):
+     #440154  deep purple   — phone gradient stop 1
+     #3b528b  blue          — phone gradient stop 2 / focus accent
+     #21918c  teal          — phone gradient stop 3 / success-mid
+     #5ec962  green          — success bright
+     #fde725  yellow         — primary CTA / attention
+     #f4f1d8  cream          — page background
+     #ffffff  white          — card surfaces
+     #1a1a1a  ink            — text on light
+   Custom blues that used to live in this file (#3b528b / #2a5074 /
+   #3a6a94) were replaced with the viridis blue (#3b528b) on
+   2026-05-10 so this game's chrome matches Pill Path / Vascular
+   Village / Quiet Landscape / Pill Path Lite. */
 
 * { box-sizing: border-box; }
 
 body {
-  font-family: "Times New Roman", Times, serif;
-  background-color: #e8e8e8;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif;
+  background-color: #f4f1d8;
   margin: 0;
   /* padding removed — was 1em 0, leaving a visible empty band above
      the in-game header on device. Twinery preview still looks fine
@@ -60,7 +75,7 @@ body {
 
 /* Phone frame — real phone dimensions, flex column to distribute content vertically */
 .phone {
-  background: linear-gradient(180deg, #1a3a5c 0%, #2a5074 50%, #3a6a94 100%);
+  background: linear-gradient(180deg, #440154 0%, #3b528b 50%, #21918c 100%);
   border-radius: 32px;
   overflow: hidden;
   box-shadow: 0 8px 30px rgba(0,0,0,0.18);
@@ -340,7 +355,7 @@ body {
   width: 100%;
   border: none;
   background: transparent;
-  font-family: "Times New Roman", Times, serif;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif;
   font-size: 38px;
   font-weight: bold;
   text-align: center;
@@ -351,7 +366,7 @@ body {
   border-bottom: 2px solid #d8d8d8;
   padding-bottom: 4px;
 }
-.input-card input:focus { border-bottom-color: #1a3a5c; }
+.input-card input:focus { border-bottom-color: #3b528b; }
 .input-card .unit {
   font-size: 11px;
   color: #888;
@@ -445,10 +460,18 @@ body {
   height: 8px;
   border-radius: 50%;
 }
-.dot-normal { background-color: #5dd97a; }
-.dot-elevated { background-color: #ffd633; }
-.dot-stage1 { background-color: #ff9a3c; }
-.dot-stage2 { background-color: #e63946; }
+/* BP-zone indicator dots — `normal` and `elevated` use the
+   viridis green / yellow anchor stops (#5ec962, #fde725).
+   `stage1` and `stage2` deliberately stay warm because they're
+   clinical-warning states; same off-palette tones Vascular
+   Village uses for its BP-stage progress bars (#f0a020 stage 1,
+   #d04020 stage 2). Aligning normal/elevated to viridis was the
+   2026-05-12 cleanup — the previous values (#5dd97a, #ffd633)
+   were close-but-not-equal to the canonical anchors. */
+.dot-normal   { background-color: #5ec962; }
+.dot-elevated { background-color: #fde725; }
+.dot-stage1   { background-color: #f0a020; }
+.dot-stage2   { background-color: #d04020; }
 
 /* Buttons — primary white, secondary outlined. Same width via parent padding. */
 .btn-primary {
@@ -456,7 +479,7 @@ body {
   width: 100%;
   padding: 14px;
   background-color: #ffffff;
-  color: #1a3a5c;
+  color: #3b528b;
   border: none;
   border-radius: 14px;
   font-weight: bold;
@@ -464,7 +487,7 @@ body {
   letter-spacing: 0.08em;
   text-align: center;
   text-decoration: none;
-  font-family: "Times New Roman", Times, serif;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif;
   cursor: pointer;
   margin-bottom: 10px;
 }
@@ -480,7 +503,7 @@ body {
   letter-spacing: 0.05em;
   text-align: center;
   text-decoration: none;
-  font-family: "Times New Roman", Times, serif;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif;
   margin-bottom: 0;
 }
 
@@ -526,7 +549,7 @@ body {
 .celebration-reading {
   font-size: 18px;
   font-weight: bold;
-  color: #1a3a5c;
+  color: #3b528b;
   margin-bottom: 6px;
   letter-spacing: 0.02em;
 }
@@ -550,12 +573,12 @@ body {
   border: none !important;
   background-color: #ffffff !important;
   background: #ffffff !important;
-  font-family: "Times New Roman", Times, serif !important;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif !important;
   font-size: 38px !important;
   font-weight: bold !important;
   text-align: center !important;
   color: #1a1a1a !important;
-  caret-color: #1a3a5c !important;
+  caret-color: #3b528b !important;
   outline: none !important;
   padding: 0 0 4px 0 !important;
   margin: 0 !important;
@@ -569,19 +592,19 @@ body {
   margin: 0 !important;
 }
 .input-card input:focus {
-  border-bottom-color: #1a3a5c !important;
+  border-bottom-color: #3b528b !important;
   background-color: #ffffff !important;
   color: #1a1a1a !important;
   -webkit-text-fill-color: #1a1a1a !important;
 }
 /* Selection color when user highlights typed numbers */
 .input-card input::selection {
-  background-color: #1a3a5c !important;
+  background-color: #3b528b !important;
   color: #ffffff !important;
   -webkit-text-fill-color: #ffffff !important;
 }
 .input-card input::-moz-selection {
-  background-color: #1a3a5c !important;
+  background-color: #3b528b !important;
   color: #ffffff !important;
 }
 /* Mobile/iOS sometimes adds yellow autofill background — kill it */

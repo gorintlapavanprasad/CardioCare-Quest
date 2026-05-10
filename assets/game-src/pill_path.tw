@@ -1,0 +1,1077 @@
+::StoryTitle
+Pill Path
+
+::StoryData
+{
+  "ifid": "F6A7B8C9-D0E1-4345-9ABC-456789012345",
+  "format": "SugarCube",
+  "format-version": "2.37.3",
+  "start": "Story innit",
+  "zoom": 1
+}
+
+::StoryInit
+<<run setup.pillPath.loadState()>>
+
+
+::PillPathHelpers [script]
+/*
+  Story-load script passage. SugarCube runs this once at engine
+  init, BEFORE StoryInit, so `setup.pillPath` is defined by the
+  time any passage references it.
+
+  Why a [script] passage and not inline scripts on the per-passage
+  bodies: see CLAUDE.md at the project root, "Don't put logic
+  inside script macros in nobr passages". Short version — nobr
+  collapses newlines (breaks line-comments), and the SugarCube
+  macro tokenizer mis-parses certain macro-literal text inside
+  block comments as nested macros. A top-of-file [script] passage
+  sidesteps both problems because it runs as raw JS at story load
+  with no per-passage rendering pass over its body.
+
+  Note: do NOT put the literal closing-script-tag sequence in any
+  comment in this passage. The browser HTML parser scans the body
+  of any script element for that exact sequence and ends the tag
+  there, regardless of MIME type — even though SugarCube uses
+  text/twine-javascript. The result is a truncated user-script and
+  a "tw-user-script-0: Invalid or unexpected token" error.
+*/
+
+setup.pillPath = (function () {
+  var STORAGE_KEY = "pill_path_save";
+
+  // Load { entries, pathNum } from localStorage into State.variables.
+  // Falls back to a fresh blank state on any error so a corrupted
+  // localStorage row never wedges the game.
+  function loadState() {
+    try {
+      var saved = window.localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        var s = JSON.parse(saved);
+        State.variables.entries = s.entries || [];
+        State.variables.pathNum = Number(s.pathNum) || 1;
+      } else {
+        State.variables.entries = [];
+        State.variables.pathNum = 1;
+      }
+    } catch (e) {
+      State.variables.entries = [];
+      State.variables.pathNum = 1;
+    }
+    State.variables.todayDate = (new Date()).toISOString().slice(0, 10);
+    State.variables.justCelebrated = false;
+  }
+
+  function saveState() {
+    try {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        entries: State.variables.entries,
+        pathNum: State.variables.pathNum
+      }));
+    } catch (e) { /* ignore — Firestore is the canonical record */ }
+  }
+
+  // Compute the current 7-stone path window and stash everything
+  // the Path passage's HTML needs as $-prefixed State variables.
+  // Called from `<<run setup.pillPath.computePath()>>` at the top
+  // of the Path passage.
+  function computePath() {
+    var entries = State.variables.entries || [];
+    var today = State.variables.todayDate;
+    var pathNum = State.variables.pathNum || 1;
+
+    // Find today's entry, if any.
+    var todayEntry = null;
+    for (var i = 0; i < entries.length; i++) {
+      if (entries[i].date === today) { todayEntry = entries[i]; break; }
+    }
+
+    // Build the current 7-stone window. pathNum 1 covers entries
+    // 0-6, pathNum 2 covers 7-13, etc. Pad with nulls for future
+    // days the participant hasn't reached yet.
+    var pathStart = (pathNum - 1) * 7;
+    var pathSlice = entries.slice(pathStart, pathStart + 7);
+    var stones = [];
+    for (var k = 0; k < 7; k++) {
+      stones.push(k < pathSlice.length ? pathSlice[k] : null);
+    }
+
+    // Find today's slot in the window — either the existing entry's
+    // index, or the next-empty slot if today hasn't been recorded.
+    var todayIdxInPath = -1;
+    for (var j = 0; j < pathSlice.length; j++) {
+      if (pathSlice[j].date === today) { todayIdxInPath = j; break; }
+    }
+    var todaySlot = (todayIdxInPath >= 0)
+        ? todayIdxInPath
+        : pathSlice.length;
+
+    State.variables.todaySlot = todaySlot;
+    State.variables.todayTaken = !!(todayEntry && todayEntry.taken);
+    State.variables.todayHelper = !!(todayEntry && todayEntry.caregiver);
+    State.variables.stonesData = stones;
+
+    var takenCount = 0, missedCount = 0;
+    for (var m = 0; m < pathSlice.length; m++) {
+      if (pathSlice[m].taken) takenCount++;
+      else missedCount++;
+    }
+    State.variables.takenInPath = takenCount;
+    State.variables.missedInPath = missedCount;
+
+    var totalTaken = 0;
+    for (var n = 0; n < entries.length; n++) {
+      if (entries[n].taken) totalTaken++;
+    }
+    State.variables.totalTaken = totalTaken;
+  }
+
+  // Backfill any missed days between the last recorded entry and
+  // today as { taken: false, caregiver: false }. Keeps the path
+  // continuous even when the participant skipped a day.
+  function backfillMissedDays(entries, today) {
+    if (entries.length === 0) return entries;
+    var lastDate = entries[entries.length - 1].date;
+    var d = new Date(lastDate + "T00:00:00Z");
+    var todayD = new Date(today + "T00:00:00Z");
+    d.setUTCDate(d.getUTCDate() + 1);
+    while (d < todayD) {
+      var ds = d.toISOString().slice(0, 10);
+      var found = false;
+      for (var i = 0; i < entries.length; i++) {
+        if (entries[i].date === ds) { found = true; break; }
+      }
+      if (!found) {
+        entries.push({ date: ds, taken: false, caregiver: false });
+      }
+      d.setUTCDate(d.getUTCDate() + 1);
+    }
+    return entries;
+  }
+
+  // Record today as taken. `caregiver` is true for the "someone
+  // helped me" path, false for "yes, I took it". Persists locally,
+  // crosses the bridge to Firestore, and stashes the next-stop
+  // passage name in State.temporary so the calling passage can
+  // <<goto _nextStop>>.
+  function markTaken(caregiver) {
+    var entries = State.variables.entries || [];
+    var today = State.variables.todayDate;
+    var pathNum = State.variables.pathNum || 1;
+
+    entries = backfillMissedDays(entries, today);
+
+    // If today already has a taken entry, this call is a
+    // *correction* (participant came back via Edit Today to flip
+    // self/helper) — flag the event so research can split fresh
+    // taps from corrections without inferring it from the row
+    // count for a given user/day.
+    var todayIdx = -1;
+    var isCorrection = false;
+    for (var k = 0; k < entries.length; k++) {
+      if (entries[k].date === today) { todayIdx = k; break; }
+    }
+    if (todayIdx < 0) {
+      entries.push({ date: today, taken: true, caregiver: !!caregiver });
+    } else {
+      isCorrection = !!entries[todayIdx].taken;
+      entries[todayIdx].taken = true;
+      entries[todayIdx].caregiver = !!caregiver;
+    }
+
+    State.variables.entries = entries;
+    saveState();
+
+    var pathStart = (pathNum - 1) * 7;
+    var pathSlice = entries.slice(pathStart, pathStart + 7);
+    State.temporary.nextStop =
+        (pathSlice.length >= 7) ? "Celebration" : "Path";
+
+    // Bridge to host: queue a Firestore write for this pill-taken
+    // event. countAsCompletion: false because each tap is a
+    // partial-progress submit; the once-per-session bump fires on
+    // game exit (TwineQuestionnaireHost._performExit). Corrections
+    // earn 0 points (the original tap already credited 25) so the
+    // participant can't farm the Edit Today flow for points.
+    try {
+      if (window.CCQ && typeof window.CCQ.logQuestCompletion === "function") {
+        window.CCQ.logQuestCompletion("pill_taken", {
+          pointsEarned: isCorrection ? 0 : 25,
+          gameId: "pill_path",
+          data: {
+            date: today,
+            pathNum: pathNum,
+            caregiver: !!caregiver,
+            correction: isCorrection
+          },
+          countAsCompletion: false
+        });
+      }
+    } catch (e) {
+      console.error("[PillPath] submit error:", e);
+    }
+  }
+
+  // Stash the celebration screen's "X of 7 stones" stat. Called
+  // when a Mark Taken / Mark Taken Helper completion fills the
+  // current 7-stone window.
+  function computeCelebration() {
+    var entries = State.variables.entries || [];
+    var pathNum = State.variables.pathNum || 1;
+    var pathStart = (pathNum - 1) * 7;
+    var pathSlice = entries.slice(pathStart, pathStart + 7);
+    var taken = 0;
+    for (var i = 0; i < pathSlice.length; i++) {
+      if (pathSlice[i].taken) taken++;
+    }
+    State.variables.celebTaken = taken;
+    State.variables.celebPathNum = pathNum;
+  }
+
+  // Tick pathNum to N+1 and persist. Called from Next Path which
+  // immediately <<goto>>s back to Path so the new 7-stone window
+  // renders.
+  function advancePath() {
+    State.variables.pathNum = (State.variables.pathNum || 1) + 1;
+    saveState();
+  }
+
+  // Remove today's entry. Reachable only from Edit Today after
+  // the participant tapped a YES/HELPER and then realised they
+  // hadn't actually taken the medication yet. Persists, fires
+  // a Firestore correction event, and routes back to Path so
+  // the action card reappears on the next render.
+  //
+  // We log a `pill_undone` event rather than silently deleting —
+  // research integrity needs the correction trail. The event
+  // carries `correction: true` so a researcher querying
+  // events.where('event','==','game_quest_completed').where('gameId','==','pill_path')
+  // can spot which rows were corrections by checking
+  // `data.correction === true`.
+  function undoToday() {
+    var entries = State.variables.entries || [];
+    var today = State.variables.todayDate;
+    var pathNum = State.variables.pathNum || 1;
+
+    var hadEntry = entries.some(function (e) { return e.date === today; });
+    entries = entries.filter(function (e) { return e.date !== today; });
+
+    State.variables.entries = entries;
+    saveState();
+
+    if (!hadEntry) return; /* nothing to log if already absent */
+
+    try {
+      if (window.CCQ && typeof window.CCQ.logQuestCompletion === "function") {
+        window.CCQ.logQuestCompletion("pill_undone", {
+          pointsEarned: 0,
+          gameId: "pill_path",
+          data: {
+            date: today,
+            pathNum: pathNum,
+            correction: true
+          },
+          countAsCompletion: false
+        });
+      }
+    } catch (e) {
+      console.error("[PillPath] undo error:", e);
+    }
+  }
+
+  // Position the green-pill mascot above the most recent taken
+  // stone — or above the today-stone if nothing's been taken yet.
+  // Run AFTER the Path passage's HTML is in the DOM (the .stone
+  // elements need to exist for getBoundingClientRect to return
+  // sensible values), so a small setTimeout buys us one frame.
+  function positionMascot() {
+    setTimeout(function () {
+      var row = document.getElementById("path-row");
+      var mascot = document.getElementById("mascot-svg");
+      if (!row || !mascot) return;
+      var stones = row.querySelectorAll(".stone");
+      if (stones.length === 0) return;
+
+      // Prefer the rightmost taken / taken-helper stone.
+      var targetIdx = -1;
+      for (var i = stones.length - 1; i >= 0; i--) {
+        var t = stones[i].dataset.stone;
+        if (t === "taken" || t === "taken-helper") { targetIdx = i; break; }
+      }
+      // Fall back to the today-stone if no takens yet.
+      if (targetIdx < 0) {
+        for (var j = 0; j < stones.length; j++) {
+          if (stones[j].dataset.stone === "today") { targetIdx = j; break; }
+        }
+      }
+      if (targetIdx < 0) targetIdx = 0;
+
+      var rowRect = row.getBoundingClientRect();
+      var stoneRect = stones[targetIdx].getBoundingClientRect();
+      var centerX = stoneRect.left - rowRect.left + (stoneRect.width / 2);
+      var mascotWidth = 56;
+      mascot.style.left = (centerX - (mascotWidth / 2)) + "px";
+    }, 50);
+  }
+
+  return {
+    loadState: loadState,
+    saveState: saveState,
+    computePath: computePath,
+    markTaken: markTaken,
+    undoToday: undoToday,
+    computeCelebration: computeCelebration,
+    advancePath: advancePath,
+    positionMascot: positionMascot
+  };
+})();
+
+
+::UserStylesheet [stylesheet]
+/*
+  PILL PATH
+  Phone-first, accessibility-conscious medication tracker.
+  Viridis palette, cream background, large tap targets, no failure states.
+
+  CardioCareQuest viridis palette (canonical across all games):
+    #440154  deep purple   — phone gradient stop 1
+    #3b528b  blue          — phone gradient stop 2
+    #21918c  teal          — phone gradient stop 3 / taken-stone end
+    #5ec962  green          — taken-stone start / verdict good
+    #fde725  yellow         — primary CTA / today-stone / helper accent
+    #f4f1d8  cream          — page background
+  The today-stone radial gradient drifts to #f0a020 (warm orange)
+  to read as "attention" against the cool viridis background —
+  same warm-warning convention the BP-stage bars use elsewhere.
+*/
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+
+body {
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif;
+  background-color: #f4f1d8;
+  padding: 16px 12px;
+  font-size: 18px;
+  line-height: 1.5;
+  color: #1a1a1a;
+}
+
+#ui-bar { display: none; }
+
+#story {
+  margin: 0 auto;
+  max-width: 400px;
+  width: 100%;
+}
+
+.passage { padding: 0; margin: 0; font-size: 1em; }
+
+.phone {
+  background: linear-gradient(180deg, #440154 0%, #3b528b 50%, #21918c 100%);
+  border-radius: 28px;
+  overflow: hidden;
+  box-shadow: 0 8px 30px rgba(60, 30, 80, 0.22);
+  color: #ffffff;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-height: 680px;
+}
+.phone *, .phone *::before, .phone *::after {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.phone p, .phone div, .phone span {
+  word-wrap: break-word !important;
+  overflow-wrap: break-word !important;
+  white-space: normal !important;
+  max-width: 100% !important;
+}
+
+/* Header */
+.header {
+  padding: 14px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: bold;
+  color: #ffffff;
+  font-size: 17px;
+  background-color: rgba(0, 0, 0, 0.22);
+  flex: 0 0 auto;
+}
+.header-path {
+  font-size: 13px;
+  font-weight: bold;
+  color: #fde725;
+  letter-spacing: 0.04em;
+}
+
+/* Content */
+.content {
+  padding: 18px 20px 20px 20px;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+}
+.spacer { flex: 1 1 auto; min-height: 14px; }
+
+/* The path */
+.path-wrap {
+  background-color: rgba(255, 255, 255, 0.08);
+  border-radius: 18px;
+  padding: 22px 14px 18px 14px;
+  margin-bottom: 18px;
+  position: relative;
+}
+
+.path-label {
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  opacity: 0.8;
+  text-align: center;
+  margin: 0 0 14px 0;
+  font-weight: bold;
+  color: #ffffff;
+}
+
+.path-row {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  position: relative;
+  height: 76px;
+  margin-bottom: 10px;
+}
+
+/* The horizontal line connecting stones */
+.path-row::before {
+  content: "";
+  position: absolute;
+  top: 38px;
+  left: 18px;
+  right: 18px;
+  height: 3px;
+  background: linear-gradient(90deg,
+    rgba(94, 201, 98, 0.5) 0%,
+    rgba(94, 201, 98, 0.5) var(--progress, 0%),
+    rgba(255, 255, 255, 0.15) var(--progress, 0%),
+    rgba(255, 255, 255, 0.15) 100%);
+  border-radius: 2px;
+  z-index: 0;
+}
+
+.stone {
+  position: relative;
+  z-index: 1;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: bold;
+  color: #ffffff;
+  flex: 0 0 36px;
+}
+
+/* Stone states */
+.stone.future {
+  background-color: rgba(255, 255, 255, 0.18);
+  border: 2px dashed rgba(255, 255, 255, 0.3);
+}
+.stone.future-text {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 14px;
+}
+.stone.taken {
+  background: linear-gradient(135deg, #5ec962, #21918c);
+  border: 2px solid #5ec962;
+  box-shadow: 0 0 12px rgba(94, 201, 98, 0.5);
+}
+.stone.taken-helper {
+  background: linear-gradient(135deg, #fde725, #5ec962);
+  border: 2px solid #fde725;
+  box-shadow: 0 0 12px rgba(253, 231, 37, 0.5);
+}
+.stone.missed {
+  background-color: rgba(255, 255, 255, 0.12);
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  color: rgba(255, 255, 255, 0.4);
+}
+.stone.today {
+  background: radial-gradient(circle, #fde725 0%, #f0a020 100%);
+  border: 2px solid #fde725;
+  box-shadow: 0 0 0 4px rgba(253, 231, 37, 0.35), 0 0 20px rgba(253, 231, 37, 0.6);
+  animation: stonePulse 2.4s ease-in-out infinite;
+  color: #2a1a4a;
+}
+@keyframes stonePulse {
+  0% { box-shadow: 0 0 0 4px rgba(253, 231, 37, 0.35), 0 0 20px rgba(253, 231, 37, 0.6); }
+  50% { box-shadow: 0 0 0 8px rgba(253, 231, 37, 0.18), 0 0 30px rgba(253, 231, 37, 0.8); }
+  100% { box-shadow: 0 0 0 4px rgba(253, 231, 37, 0.35), 0 0 20px rgba(253, 231, 37, 0.6); }
+}
+
+.stone-icon {
+  display: block;
+  line-height: 1;
+}
+
+/* Mascot above the stones */
+.mascot-track {
+  height: 60px;
+  position: relative;
+  margin-bottom: 4px;
+}
+.mascot {
+  position: absolute;
+  top: 0;
+  width: 56px;
+  height: 56px;
+  transition: left 0.6s ease;
+}
+
+/* Today action card */
+.action-card {
+  background-color: #ffffff;
+  color: #1a1a1a;
+  border-radius: 16px;
+  padding: 22px 18px;
+  margin-bottom: 14px;
+  text-align: center;
+  box-shadow: 0 2px 12px rgba(40, 20, 60, 0.18);
+}
+.action-emoji {
+  font-size: 64px;
+  line-height: 1;
+  margin-bottom: 10px;
+  display: block;
+}
+.action-prompt {
+  font-size: 22px;
+  font-weight: bold;
+  margin: 0 0 16px 0;
+  color: #1a1a1a;
+  line-height: 1.3;
+}
+.action-help {
+  font-size: 14px;
+  color: #555;
+  margin: 0 0 16px 0;
+  line-height: 1.45;
+}
+
+/* Action buttons */
+.action-btn,
+.action-card a.action-btn,
+.action-card a.macro-link,
+.action-card a.link-internal {
+  display: block !important;
+  width: 100% !important;
+  padding: 18px !important;
+  background-color: #fde725 !important;
+  color: #2a1a4a !important;
+  border: none !important;
+  border-radius: 14px !important;
+  font-weight: bold !important;
+  font-size: 17px !important;
+  letter-spacing: 0.06em !important;
+  text-align: center !important;
+  text-decoration: none !important;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif !important;
+  cursor: pointer !important;
+  margin-bottom: 10px !important;
+  box-sizing: border-box !important;
+  min-height: 60px !important;
+}
+.action-btn:last-child,
+.action-card a.action-btn:last-child {
+  margin-bottom: 0 !important;
+}
+.action-btn-helper,
+.action-card a.action-btn-helper {
+  background-color: #ffffff !important;
+  color: #2a1a4a !important;
+  border: 2px solid #5ec962 !important;
+}
+
+/* Done state when today already taken */
+.done-banner {
+  background: linear-gradient(135deg, #d6f5d8, #b8e8c0);
+  color: #1a3a0f;
+  border-radius: 16px;
+  padding: 22px 18px;
+  margin-bottom: 14px;
+  text-align: center;
+  box-shadow: 0 2px 12px rgba(40, 20, 60, 0.18);
+}
+.done-emoji { font-size: 64px; line-height: 1; margin-bottom: 10px; display: block; }
+.done-text {
+  font-size: 22px;
+  font-weight: bold;
+  margin: 0 0 6px 0;
+  color: #1a3a0f;
+  line-height: 1.3;
+}
+.done-sub {
+  font-size: 15px;
+  color: #2a4a1f;
+  margin: 0;
+  line-height: 1.45;
+}
+
+/* Mini summary card */
+.summary-card {
+  background-color: rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 14px 16px;
+  /* `margin-top: 18px` separates the summary stats from whatever
+     button stack sits directly above (BACK TO HOME + the optional
+     "Wrong answer? Change it" link in the done state). Without it,
+     the secondary button's bottom edge butts up against the
+     summary card and visually reads as a single grouped block —
+     the participant can't tell where the action area ends and the
+     stats summary begins. */
+  margin-top: 18px;
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+.summary-stat {
+  text-align: center;
+  flex: 1;
+}
+.summary-stat-num {
+  font-size: 24px;
+  font-weight: bold;
+  color: #fde725;
+  display: block;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+.summary-stat-label {
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  opacity: 0.85;
+  color: #ffffff;
+  font-weight: bold;
+}
+
+.legend {
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  margin-top: 6px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.85);
+  letter-spacing: 0.04em;
+}
+.legend-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+.legend-dot.taken { background: linear-gradient(135deg, #5ec962, #21918c); }
+.legend-dot.helper { background: linear-gradient(135deg, #fde725, #5ec962); }
+.legend-dot.missed { background-color: rgba(255, 255, 255, 0.18); border: 1px solid rgba(255, 255, 255, 0.3); }
+
+/* Welcome / celebration screens */
+.hero-emoji {
+  font-size: 96px;
+  line-height: 1;
+  text-align: center;
+  display: block;
+  margin: 16px auto 16px auto;
+}
+.intro-title {
+  text-align: center;
+  font-size: 32px;
+  font-weight: bold;
+  margin: 0 0 14px 0;
+  letter-spacing: 0.02em;
+  color: #ffffff;
+  line-height: 1.25;
+}
+.narrative {
+  font-size: 18px;
+  line-height: 1.6;
+  margin: 0 0 14px 0;
+  color: #ffffff !important;
+}
+.narrative.center { text-align: center; }
+.narrative:last-of-type { margin-bottom: 0; }
+
+.celebration-card {
+  background-color: #ffffff;
+  border-radius: 18px;
+  padding: 28px 22px;
+  color: #1a1a1a;
+  text-align: center;
+  margin-bottom: 14px;
+  box-shadow: 0 4px 16px rgba(40, 20, 60, 0.22);
+}
+.celebration-emoji {
+  font-size: 100px;
+  line-height: 1;
+  margin: 0 0 12px 0;
+  display: block;
+}
+.celebration-headline {
+  font-size: 28px;
+  font-weight: bold;
+  color: #1a5a1f;
+  margin: 0 0 12px 0;
+  line-height: 1.25;
+}
+.celebration-message {
+  font-size: 16px;
+  color: #444;
+  line-height: 1.6;
+  margin: 0 0 16px 0;
+}
+.celebration-stat {
+  display: inline-block;
+  background-color: #d6f5d8;
+  color: #1a5a1f;
+  font-size: 16px;
+  font-weight: bold;
+  padding: 8px 20px;
+  border-radius: 20px;
+  margin: 4px;
+}
+
+.btn-primary,
+.phone a.btn-primary,
+.phone a.btn-primary.link-internal,
+.phone a.btn-primary.macro-link {
+  display: block !important;
+  width: 100% !important;
+  padding: 18px !important;
+  background-color: #fde725 !important;
+  color: #2a1a4a !important;
+  border: none !important;
+  border-radius: 14px !important;
+  font-weight: bold !important;
+  font-size: 16px !important;
+  letter-spacing: 0.1em !important;
+  text-align: center !important;
+  text-decoration: none !important;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif !important;
+  cursor: pointer !important;
+  margin-bottom: 10px !important;
+  box-sizing: border-box !important;
+  min-height: 56px !important;
+}
+.btn-primary:last-child,
+.phone a.btn-primary:last-child { margin-bottom: 0 !important; }
+
+.btn-secondary,
+.phone a.btn-secondary {
+  display: block !important;
+  width: 100% !important;
+  padding: 14px !important;
+  background-color: transparent !important;
+  border: 1px solid rgba(255, 255, 255, 0.35) !important;
+  color: rgba(255, 255, 255, 0.9) !important;
+  border-radius: 14px !important;
+  font-size: 13px !important;
+  letter-spacing: 0.06em !important;
+  text-align: center !important;
+  text-decoration: none !important;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif !important;
+  box-sizing: border-box !important;
+  margin-bottom: 0 !important;
+  min-height: 44px !important;
+}
+
+.help-text {
+  margin: 12px 0 0 0;
+  text-align: center;
+  font-size: 13px;
+  opacity: 0.7;
+  line-height: 1.5;
+  color: #ffffff;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@media (min-width: 480px) {
+  body { padding: 32px 16px; }
+  .phone { min-height: 760px; }
+}
+
+
+::Story innit
+<<if $entries.length gt 0>><<goto "Path">><<else>><<goto "Welcome">><</if>>
+
+
+::Welcome [nobr]
+/*
+First-time welcome. One screen, one button.
+*/
+
+<div class="phone">
+<div class="header"><span>Pill Path</span></div>
+<div class="content">
+
+<div style="text-align: center;">
+<svg width="110" height="110" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" style="display: block; margin: 16px auto;">
+  <defs>
+    <radialGradient id="pillBlobA" cx="40%" cy="35%" r="65%">
+      <stop offset="0%" stop-color="#a5e5a8"/>
+      <stop offset="60%" stop-color="#5ec962"/>
+      <stop offset="100%" stop-color="#21918c"/>
+    </radialGradient>
+  </defs>
+  <path d="M50 8 C 72 8, 88 22, 90 46 C 92 68, 78 90, 52 92 C 28 94, 10 78, 10 52 C 10 28, 28 8, 50 8 Z" fill="url(#pillBlobA)" stroke="#1a5a3a" stroke-width="1.5"/>
+  <ellipse cx="38" cy="46" rx="5" ry="7" fill="#1a1a1a"/>
+  <ellipse cx="62" cy="46" rx="5" ry="7" fill="#1a1a1a"/>
+  <ellipse cx="40" cy="44" rx="1.5" ry="2" fill="#ffffff"/>
+  <ellipse cx="64" cy="44" rx="1.5" ry="2" fill="#ffffff"/>
+  <path d="M40 64 Q 50 72, 60 64" stroke="#1a1a1a" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+</svg>
+</div>
+
+<h1 class="intro-title">Pill Path</h1>
+
+<p class="narrative center">A small game. One tap a day.</p>
+
+<p class="narrative center">When you take your blood pressure medicine, tap the glowing stone. The path will grow.</p>
+
+<p class="narrative center">Miss a day? The path waits for you. No starting over.</p>
+
+<div class="spacer"></div>
+
+<a class="btn-primary" data-passage="Path">START THE PATH</a>
+
+<p class="help-text">Take your medicine first. Then come back and tap.</p>
+
+</div>
+</div>
+
+
+::Path [nobr]
+/*
+MAIN SCREEN. The 7-stone path with mascot, plus either today's
+action card OR the done banner. All logic lives in the
+PillPathHelpers script passage; this passage just invokes it
+and renders the HTML the helpers populated $-vars for.
+
+Do NOT prefix any line in this docstring with `::` — tweego
+treats line-start `::` as a passage-header delimiter, and a
+slipped-through `::PillPathHelpers` here will register a new
+empty passage with that name.
+*/
+
+<<run setup.pillPath.computePath()>>
+
+<<set _stones to $stonesData>>
+<<set _todaySlot to $todaySlot>>
+<<set _progressPct to Math.round(($takenInPath / 7) * 100)>>
+
+<div class="phone">
+<div class="header"><span>Pill Path</span><span class="header-path">Path $pathNum</span></div>
+
+<div class="content">
+
+<div class="path-wrap">
+<p class="path-label">7 stones, one a day</p>
+
+<div class="mascot-track">
+<svg class="mascot" id="mascot-svg" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="pillBlobB" cx="40%" cy="35%" r="65%">
+      <stop offset="0%" stop-color="#a5e5a8"/>
+      <stop offset="60%" stop-color="#5ec962"/>
+      <stop offset="100%" stop-color="#21918c"/>
+    </radialGradient>
+  </defs>
+  <path d="M50 8 C 72 8, 88 22, 90 46 C 92 68, 78 90, 52 92 C 28 94, 10 78, 10 52 C 10 28, 28 8, 50 8 Z" fill="url(#pillBlobB)" stroke="#1a5a3a" stroke-width="1.5"/>
+  <ellipse cx="38" cy="46" rx="5" ry="7" fill="#1a1a1a"/>
+  <ellipse cx="62" cy="46" rx="5" ry="7" fill="#1a1a1a"/>
+  <ellipse cx="40" cy="44" rx="1.5" ry="2" fill="#ffffff"/>
+  <ellipse cx="64" cy="44" rx="1.5" ry="2" fill="#ffffff"/>
+  <path d="M40 64 Q 50 72, 60 64" stroke="#1a1a1a" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+</svg>
+</div>
+
+<div class="path-row" id="path-row" @style="'--progress: ' + _progressPct + '%;'">
+<<for _idx, _stone range _stones>>
+<<if _stone is null>>
+<<if _idx is _todaySlot and not $todayTaken>>
+<div class="stone today" data-stone="today"><span class="stone-icon">💊</span></div>
+<<else>>
+<div class="stone future"><span class="stone-icon future-text"><<print _idx + 1>></span></div>
+<</if>>
+<<elseif _stone.taken and _stone.caregiver>>
+<div class="stone taken-helper" data-stone="taken-helper"><span class="stone-icon">✓</span></div>
+<<elseif _stone.taken>>
+<div class="stone taken" data-stone="taken"><span class="stone-icon">✓</span></div>
+<<else>>
+<div class="stone missed" data-stone="missed"><span class="stone-icon">·</span></div>
+<</if>>
+<</for>>
+</div>
+
+<div class="legend">
+<div class="legend-item"><span class="legend-dot taken"></span>Taken</div>
+<div class="legend-item"><span class="legend-dot helper"></span>With help</div>
+<div class="legend-item"><span class="legend-dot missed"></span>Missed</div>
+</div>
+
+</div>
+
+<<if $todayTaken>>
+<div class="done-banner">
+<span class="done-emoji">🎉</span>
+<p class="done-text">Done for today.</p>
+<p class="done-sub"><<if $todayHelper>>You took it with help. Great teamwork.<<else>>Come back tomorrow for the next stone.<</if>></p>
+</div>
+<a class="btn-primary ccq-home-trigger">BACK TO HOME</a>
+<a class="btn-secondary" data-passage="Edit Today">Wrong answer? Change it</a>
+<<else>>
+<div class="action-card">
+<span class="action-emoji">💊</span>
+<p class="action-prompt">Did you take your medicine today?</p>
+<a class="action-btn" data-passage="Mark Taken">YES, I TOOK IT</a>
+<a class="action-btn action-btn-helper" data-passage="Mark Taken Helper">SOMEONE HELPED ME</a>
+</div>
+<</if>>
+
+<div class="summary-card">
+<div class="summary-stat"><span class="summary-stat-num">$takenInPath</span><span class="summary-stat-label">This path</span></div>
+<div class="summary-stat"><span class="summary-stat-num">$totalTaken</span><span class="summary-stat-label">All paths</span></div>
+<div class="summary-stat"><span class="summary-stat-num">$pathNum</span><span class="summary-stat-label">Path no.</span></div>
+</div>
+
+</div>
+</div>
+
+<<script>>setup.pillPath.positionMascot();<</script>>
+
+
+::Mark Taken [nobr]
+/*
+Records today as taken (self), persists, fires the Firestore
+bridge, then routes to Celebration (if the 7-stone window is
+full) or back to Path. All work is in setup.pillPath.markTaken.
+*/
+<<run setup.pillPath.markTaken(false)>>
+<<goto _nextStop>>
+
+
+::Mark Taken Helper [nobr]
+/*
+Same as Mark Taken but flags caregiver-assisted.
+*/
+<<run setup.pillPath.markTaken(true)>>
+<<goto _nextStop>>
+
+
+::Edit Today [nobr]
+/*
+"Change my answer" screen. Reachable from the done banner on the
+Path passage when $todayTaken is true. Lets the participant flip
+self/helper or undo today's tap. Re-tapping a button calls the
+same Mark Taken / Mark Taken Helper passages — markTaken() detects
+the existing entry and tags the event as a correction (points
+withheld so the flow can't be farmed). Undo routes through Undo
+Today which calls setup.pillPath.undoToday() to delete the entry
+and log a `pill_undone` event.
+*/
+
+<div class="phone">
+<div class="header"><span>Pill Path</span><span class="header-path">Edit today</span></div>
+<div class="content">
+
+<div class="action-card">
+<span class="action-emoji">↻</span>
+<p class="action-prompt">Change today's answer</p>
+<p class="action-help">Pick what actually happened. The path will update.</p>
+<a class="action-btn" data-passage="Mark Taken">I TOOK IT MYSELF</a>
+<a class="action-btn action-btn-helper" data-passage="Mark Taken Helper">SOMEONE HELPED ME</a>
+</div>
+
+<a class="btn-secondary" data-passage="Undo Today">I haven't taken it yet — undo</a>
+
+<div class="spacer"></div>
+
+<a class="btn-secondary" data-passage="Path">CANCEL</a>
+
+</div>
+</div>
+
+
+::Undo Today [nobr]
+/*
+Wipe today's entry and bounce back to Path. setup.pillPath.undoToday
+fires a `pill_undone` correction event so research data sees the
+trail.
+*/
+<<run setup.pillPath.undoToday()>>
+<<goto "Path">>
+
+
+::Celebration [nobr]
+/*
+Path complete. Show landmark celebration.
+On next tap, increment pathNum and return to Path.
+*/
+
+<<run setup.pillPath.computeCelebration()>>
+
+<div class="phone">
+<div class="header"><span>Pill Path</span><span class="header-path">Path $celebPathNum done</span></div>
+<div class="content">
+
+<div class="celebration-card">
+<span class="celebration-emoji">🌳</span>
+<p class="celebration-headline">You reached the tree.</p>
+<p class="celebration-message">Seven stones laid, seven days walked. The path goes on. A new one starts tomorrow.</p>
+<div>
+<span class="celebration-stat">$celebTaken of 7 stones</span>
+</div>
+</div>
+
+<p class="narrative center">Every path you finish is a path your heart felt.</p>
+
+<div class="spacer"></div>
+
+<a class="btn-primary" data-passage="Next Path">START NEXT PATH</a>
+<a class="btn-secondary ccq-home-trigger">BACK TO HOME</a>
+
+</div>
+</div>
+
+
+::Next Path [nobr]
+/*
+Increment pathNum and return to Path. setup.pillPath.advancePath
+ticks the counter and persists.
+*/
+<<run setup.pillPath.advancePath()>>
+<<goto "Path">>

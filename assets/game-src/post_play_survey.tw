@@ -112,13 +112,25 @@ setup.renderRank = function (containerId, varName) {
   Phone-first, accessibility-conscious.
   Same family as Salt Sludge / Vascular Village / Quiet Minute.
   Pale cream page, deep viridis phone, large tap tiles, emoji-first.
+
+  CardioCareQuest viridis palette (canonical across all games):
+    #440154  deep purple   — phone gradient stop 1
+    #3b528b  blue          — phone gradient stop 2 / rank button
+    #21918c  teal          — phone gradient stop 3
+    #5ec962  green          — agree-end of SUS scale
+    #fde725  yellow         — primary CTA / progress
+    #f4f1d8  cream          — page background
+  The 5-tone agree/disagree scale tile gradients (red→orange→yellow
+  →green) are an explicit semantic exception — they communicate
+  Likert direction at a glance and would lose meaning if compressed
+  into the cooler half of viridis.
 */
 
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; }
 
 body {
-  font-family: "Times New Roman", Times, serif;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif;
   background-color: #f4f1d8;
   padding: 16px 12px;
   font-size: 18px;
@@ -235,7 +247,7 @@ body {
   background-color: rgba(255,255,255,0.10);
   border: 1px solid rgba(255,255,255,0.25);
   color: #ffffff;
-  font-family: "Times New Roman", Times, serif;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif;
   font-size: 13px;
   letter-spacing: 0.04em;
   padding: 8px 14px;
@@ -271,18 +283,75 @@ body {
   align-items: center !important;
   justify-content: flex-start !important;
   text-align: center !important;
-  font-family: "Times New Roman", Times, serif !important;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif !important;
   box-shadow: 0 2px 6px rgba(40, 20, 60, 0.18) !important;
   transition: transform 0.12s ease, box-shadow 0.12s ease, border 0.12s ease !important;
   flex: 1 1 0 !important;
   min-width: 0 !important;
   min-height: 102px !important;
+  /* `position: relative` anchors the ::after checkmark badge that
+     appears when this tile is selected. Without it, the badge
+     would position relative to the nearest positioned ancestor
+     (the .phone) and float somewhere far from the tile. */
+  position: relative !important;
 }
 .scale-tile:hover,
 .tile-row a.scale-tile:hover,
 .tile-row a.macro-link:hover {
   transform: translateY(-2px) !important;
   box-shadow: 0 4px 12px rgba(40, 20, 60, 0.28) !important;
+}
+
+/*
+  SELECTED state for the SUS / Q3 emoji-scale tiles. Originally the
+  tiles had no .selected style at all — the only feedback when a
+  participant tapped was the 2px hover lift, which dry-run-3
+  participants reported was "very hard to notice" (especially since
+  touch input doesn't reliably trigger :hover and the visual was
+  showing for the wrong tile sometimes).
+
+  The selected state now stacks four independent cues so the
+  participant cannot miss it, even with low vision:
+    1. Thick viridis-blue border (3px) — high contrast against
+       every bg-1..bg-5 pastel gradient.
+    2. A glow ring (4px wide rgba blue) around the tile to make
+       it visibly "pop" out of the row.
+    3. A bigger lift (4px) and stronger shadow.
+    4. A green checkmark badge (::after) in the top-right corner
+       — same green as the choice-tile's check, same UX vocabulary
+       researchers and participants have already learned from
+       Q1/Q4. The badge is hidden by `display: none` until the
+       tile gets `.selected`, then shown via flex.
+*/
+.scale-tile.selected,
+.tile-row a.scale-tile.selected {
+  border: 3px solid #3b528b !important;
+  box-shadow: 0 0 0 4px rgba(59, 82, 139, 0.30),
+              0 6px 16px rgba(40, 20, 60, 0.32) !important;
+  transform: translateY(-4px) !important;
+}
+.scale-tile::after {
+  content: "✓";
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background-color: #5ec962;
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: bold;
+  line-height: 1;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.25);
+  display: none;
+  pointer-events: none;
+}
+.scale-tile.selected::after,
+.tile-row a.scale-tile.selected::after {
+  display: flex !important;
 }
 .scale-emoji {
   font-size: 40px !important;
@@ -330,7 +399,7 @@ body {
   align-items: center !important;
   gap: 14px !important;
   text-align: left !important;
-  font-family: "Times New Roman", Times, serif !important;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif !important;
   box-shadow: 0 2px 8px rgba(40, 20, 60, 0.18) !important;
   transition: transform 0.12s ease, border 0.12s ease !important;
   width: 100% !important;
@@ -376,33 +445,62 @@ body {
 .text-input-wrap {
   background-color: #ffffff;
   border-radius: 14px;
-  padding: 4px;
-  margin-bottom: 14px;
-  /* Flex-grow so the textarea fills the column instead of leaving a
-     large blank gradient between itself and the NEXT button. Q1-Q4
-     fill that space naturally with choice-tile lists; Q5 only has
-     this one input, so without flex-grow the leftover space pushed
-     by `.spacer` reads as a "blank screen behind". */
-  display: flex;
-  flex-direction: column;
-  flex: 1 1 auto;
-  min-height: 200px;
+  padding: 14px !important;
+  /* Explicit horizontal box: `width: 100%` + `box-sizing: border-box`
+     + `min-width: 0` together prevent the wrap from inheriting the
+     textarea's intrinsic width (Android WebView's textarea reports a
+     `cols`-derived intrinsic that can exceed the parent column width
+     on some builds — the wrap was visibly extending past `.content`'s
+     22px right inset, with the right corner clipping into the
+     emulator chrome). Margin: 0 makes sure no inherited horizontal
+     margin pushes the wrap sideways. */
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  margin: 0 0 14px 0 !important;
+  box-sizing: border-box !important;
+  display: block !important;
+  /* Subtle border so the white wrap reads as a distinct field
+     against the lightest part of the viridis gradient (teal) at
+     the bottom of Q5 — without it, on the lower 30% of the
+     screen the wrap can blend into the gradient. */
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: 0 2px 8px rgba(40, 20, 60, 0.18);
 }
 .text-input-wrap textarea {
   width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  display: block !important;
   border: none !important;
-  background: #ffffff !important;
-  font-family: "Times New Roman", Times, serif !important;
+  background: transparent !important;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif !important;
   font-size: 18px !important;
+  line-height: 1.5 !important;
   color: #1a1a1a !important;
-  padding: 14px !important;
+  /* The wrap's own 14px padding gives the breathing room — the
+     textarea inside sits flush so its scrollable area fills the
+     wrap edge-to-edge. Avoids the prior "padding inside padding"
+     stack where the wrap had 4px and the textarea had 14px,
+     which compounded into double-bordered rounded corners. */
+  padding: 0 !important;
+  margin: 0 !important;
   resize: none !important;
   outline: none !important;
   box-sizing: border-box !important;
-  min-height: 180px !important;
-  flex: 1 1 auto !important;
-  border-radius: 12px !important;
+  /* ~7 rows of 18px text + line-height — capped so a misconfigured
+     `rows` attr can't blow up the layout again. */
+  height: 180px !important;
+  max-height: 220px !important;
+  border-radius: 0 !important;
   caret-color: #3b528b !important;
+  -webkit-appearance: none !important;
+  appearance: none !important;
+}
+.text-input-wrap textarea::placeholder {
+  color: #9aa0a6 !important;
+  font-style: italic;
+  opacity: 1;
 }
 
 .three-input-stack {
@@ -429,7 +527,7 @@ body {
   flex: 1 !important;
   border: none !important;
   background: transparent !important;
-  font-family: "Times New Roman", Times, serif !important;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif !important;
   font-size: 18px !important;
   color: #1a1a1a !important;
   padding: 16px 16px 16px 0 !important;
@@ -490,7 +588,7 @@ body {
   cursor: pointer !important;
   font-size: 14px !important;
   font-weight: bold !important;
-  font-family: "Times New Roman", Times, serif !important;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
@@ -537,7 +635,7 @@ body {
   letter-spacing: 0.1em !important;
   text-align: center !important;
   text-decoration: none !important;
-  font-family: "Times New Roman", Times, serif !important;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif !important;
   cursor: pointer !important;
   margin-bottom: 10px !important;
   box-sizing: border-box !important;
@@ -566,7 +664,7 @@ body {
   letter-spacing: 0.06em !important;
   text-align: center !important;
   text-decoration: none !important;
-  font-family: "Times New Roman", Times, serif !important;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif !important;
   box-sizing: border-box !important;
   margin-bottom: 0 !important;
   min-height: 44px !important;
@@ -688,7 +786,25 @@ body {
 ::Q1 Favorite [nobr]
 /*
 END SURVEY Q1: Which game was your favorite?
-Single-select tile list.
+Single-select tile list with explicit confirm-then-next.
+
+UX history: this used to use SugarCube `<<link>>` macros that
+auto-advanced to Q2 the moment a tile was tapped. Participants
+in dry-run-2 reported the screen shifted "very fast" with no
+chance to confirm or change their pick. Reworked to use plain
+`<a class="choice-tile">` with a JS click handler that sets the
+SugarCube variable AND visually highlights the tile WITHOUT
+navigating. The participant then taps NEXT to advance, or BACK
+to return to Welcome and re-read the intro. Same pattern now
+used by Q3 Feeling, Q4 Again, and the SUS questions.
+
+The NEXT button starts without a `data-passage` attribute (so
+the bridge JS click delegation has nothing to navigate to) and
+the script adds `data-passage="Q2 Fun"` only after a selection
+exists. The `.disabled` class is purely visual at that point —
+the lack of `data-passage` is what actually blocks navigation,
+which keeps the UX honest even if the .disabled class is ever
+removed by mistake.
 */
 
 <div class="phone">
@@ -704,41 +820,90 @@ Single-select tile list.
 
 <div class="choice-list" id="fav-list">
 
-<<link '<span class="choice-emoji">🧂</span><div class="choice-text">Salt Sludge</div><span class="choice-check">✓</span>'>>
-<<set $favoriteGame to "Salt Sludge">>
-<<goto "Q2 Fun">>
-<</link>>
+<a class="choice-tile" data-fav="Salt Sludge">
+<span class="choice-emoji">🧂</span>
+<div class="choice-text">Salt Sludge</div>
+<span class="choice-check">✓</span>
+</a>
 
-<<link '<span class="choice-emoji">🐕</span><div class="choice-text">Dog Walking</div><span class="choice-check">✓</span>'>>
-<<set $favoriteGame to "Dog Walking">>
-<<goto "Q2 Fun">>
-<</link>>
+<a class="choice-tile" data-fav="Dog Walking">
+<span class="choice-emoji">🐕</span>
+<div class="choice-text">Dog Walking</div>
+<span class="choice-check">✓</span>
+</a>
 
-<<link '<span class="choice-emoji">🥗</span><div class="choice-text">DASH Diet Game</div><span class="choice-check">✓</span>'>>
-<<set $favoriteGame to "DASH Diet Game">>
-<<goto "Q2 Fun">>
-<</link>>
+<a class="choice-tile" data-fav="DASH Diet Game">
+<span class="choice-emoji">🥗</span>
+<div class="choice-text">DASH Diet Game</div>
+<span class="choice-check">✓</span>
+</a>
 
-<<link '<span class="choice-emoji">🏘️</span><div class="choice-text">Vascular Village</div><span class="choice-check">✓</span>'>>
-<<set $favoriteGame to "Vascular Village">>
-<<goto "Q2 Fun">>
-<</link>>
+<a class="choice-tile" data-fav="Vascular Village">
+<span class="choice-emoji">🏘️</span>
+<div class="choice-text">Vascular Village</div>
+<span class="choice-check">✓</span>
+</a>
 
-<<link '<span class="choice-emoji">🎯</span><div class="choice-text">Bingo Bash</div><span class="choice-check">✓</span>'>>
-<<set $favoriteGame to "Bingo Bash">>
-<<goto "Q2 Fun">>
-<</link>>
+<a class="choice-tile" data-fav="Bingo Bash">
+<span class="choice-emoji">🎯</span>
+<div class="choice-text">Bingo Bash</div>
+<span class="choice-check">✓</span>
+</a>
 
 </div>
+
+<div class="spacer"></div>
+
+<a class="btn-primary disabled" id="q1-next">NEXT</a>
+<a class="btn-secondary" data-passage="Welcome">BACK</a>
 
 </div>
 </div>
 
 <<script>>
 setTimeout(function () {
-  document.querySelectorAll("#fav-list a.macro-link, #fav-list a.link-internal").forEach(function (a) {
-    a.classList.add("choice-tile");
+  /*
+    NEXT navigation uses an explicit Engine.play() call rather than a
+    runtime-set `data-passage` attribute. Reason: SugarCube binds its
+    `data-passage` click handlers when the passage renders. Adding the
+    attribute via JS *after* render doesn't pick up that binding, so
+    the bridge's document-level click delegation logs the click but
+    nothing navigates. Calling Engine.play() from our own bound
+    handler sidesteps SugarCube's attribute scanning entirely. Same
+    pattern the SUS Q passage uses.
+  */
+  var current = State.variables.favoriteGame || "";
+  var nextBtn = document.getElementById("q1-next");
+  function enableNext() {
+    if (nextBtn) nextBtn.classList.remove("disabled");
+  }
+  document.querySelectorAll("#fav-list a.choice-tile").forEach(function (t) {
+    if (t.dataset.fav === current) {
+      t.classList.add("selected");
+      enableNext();
+    }
+    if (t.dataset.bound === "1") return;
+    t.dataset.bound = "1";
+    t.addEventListener("click", function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      document.querySelectorAll("#fav-list a.choice-tile").forEach(function (x) {
+        x.classList.remove("selected");
+      });
+      t.classList.add("selected");
+      State.variables.favoriteGame = t.dataset.fav;
+      enableNext();
+    });
   });
+  if (nextBtn && nextBtn.dataset.bound !== "1") {
+    nextBtn.dataset.bound = "1";
+    nextBtn.addEventListener("click", function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (nextBtn.classList.contains("disabled")) return;
+      Engine.play("Q2 Fun");
+    });
+  }
   if (setup.bindSpeak) setup.bindSpeak();
 }, 0);
 <</script>>
@@ -799,6 +964,7 @@ Player can pick multiple, then tap NEXT.
 <div class="spacer"></div>
 
 <a class="btn-primary" data-passage="Q3 Feeling">NEXT</a>
+<a class="btn-secondary" data-passage="Q1 Favorite">BACK</a>
 
 </div>
 </div>
@@ -832,6 +998,7 @@ setTimeout(function () {
 ::Q3 Feeling [nobr]
 /*
 END SURVEY Q3: How do you feel right now? 5-emoji scale.
+Same select-then-confirm pattern as Q1 — see ::Q1 Favorite docstring.
 */
 
 <div class="phone">
@@ -847,42 +1014,57 @@ END SURVEY Q3: How do you feel right now? 5-emoji scale.
 
 <div class="tile-row" id="feel-row">
 
-<<link '<span class="scale-emoji">😢</span><span class="scale-label">Very sad</span>'>>
-<<set $feeling to 1>>
-<<goto "Q4 Again">>
-<</link>>
-
-<<link '<span class="scale-emoji">🙁</span><span class="scale-label">Sad</span>'>>
-<<set $feeling to 2>>
-<<goto "Q4 Again">>
-<</link>>
-
-<<link '<span class="scale-emoji">😐</span><span class="scale-label">Okay</span>'>>
-<<set $feeling to 3>>
-<<goto "Q4 Again">>
-<</link>>
-
-<<link '<span class="scale-emoji">🙂</span><span class="scale-label">Good</span>'>>
-<<set $feeling to 4>>
-<<goto "Q4 Again">>
-<</link>>
-
-<<link '<span class="scale-emoji">😄</span><span class="scale-label">Very good</span>'>>
-<<set $feeling to 5>>
-<<goto "Q4 Again">>
-<</link>>
+<a class="scale-tile bg-1" data-feel="1"><span class="scale-emoji">😢</span><span class="scale-label">Very sad</span></a>
+<a class="scale-tile bg-2" data-feel="2"><span class="scale-emoji">🙁</span><span class="scale-label">Sad</span></a>
+<a class="scale-tile bg-3" data-feel="3"><span class="scale-emoji">😐</span><span class="scale-label">Okay</span></a>
+<a class="scale-tile bg-4" data-feel="4"><span class="scale-emoji">🙂</span><span class="scale-label">Good</span></a>
+<a class="scale-tile bg-5" data-feel="5"><span class="scale-emoji">😄</span><span class="scale-label">Very good</span></a>
 
 </div>
+
+<div class="spacer"></div>
+
+<a class="btn-primary disabled" id="q3-next">NEXT</a>
+<a class="btn-secondary" data-passage="Q2 Fun">BACK</a>
 
 </div>
 </div>
 
 <<script>>
 setTimeout(function () {
-  document.querySelectorAll("#feel-row a.macro-link, #feel-row a.link-internal").forEach(function (a, i) {
-    a.classList.add("scale-tile");
-    a.classList.add("bg-" + (i + 1));
+  /* NEXT uses explicit Engine.play() — see ::Q1 Favorite note. */
+  var current = State.variables.feeling || 0;
+  var nextBtn = document.getElementById("q3-next");
+  function enableNext() {
+    if (nextBtn) nextBtn.classList.remove("disabled");
+  }
+  document.querySelectorAll("#feel-row a.scale-tile").forEach(function (t) {
+    if (Number(t.dataset.feel) === current) {
+      t.classList.add("selected");
+      enableNext();
+    }
+    if (t.dataset.bound === "1") return;
+    t.dataset.bound = "1";
+    t.addEventListener("click", function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      document.querySelectorAll("#feel-row a.scale-tile").forEach(function (x) {
+        x.classList.remove("selected");
+      });
+      t.classList.add("selected");
+      State.variables.feeling = Number(t.dataset.feel);
+      enableNext();
+    });
   });
+  if (nextBtn && nextBtn.dataset.bound !== "1") {
+    nextBtn.dataset.bound = "1";
+    nextBtn.addEventListener("click", function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (nextBtn.classList.contains("disabled")) return;
+      Engine.play("Q4 Again");
+    });
+  }
   if (setup.bindSpeak) setup.bindSpeak();
 }, 0);
 <</script>>
@@ -891,6 +1073,7 @@ setTimeout(function () {
 ::Q4 Again [nobr]
 /*
 END SURVEY Q4: Would you like to play again?
+Same select-then-confirm pattern as Q1 — see ::Q1 Favorite docstring.
 */
 
 <div class="phone">
@@ -906,31 +1089,69 @@ END SURVEY Q4: Would you like to play again?
 
 <div class="choice-list" id="again-list">
 
-<<link '<span class="choice-emoji">😄</span><div class="choice-text">Yes</div><span class="choice-check">✓</span>'>>
-<<set $playAgain to "yes">>
-<<goto "Q5 Wish">>
-<</link>>
+<a class="choice-tile" data-again="yes">
+<span class="choice-emoji">😄</span>
+<div class="choice-text">Yes</div>
+<span class="choice-check">✓</span>
+</a>
 
-<<link '<span class="choice-emoji">🤔</span><div class="choice-text">Maybe</div><span class="choice-check">✓</span>'>>
-<<set $playAgain to "maybe">>
-<<goto "Q5 Wish">>
-<</link>>
+<a class="choice-tile" data-again="maybe">
+<span class="choice-emoji">🤔</span>
+<div class="choice-text">Maybe</div>
+<span class="choice-check">✓</span>
+</a>
 
-<<link '<span class="choice-emoji">🤷</span><div class="choice-text">Not sure</div><span class="choice-check">✓</span>'>>
-<<set $playAgain to "not_sure">>
-<<goto "Q5 Wish">>
-<</link>>
+<a class="choice-tile" data-again="not_sure">
+<span class="choice-emoji">🤷</span>
+<div class="choice-text">Not sure</div>
+<span class="choice-check">✓</span>
+</a>
 
 </div>
+
+<div class="spacer"></div>
+
+<a class="btn-primary disabled" id="q4-next">NEXT</a>
+<a class="btn-secondary" data-passage="Q3 Feeling">BACK</a>
 
 </div>
 </div>
 
 <<script>>
 setTimeout(function () {
-  document.querySelectorAll("#again-list a.macro-link, #again-list a.link-internal").forEach(function (a) {
-    a.classList.add("choice-tile");
+  /* NEXT uses explicit Engine.play() — see ::Q1 Favorite note. */
+  var current = State.variables.playAgain || "";
+  var nextBtn = document.getElementById("q4-next");
+  function enableNext() {
+    if (nextBtn) nextBtn.classList.remove("disabled");
+  }
+  document.querySelectorAll("#again-list a.choice-tile").forEach(function (t) {
+    if (t.dataset.again === current) {
+      t.classList.add("selected");
+      enableNext();
+    }
+    if (t.dataset.bound === "1") return;
+    t.dataset.bound = "1";
+    t.addEventListener("click", function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      document.querySelectorAll("#again-list a.choice-tile").forEach(function (x) {
+        x.classList.remove("selected");
+      });
+      t.classList.add("selected");
+      State.variables.playAgain = t.dataset.again;
+      enableNext();
+    });
   });
+  if (nextBtn && nextBtn.dataset.bound !== "1") {
+    nextBtn.dataset.bound = "1";
+    nextBtn.addEventListener("click", function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (nextBtn.classList.contains("disabled")) return;
+      Engine.play("Q5 Wish");
+    });
+  }
   if (setup.bindSpeak) setup.bindSpeak();
 }, 0);
 <</script>>
@@ -954,10 +1175,13 @@ END SURVEY Q5: Anything you wish the game had? Optional open text.
 </div>
 
 <div class="text-input-wrap">
-<textarea id="wish-input" rows="7"></textarea>
+<textarea id="wish-input" rows="6" placeholder="Type here, or skip"></textarea>
 </div>
 
+<div class="spacer"></div>
+
 <a class="btn-primary" data-passage="SUS Intro">NEXT</a>
+<a class="btn-secondary" data-passage="Q4 Again">BACK</a>
 
 </div>
 </div>
@@ -1002,6 +1226,7 @@ SUS preamble.
 <div class="spacer"></div>
 
 <a class="btn-primary" data-passage="SUS Q">START</a>
+<a class="btn-secondary" data-passage="Q5 Wish">BACK</a>
 
 </div>
 </div>
@@ -1010,8 +1235,16 @@ SUS preamble.
 ::SUS Q [nobr]
 /*
 SUS QUESTION SCREEN.
-Single passage handles all 10 SUS questions, advancing $susIdx each time.
-On the 10th tap, navigates to Three Words.
+Single passage handles all 10 SUS questions; advancing/retreating
+mutates $susIdx and re-renders ("SUS Q" calls itself via <<goto>>).
+On NEXT past Q10, navigates to "Three Words". BACK from Q1 returns
+to "SUS Intro".
+
+Same select-then-confirm pattern as Q1 / Q3 / Q4 — tapping a tile
+records the rating in $susAnswers[idx] and highlights the tile;
+NEXT button advances. Restoring a previously-given rating on
+BACK is what makes the BACK button useful, so the script reads
+$susAnswers[idx-1] on render and pre-selects it.
 */
 
 <<set _susQs to [
@@ -1043,42 +1276,96 @@ On the 10th tap, navigates to Three Words.
 
 <div class="tile-row" id="sus-row">
 
-<<link '<span class="scale-emoji">😠</span><span class="scale-label">Strongly disagree</span>'>>
-<<set $susAnswers[$susIdx - 1] to 1>>
-<<if $susIdx lt 10>><<set $susIdx to $susIdx + 1>><<goto "SUS Q">><<else>><<goto "Three Words">><</if>>
-<</link>>
-
-<<link '<span class="scale-emoji">🙁</span><span class="scale-label">Disagree</span>'>>
-<<set $susAnswers[$susIdx - 1] to 2>>
-<<if $susIdx lt 10>><<set $susIdx to $susIdx + 1>><<goto "SUS Q">><<else>><<goto "Three Words">><</if>>
-<</link>>
-
-<<link '<span class="scale-emoji">😐</span><span class="scale-label">Neutral</span>'>>
-<<set $susAnswers[$susIdx - 1] to 3>>
-<<if $susIdx lt 10>><<set $susIdx to $susIdx + 1>><<goto "SUS Q">><<else>><<goto "Three Words">><</if>>
-<</link>>
-
-<<link '<span class="scale-emoji">🙂</span><span class="scale-label">Agree</span>'>>
-<<set $susAnswers[$susIdx - 1] to 4>>
-<<if $susIdx lt 10>><<set $susIdx to $susIdx + 1>><<goto "SUS Q">><<else>><<goto "Three Words">><</if>>
-<</link>>
-
-<<link '<span class="scale-emoji">😍</span><span class="scale-label">Strongly agree</span>'>>
-<<set $susAnswers[$susIdx - 1] to 5>>
-<<if $susIdx lt 10>><<set $susIdx to $susIdx + 1>><<goto "SUS Q">><<else>><<goto "Three Words">><</if>>
-<</link>>
+<a class="scale-tile bg-1" data-sus="1"><span class="scale-emoji">😠</span><span class="scale-label">Strongly disagree</span></a>
+<a class="scale-tile bg-2" data-sus="2"><span class="scale-emoji">🙁</span><span class="scale-label">Disagree</span></a>
+<a class="scale-tile bg-3" data-sus="3"><span class="scale-emoji">😐</span><span class="scale-label">Neutral</span></a>
+<a class="scale-tile bg-4" data-sus="4"><span class="scale-emoji">🙂</span><span class="scale-label">Agree</span></a>
+<a class="scale-tile bg-5" data-sus="5"><span class="scale-emoji">😍</span><span class="scale-label">Strongly agree</span></a>
 
 </div>
+
+<div class="spacer"></div>
+
+<a class="btn-primary disabled" id="sus-next">NEXT</a>
+<a class="btn-secondary" id="sus-back">BACK</a>
 
 </div>
 </div>
 
 <<script>>
 setTimeout(function () {
-  document.querySelectorAll("#sus-row a.macro-link, #sus-row a.link-internal").forEach(function (a, i) {
-    a.classList.add("scale-tile");
-    a.classList.add("bg-" + (i + 1));
+  var idx = State.variables.susIdx || 1;
+  var current = (State.variables.susAnswers || [])[idx - 1] || 0;
+  var nextBtn = document.getElementById("sus-next");
+  var backBtn = document.getElementById("sus-back");
+
+  function enableNext() {
+    if (!nextBtn) return;
+    nextBtn.classList.remove("disabled");
+    /* Tag NEXT with a sentinel data-sus-ready so its own click
+       handler (below) knows there's a valid answer and can decide
+       whether to advance susIdx or jump to Three Words. We don't
+       use data-passage here because the navigation target depends
+       on whether this is the 10th question. */
+    nextBtn.setAttribute("data-sus-ready", "1");
+  }
+
+  /* Restore previous answer if the user is revisiting via BACK. */
+  document.querySelectorAll("#sus-row a.scale-tile").forEach(function (t) {
+    if (Number(t.dataset.sus) === current) {
+      t.classList.add("selected");
+      enableNext();
+    }
+    if (t.dataset.bound === "1") return;
+    t.dataset.bound = "1";
+    t.addEventListener("click", function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      document.querySelectorAll("#sus-row a.scale-tile").forEach(function (x) {
+        x.classList.remove("selected");
+      });
+      t.classList.add("selected");
+      var arr = State.variables.susAnswers || [];
+      arr[idx - 1] = Number(t.dataset.sus);
+      State.variables.susAnswers = arr;
+      enableNext();
+    });
   });
+
+  /* NEXT: advance susIdx and re-render this passage, OR jump
+     to Three Words on Q10. */
+  if (nextBtn && nextBtn.dataset.bound !== "1") {
+    nextBtn.dataset.bound = "1";
+    nextBtn.addEventListener("click", function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (nextBtn.classList.contains("disabled")) return;
+      if (idx >= 10) {
+        Engine.play("Three Words");
+      } else {
+        State.variables.susIdx = idx + 1;
+        Engine.play("SUS Q");
+      }
+    });
+  }
+
+  /* BACK: decrement susIdx and re-render, OR return to SUS Intro
+     on Q1. The participant's previous answer for the prior
+     question is restored by the render-time selected check above. */
+  if (backBtn && backBtn.dataset.bound !== "1") {
+    backBtn.dataset.bound = "1";
+    backBtn.addEventListener("click", function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (idx <= 1) {
+        Engine.play("SUS Intro");
+      } else {
+        State.variables.susIdx = idx - 1;
+        Engine.play("SUS Q");
+      }
+    });
+  }
+
   if (setup.bindSpeak) setup.bindSpeak();
 }, 0);
 <</script>>
@@ -1110,6 +1397,7 @@ Three text inputs. Neutral prompt, no example words shown.
 <div class="spacer"></div>
 
 <a class="btn-primary" data-passage="Rank Fun">NEXT</a>
+<a class="btn-secondary" data-passage="SUS Q">BACK</a>
 
 </div>
 </div>
@@ -1164,6 +1452,7 @@ Position 1 (top) = most fun, Position 5 (bottom) = least fun.
 <p class="rank-hint">Tap up or down to move a game.</p>
 
 <a class="btn-primary" data-passage="Rank Health">NEXT RANKING</a>
+<a class="btn-secondary" data-passage="Three Words">BACK</a>
 
 </div>
 </div>
@@ -1199,6 +1488,7 @@ STEP 12 PASS 2: Rank by importance for health.
 <p class="rank-hint">Tap up or down to move a game.</p>
 
 <a class="btn-primary" data-passage="Done">FINISH</a>
+<a class="btn-secondary" data-passage="Rank Fun">BACK</a>
 
 </div>
 </div>
@@ -1279,7 +1569,7 @@ DONE. Compute SUS score, persist payload, show thank-you.
 
 <div class="spacer"></div>
 
-<a class="btn-primary" onclick="if(window.CCQ){CCQ.goHome();}return false;" href="#">DONE</a>
+<a class="btn-primary ccq-home-trigger">DONE</a>
 
 </div>
 </div>

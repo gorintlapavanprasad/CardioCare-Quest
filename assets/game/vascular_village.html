@@ -152,10 +152,21 @@ var saveAs=saveAs||navigator.msSaveBlob&&navigator.msSaveBlob.bind(navigator)||f
       var savedPid = window.localStorage.getItem('ccq_active_pid') || '';
       if (savedPid !== currentPid) {
         // Add new keys to this list as games introduce them.
+        // 2026-05-10: pill_path_save was missing — participant A's
+        // 7-stone path data was leaking to participant B on shared
+        // devices. Same vector as quietMinute_history.
+        // 2026-05-10 (later): cardiocarequest_survey added — the
+        // post-play survey writes a defensive backup of every
+        // participant's full payload to that key on the Done
+        // passage. Without this entry, participant B would see
+        // participant A's last survey responses if A's WebView
+        // localStorage were inspected.
         var staleKeys = [
           'quietMinute_history',
           'quietMinute_points',
           'vv_save',
+          'pill_path_save',
+          'cardiocarequest_survey',
         ];
         for (var i = 0; i < staleKeys.length; i++) {
           try {
@@ -166,6 +177,66 @@ var saveAs=saveAs||navigator.msSaveBlob&&navigator.msSaveBlob.bind(navigator)||f
       }
     }
   } catch (e) { /* keep going — isolation is best-effort */ }
+
+  // ───────────────────────────────────────────────────────────────────
+  // ATKINSON HYPERLEGIBLE FONT
+  //
+  // Designed by the Braille Institute for low-vision readability.
+  // Bundled locally (TTF in `assets/fonts/Atkinson_Hyperlegible/`,
+  // declared in `pubspec.yaml`) so the font loads even when offline
+  // and on devices Google Fonts can't reach. We inject `@font-face`
+  // declarations once per WebView via a <style> tag in <head>; the
+  // path is resolved relative to the compiled HTML's location, which
+  // is `assets/game/<game>.html` under flutter_assets, so `../fonts/`
+  // walks one directory up to the bundled font folder.
+  //
+  // Idempotent via the id check so the style block doesn't duplicate
+  // across passage re-renders or LAUNCH_GAME sub-host stacking.
+  // ───────────────────────────────────────────────────────────────────
+  try {
+    var injectFontFace = function () {
+      if (document.getElementById('ccq-fonts-style')) return;
+      var style = document.createElement('style');
+      style.id = 'ccq-fonts-style';
+      style.textContent =
+        "@font-face {" +
+        "  font-family: 'Atkinson Hyperlegible';" +
+        "  src: url('../fonts/Atkinson_Hyperlegible/AtkinsonHyperlegible-Regular.ttf') format('truetype');" +
+        "  font-weight: 400;" +
+        "  font-style: normal;" +
+        "  font-display: swap;" +
+        "}" +
+        "@font-face {" +
+        "  font-family: 'Atkinson Hyperlegible';" +
+        "  src: url('../fonts/Atkinson_Hyperlegible/AtkinsonHyperlegible-Italic.ttf') format('truetype');" +
+        "  font-weight: 400;" +
+        "  font-style: italic;" +
+        "  font-display: swap;" +
+        "}" +
+        "@font-face {" +
+        "  font-family: 'Atkinson Hyperlegible';" +
+        "  src: url('../fonts/Atkinson_Hyperlegible/AtkinsonHyperlegible-Bold.ttf') format('truetype');" +
+        "  font-weight: 700;" +
+        "  font-style: normal;" +
+        "  font-display: swap;" +
+        "}" +
+        "@font-face {" +
+        "  font-family: 'Atkinson Hyperlegible';" +
+        "  src: url('../fonts/Atkinson_Hyperlegible/AtkinsonHyperlegible-BoldItalic.ttf') format('truetype');" +
+        "  font-weight: 700;" +
+        "  font-style: italic;" +
+        "  font-display: swap;" +
+        "}";
+      var head = document.head || document.getElementsByTagName('head')[0];
+      if (head) head.appendChild(style);
+    };
+    if (document.head) {
+      injectFontFace();
+    } else {
+      // <head> not yet parsed — defer until it exists.
+      document.addEventListener('DOMContentLoaded', injectFontFace);
+    }
+  } catch (e) { /* font is best-effort — fallback stack handles it */ }
 
   function post(payload) {
     try {
@@ -347,6 +418,33 @@ var saveAs=saveAs||navigator.msSaveBlob&&navigator.msSaveBlob.bind(navigator)||f
     post({type: 'LAUNCH_GAME', gameId: gameId});
   }
 
+  /**
+   * Pull the latest blood-pressure reading FOR TODAY from Firestore via
+   * the host. Fire-and-forget: the host responds asynchronously by
+   * calling `runJavaScript` to set:
+   *   SugarCube.State.variables.lastSys
+   *   SugarCube.State.variables.lastDia
+   * and then `Engine.play(currentPassage)` so the rendered passage
+   * picks up the fresh reading.
+   *
+   * Why this exists: webview_flutter on Android does NOT reliably
+   * share localStorage across WebViewController instances — Quiet
+   * Landscape's `quietMinute_history` write lands in its own WebView's
+   * storage and Vascular Village's StoryInit can't see it. Calling
+   * this in StoryInit gives Vascular Village a Firestore-backed
+   * fallback so the village BP gate works regardless of how the
+   * platform's WebView implements storage isolation. The host also
+   * seeds `quietMinute_history` in this WebView's localStorage so
+   * subsequent renders inside the same launch (e.g. Hub's self-heal
+   * script) hit the cache rather than asking Flutter again.
+   *
+   * No-op when called from a host that doesn't recognise GET_TODAY_BP
+   * (older builds) — the host swallows unknown message types.
+   */
+  function getTodayBP() {
+    post({type: 'GET_TODAY_BP'});
+  }
+
   window.CCQ = {
     startTracking: startTracking,
     setBuddyName: setBuddyName,
@@ -358,21 +456,27 @@ var saveAs=saveAs||navigator.msSaveBlob&&navigator.msSaveBlob.bind(navigator)||f
     logQuestCompletion: logQuestCompletion,
     logBP: logBP,
     launchGame: launchGame,
+    getTodayBP: getTodayBP,
   };
 
   // ───────────────────────────────────────────────────────────────────
-  // BURGER MENU
+  // BURGER MENU — LEFT-SIDE OFF-CANVAS DRAWER
   //
   // Every compiled Twine game has a `<span class="menu-icon">≡</span>`
-  // (or similar) in its header. Handling the menu HERE — in the shared
-  // bridge — instead of per-game means all 7 games inherit the same
-  // options, the same animation, and the same UX without duplicating
-  // markup across 7 .tw files.
+  // (or similar) in its header. Tapping it slides a drawer in from the
+  // LEFT edge (matching netguage's SugarCube UIBar pattern) with four
+  // options. Handling the menu HERE — in the shared bridge — instead
+  // of per-game means all 7 games inherit the same options, the same
+  // animation, and the same UX without duplicating markup across 7
+  // .tw files.
   //
-  // Options exposed today:
-  //   • Go to dashboard — calls CCQ.goHome()
-  //   • Restart this game — calls SugarCube.Engine.restart()
-  //   • Close menu — dismisses the panel
+  // Options:
+  //   • Home              — CCQ.goHome() (back to Flutter dashboard)
+  //   • Back              — SugarCube.Engine.backward() (one passage)
+  //   • Exit the game     — CCQ.goHome() (same effect as Home; the
+  //                         label is for participants who think of
+  //                         "leaving" as different from "Home")
+  //   • Play from beginning — SugarCube.Engine.restart() (full reset)
   //
   // Implementation notes:
   //   • Click delegation on `document` (capture phase) so the trigger
@@ -380,6 +484,8 @@ var saveAs=saveAs||navigator.msSaveBlob&&navigator.msSaveBlob.bind(navigator)||f
   //     and survives every passage transition.
   //   • Overlay div is created lazily on first open — by then body
   //     exists, even though this script runs in <head>.
+  //   • Drawer slides in via `transform: translateX` so the animation
+  //     stays GPU-composited; the dim backdrop fades in via `opacity`.
   //   • Inline styles use Nunito (matches the games) with a system-
   //     font fallback so the menu still reads if Nunito hasn't loaded.
   // ───────────────────────────────────────────────────────────────────
@@ -416,53 +522,122 @@ var saveAs=saveAs||navigator.msSaveBlob&&navigator.msSaveBlob.bind(navigator)||f
       '  min-width: 28px;' +
       '  min-height: 28px;' +
       '}' +
+      // Backdrop: full-screen dim layer beneath the drawer. Click
+      // anywhere on it (outside the panel) to dismiss.
       '.ccq-menu-overlay {' +
       '  position: fixed; inset: 0;' +
-      '  background: rgba(20, 22, 32, 0.55);' +
-      '  display: flex; align-items: flex-start; justify-content: flex-end;' +
+      '  background: rgba(15, 18, 28, 0.55);' +
       '  z-index: 99999;' +
       '  opacity: 0; pointer-events: none;' +
-      '  transition: opacity 0.18s ease-out;' +
-      '  font-family: \'Nunito\', system-ui, -apple-system, "Segoe UI", sans-serif;' +
+      '  transition: opacity 0.22s ease-out;' +
+      '  font-family: \'Atkinson Hyperlegible\', system-ui, -apple-system, "Segoe UI", sans-serif;' +
       '}' +
       '.ccq-menu-overlay.ccq-open { opacity: 1; pointer-events: auto; }' +
+      // Drawer: full-screen overlay that slides in from the left.
+      // Width is 100vw so the menu fully covers the game while open
+      // — easier reading for older participants and removes any
+      // ambiguity about what's tappable. Gradient mirrors the
+      // in-game phone-frame palette so the drawer reads as part of
+      // the game, not a stray dialog.
       '.ccq-menu-panel {' +
-      '  margin: 14px;' +
-      '  background: #ffffff;' +
-      '  border-radius: 14px;' +
-      '  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28);' +
-      '  min-width: 240px; max-width: 80vw;' +
-      '  overflow: hidden;' +
-      '  transform: translateY(-8px);' +
-      '  transition: transform 0.18s ease-out;' +
+      '  position: fixed; top: 0; left: 0; bottom: 0; right: 0;' +
+      '  width: 100vw;' +
+      '  background: linear-gradient(180deg, #2a1a4a 0%, #3b528b 55%, #21918c 100%);' +
+      '  box-shadow: 4px 0 28px rgba(0, 0, 0, 0.45);' +
+      '  display: flex; flex-direction: column;' +
+      '  padding: 0 0 12px 0;' +
+      '  transform: translateX(-100%);' +
+      '  transition: transform 0.25s ease-out;' +
+      '  overflow-y: auto;' +
+      '  -webkit-overflow-scrolling: touch;' +
       '}' +
-      '.ccq-menu-overlay.ccq-open .ccq-menu-panel { transform: translateY(0); }' +
+      '.ccq-menu-overlay.ccq-open .ccq-menu-panel { transform: translateX(0); }' +
+      // Header row: "MENU" label + an X close button. With the
+      // panel full-width there's no exposed backdrop to tap-to-
+      // dismiss, so we need an explicit close affordance for
+      // participants who open the menu and change their mind.
+      //
+      // Layout: header is a flex row with align-items: center, so
+      // both children (the MENU span and the X button) land with
+      // their vertical centers on the same y. The header's
+      // top-padding uses `env(safe-area-inset-top)` so the row sits
+      // BELOW the system status bar on devices that report one,
+      // matching the game's own .header behaviour set by the build-
+      // time viewport override.
+      '.ccq-menu-header {' +
+      '  padding-top: max(20px, calc(env(safe-area-inset-top, 0px) + 12px));' +
+      '  padding-right: 16px;' +
+      '  padding-bottom: 14px;' +
+      '  padding-left: 22px;' +
+      '  font-size: 12px;' +
+      '  letter-spacing: 1.6px;' +
+      '  text-transform: uppercase;' +
+      '  color: rgba(255, 255, 255, 0.65);' +
+      '  font-weight: 800;' +
+      '  display: flex;' +
+      '  align-items: center;' +
+      '  justify-content: space-between;' +
+      '  min-height: 56px;' +
+      '  box-sizing: border-box;' +
+      '}' +
+      // 44×44 square button — gives a recommended-minimum tap
+      // target without resorting to a negative-margin trick that
+      // used to knock the X out of vertical alignment with the
+      // MENU label. flex centering on the inner X glyph keeps it
+      // pixel-centered inside the square regardless of font
+      // metrics. The button itself is then vertically centered
+      // by the parent row's align-items: center, so MENU + X
+      // share the same y baseline.
+      '.ccq-menu-close {' +
+      '  background: transparent;' +
+      '  border: none;' +
+      '  color: rgba(255, 255, 255, 0.92);' +
+      '  font-size: 22px;' +
+      '  line-height: 1;' +
+      '  cursor: pointer;' +
+      '  width: 44px;' +
+      '  height: 44px;' +
+      '  display: flex;' +
+      '  align-items: center;' +
+      '  justify-content: center;' +
+      '  padding: 0;' +
+      '  margin: 0;' +
+      '  border-radius: 50%;' +
+      '  font-family: inherit;' +
+      '}' +
+      '.ccq-menu-close:hover, .ccq-menu-close:active, .ccq-menu-close:focus {' +
+      '  background: rgba(255, 255, 255, 0.10);' +
+      '  outline: none;' +
+      '}' +
       '.ccq-menu-item {' +
-      '  padding: 14px 18px;' +
-      '  font-size: 15px;' +
+      '  padding: 16px 22px;' +
+      '  font-size: 16px;' +
       '  font-weight: 700;' +
-      '  color: #2d3140;' +
+      '  color: rgba(255, 255, 255, 0.95);' +
       '  cursor: pointer;' +
       '  display: flex;' +
       '  align-items: center;' +
-      '  gap: 12px;' +
-      '  border-bottom: 1px solid rgba(0, 0, 0, 0.06);' +
-      '  background: #ffffff;' +
+      '  gap: 14px;' +
       '  border: none;' +
+      '  background: transparent;' +
       '  width: 100%;' +
       '  text-align: left;' +
       '  font-family: inherit;' +
+      '  border-left: 3px solid transparent;' +
+      '  transition: background-color 0.12s ease-out, border-color 0.12s ease-out;' +
       '}' +
-      '.ccq-menu-item:last-child { border-bottom: none; }' +
-      '.ccq-menu-item:hover, .ccq-menu-item:active { background: #f4f5f7; }' +
+      '.ccq-menu-item:hover, .ccq-menu-item:active, .ccq-menu-item:focus {' +
+      '  background: rgba(255, 255, 255, 0.10);' +
+      '  border-left-color: #fde725;' +
+      '  outline: none;' +
+      '}' +
       '.ccq-menu-icon-glyph {' +
-      '  width: 22px;' +
+      '  width: 24px;' +
       '  text-align: center;' +
-      '  font-size: 17px;' +
-      '  flex: 0 0 22px;' +
-      '}' +
-      '.ccq-menu-item-restart { color: #2d7d6d; }' +
-      '.ccq-menu-item-close   { color: #6b7280; }';
+      '  font-size: 20px;' +
+      '  flex: 0 0 24px;' +
+      '  opacity: 0.9;' +
+      '}';
     document.head.appendChild(style);
   }
 
@@ -473,18 +648,26 @@ var saveAs=saveAs||navigator.msSaveBlob&&navigator.msSaveBlob.bind(navigator)||f
     overlay.setAttribute('role', 'dialog');
     overlay.setAttribute('aria-label', 'Game menu');
     overlay.innerHTML =
-      '<div class="ccq-menu-panel">' +
+      '<div class="ccq-menu-panel" role="navigation">' +
+      '  <div class="ccq-menu-header">' +
+      '    <span>Menu</span>' +
+      '    <button class="ccq-menu-close" data-action="close" aria-label="Close menu">✕</button>' +
+      '  </div>' +
       '  <button class="ccq-menu-item" data-action="dashboard">' +
       '    <span class="ccq-menu-icon-glyph">⌂</span>' +
-      '    <span>Go to dashboard</span>' +
+      '    <span>Home</span>' +
       '  </button>' +
-      '  <button class="ccq-menu-item ccq-menu-item-restart" data-action="restart">' +
+      '  <button class="ccq-menu-item" data-action="back">' +
+      '    <span class="ccq-menu-icon-glyph">←</span>' +
+      '    <span>Back</span>' +
+      '  </button>' +
+      '  <button class="ccq-menu-item" data-action="exit">' +
+      '    <span class="ccq-menu-icon-glyph">⏻</span>' +
+      '    <span>Exit the game</span>' +
+      '  </button>' +
+      '  <button class="ccq-menu-item" data-action="restart">' +
       '    <span class="ccq-menu-icon-glyph">↻</span>' +
-      '    <span>Restart this game</span>' +
-      '  </button>' +
-      '  <button class="ccq-menu-item ccq-menu-item-close" data-action="close">' +
-      '    <span class="ccq-menu-icon-glyph">✕</span>' +
-      '    <span>Close menu</span>' +
+      '    <span>Play from beginning</span>' +
       '  </button>' +
       '</div>';
 
@@ -502,20 +685,38 @@ var saveAs=saveAs||navigator.msSaveBlob&&navigator.msSaveBlob.bind(navigator)||f
       e.preventDefault();
       e.stopPropagation();
 
-      if (action === 'close') {
-        closeMenu();
-      } else if (action === 'dashboard') {
-        closeMenu();
-        try { goHome(); } catch (err) { console.error('[CCQ] goHome failed:', err); }
-      } else if (action === 'restart') {
-        closeMenu();
+      // Every action closes the drawer first so the slide-out
+      // animation runs before the page does its thing — keeps the
+      // transition feeling intentional rather than abrupt.
+      closeMenu();
+
+      if (action === 'dashboard' || action === 'exit') {
+        // Home and Exit both return to the Flutter dashboard. Kept
+        // as separate menu entries because participants think of
+        // "going home" and "exiting the game" as distinct ideas
+        // even though the underlying call is the same.
         try {
-          if (window.SugarCube && window.SugarCube.Engine && typeof window.SugarCube.Engine.restart === 'function') {
+          goHome();
+        } catch (err) { console.error('[CCQ] goHome failed:', err); }
+      } else if (action === 'back') {
+        // SugarCube's history.backward — undoes the last passage
+        // navigation. No-ops silently if there's nothing to undo
+        // (e.g. fresh game launch) since `backward()` returns false.
+        try {
+          if (window.SugarCube && window.SugarCube.Engine
+              && typeof window.SugarCube.Engine.backward === 'function') {
+            window.SugarCube.Engine.backward();
+          }
+        } catch (err) { console.error('[CCQ] back failed:', err); }
+      } else if (action === 'restart') {
+        try {
+          if (window.SugarCube && window.SugarCube.Engine
+              && typeof window.SugarCube.Engine.restart === 'function') {
             window.SugarCube.Engine.restart();
           } else {
-            // Fallback for the very rare case where SugarCube isn't on
-            // the window namespace yet — reload the page so the player
-            // gets a clean start either way.
+            // Fallback for the very rare case where SugarCube isn't
+            // on the window namespace yet — reload the page so the
+            // player gets a clean start either way.
             window.location.reload();
           }
         } catch (err) {
@@ -834,6 +1035,18 @@ a.ccq-home-trigger.link-external::after {
   VASCULAR VILLAGE
   Phone-first, tight Salt-Sludge-style layout.
   Pale viridis-cream page, deep purple-to-teal phone interior.
+
+  CardioCareQuest viridis palette (canonical across all games):
+    #440154  deep purple   — phone gradient stop 1
+    #3b528b  blue          — phone gradient stop 2 / nav button
+    #21918c  teal          — phone gradient stop 3 / progress end
+    #5ec962  green          — progress start / zone normal
+    #fde725  yellow         — primary CTA / heart / points
+    #f4f1d8  cream          — page background
+  BP zone colors (#fde725 elevated → #f0a020 stage1 → #d04020 /
+  #8a1a25 stage2) intentionally use warm tones — clinical
+  staging convention. The plaque cell brown (#8a4a30) is scenic
+  illustration and stays.
 */
 
 * { box-sizing: border-box; }
@@ -841,7 +1054,7 @@ a.ccq-home-trigger.link-external::after {
 html, body { margin: 0; padding: 0; }
 
 body {
-  font-family: "Times New Roman", Times, serif;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif;
   background-color: #f4f1d8;
   padding: 16px 12px;
   font-size: 16px;
@@ -982,13 +1195,13 @@ body {
   font-weight: bold;
   color: rgba(255, 255, 255, 0.95);
   margin-bottom: 8px;
-  font-family: "Times New Roman", Times, serif;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 .all-done-blurb {
   font-size: 14px;
   color: rgba(255, 255, 255, 0.7);
   line-height: 1.5;
-  font-family: "Times New Roman", Times, serif;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
 .bp-row {
@@ -1121,7 +1334,7 @@ body {
   align-items: center !important;
   gap: 12px !important;
   text-align: left !important;
-  font-family: "Times New Roman", Times, serif !important;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif !important;
   box-shadow: 0 2px 8px rgba(40, 20, 60, 0.18) !important;
   transition: transform 0.15s ease !important;
   width: 100% !important;
@@ -1175,7 +1388,7 @@ body {
   flex-direction: row !important;
   align-items: center !important;
   gap: 12px !important;
-  font-family: "Times New Roman", Times, serif !important;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif !important;
   min-height: 60px !important;
 }
 .voyage-taken .quest-icon { color: #5ec962 !important; }
@@ -1203,7 +1416,7 @@ body {
   letter-spacing: 0.4px !important;
   text-decoration: none !important;
   cursor: pointer !important;
-  font-family: "Times New Roman", Times, serif !important;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif !important;
 }
 .finish-row a.macro-link:hover,
 .finish-row a.link-internal:hover {
@@ -1267,7 +1480,7 @@ body {
   font-size: 12px !important;
   cursor: pointer !important;
   text-decoration: none !important;
-  font-family: "Times New Roman", Times, serif !important;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
@@ -1299,7 +1512,7 @@ body {
   justify-content: center !important;
   background-color: #fde725 !important;
   color: #2a1a4a !important;
-  font-family: "Times New Roman", Times, serif !important;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif !important;
   border: none !important;
   border-radius: 50% !important;
   width: 130px !important;
@@ -1373,7 +1586,7 @@ body {
   align-items: center !important;
   justify-content: center !important;
   font-size: 20px !important;
-  font-family: "Times New Roman", Times, serif !important;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif !important;
   transition: background-color 0.2s ease !important;
   min-width: 0 !important;
 }
@@ -1560,7 +1773,7 @@ body {
   letter-spacing: 0.1em !important;
   text-align: center !important;
   text-decoration: none !important;
-  font-family: "Times New Roman", Times, serif !important;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif !important;
   cursor: pointer !important;
   margin-bottom: 8px !important;
   box-sizing: border-box !important;
@@ -1584,7 +1797,7 @@ body {
   letter-spacing: 0.06em !important;
   text-align: center !important;
   text-decoration: none !important;
-  font-family: "Times New Roman", Times, serif !important;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif !important;
   box-sizing: border-box !important;
   margin-bottom: 0 !important;
 }
@@ -1621,14 +1834,17 @@ $(document).on(":passagestart", function (ev) {
     }
   } catch (e) { /* swallow */ }
 });</script><tw-passagedata pid="1" name="StoryInit" tags="" position="100,100" size="100,100">&lt;&lt;script&gt;&gt;
-// Latest BP reading from Quiet Minute, but ONLY if it was logged
-// today (local timezone). The Welcome passage gates on $lastSys gt 0
-// to decide between &quot;CONTINUE TO VILLAGE&quot; (today&#39;s reading available)
-// and &quot;START → Take a Quiet Minute first&quot; (no reading today). Without
-// the per-day gate, a stale reading from any past day would satisfy
-// the gt-0 check and let the participant skip the Quiet Minute step
-// — the village would then show yesterday&#39;s number as if it were
-// current.
+// Latest BP reading from Quiet Landscape (the in-village BP capture
+// trampoline) — or, historically, Quiet Minute. Both games write to
+// the SAME `quietMinute_history` localStorage key, so this read works
+// regardless of which one logged the entry. We only honor a reading
+// if it was logged today (local timezone). The Welcome passage gates
+// on $lastSys gt 0 to decide between &quot;CONTINUE TO VILLAGE&quot; (today&#39;s
+// reading available) and &quot;START → settle with Quiet Landscape first&quot;
+// (no reading today). Without the per-day gate, a stale reading from
+// any past day would satisfy the gt-0 check and let the participant
+// skip the BP step — the village would then show yesterday&#39;s number
+// as if it were current.
 //
 // `quietMinute_history` entries have shape {sys, dia, when: millis}.
 // We check `when` against today&#39;s midnight in local time.
@@ -1649,6 +1865,21 @@ try {
     }
   }
 } catch (e) { /* keep $lastSys/$lastDia at 0 */ }
+
+// Cross-WebView fallback: webview_flutter on Android does not always
+// share localStorage across WebViewController instances. A BP saved
+// in Quiet Landscape&#39;s WebView won&#39;t show up in this WebView&#39;s
+// `quietMinute_history`, so the read above can come back empty even
+// when the participant entered a reading today. Ask the host for
+// the canonical Firestore value via the bridge — host responds
+// asynchronously by injecting $lastSys / $lastDia and re-rendering
+// the current passage. Welcome / Hub then renders with the right
+// gate. Safe to call regardless of localStorage state; the host
+// short-circuits when no reading from today exists on userData.
+if (State.variables.lastSys === 0 &amp;&amp;
+    window.CCQ &amp;&amp; typeof window.CCQ.getTodayBP === &quot;function&quot;) {
+  try { window.CCQ.getTodayBP(); } catch (e) { /* swallow */ }
+}
 
 // Header points start at 0 each session. Firestore is the canonical
 // total — each Result passage calls submitResponse which fires
@@ -1716,7 +1947,7 @@ try {
 &lt;p class=&quot;help-text&quot;&gt;Latest reading: $lastSys / $lastDia mmHg&lt;/p&gt;
 &lt;&lt;else&gt;&gt;
 &lt;a class=&quot;btn-primary&quot; data-passage=&quot;No Reading&quot;&gt;START&lt;/a&gt;
-&lt;p class=&quot;help-text&quot;&gt;First take a Quiet Minute to log your blood pressure.&lt;/p&gt;
+&lt;p class=&quot;help-text&quot;&gt;First settle with Quiet Landscape and log your blood pressure.&lt;/p&gt;
 &lt;&lt;/if&gt;&gt;
 
 &lt;/div&gt;
@@ -1742,15 +1973,15 @@ try {
 &lt;/svg&gt;
 &lt;/div&gt;
 
-&lt;h2 class=&quot;intro-title&quot;&gt;Take a Quiet Minute first&lt;/h2&gt;
+&lt;h2 class=&quot;intro-title&quot;&gt;Settle with Quiet Landscape first&lt;/h2&gt;
 
-&lt;p class=&quot;narrative&quot;&gt;The village needs your blood pressure before today&#39;s quests. That comes from the Quiet Minute game.&lt;/p&gt;
+&lt;p class=&quot;narrative&quot;&gt;The village needs your blood pressure before today&#39;s quests. That comes from the Quiet Landscape game — sixteen slow breaths over a calm scene, then your cuff reading.&lt;/p&gt;
 
-&lt;p class=&quot;narrative&quot;&gt;Two minutes of rest, one reading from your cuff, then come back here.&lt;/p&gt;
+&lt;p class=&quot;narrative&quot;&gt;A few minutes of paced breathing, one reading from your cuff, then come back here.&lt;/p&gt;
 
 &lt;div class=&quot;spacer&quot;&gt;&lt;/div&gt;
 
-&lt;a class=&quot;btn-primary&quot; data-passage=&quot;Launch Quiet Minute&quot;&gt;OPEN QUIET MINUTE&lt;/a&gt;
+&lt;a class=&quot;btn-primary&quot; data-passage=&quot;Launch Quiet Minute&quot;&gt;OPEN QUIET LANDSCAPE&lt;/a&gt;
 &lt;a class=&quot;btn-secondary&quot; data-passage=&quot;Hub&quot;&gt;SKIP, GO TO VILLAGE&lt;/a&gt;
 
 &lt;/div&gt;
@@ -1764,9 +1995,56 @@ list is replaced with a celebration card and the participant taps
 Finish to record the play. StoryInit resets every flag to false on
 the next launch, so the cycle starts over.
 */
+&lt;&lt;script&gt;&gt;
+/* Self-heal $lastSys / $lastDia from localStorage on every render.
+   Belt-and-suspenders for the Quiet Landscape trampoline (legacy
+   &quot;Quiet Minute&quot; passage name): when the participant logs a BP from
+   inside Vascular Village, Quiet Landscape pops back here and the
+   host JS-injects the new SugarCube vars + calls Engine.play(&quot;Hub&quot;).
+   That re-render sometimes lands before the State mutation surfaces
+   on the first pass — the participant sees `--/--` until they
+   navigate Hub → Quest → Result → Hub once. StoryInit already does
+   this exact read at game launch; doing it again on every Hub entry
+   ensures the BP card always reflects the freshest reading
+   regardless of the path that got us here. Both Quiet Landscape and
+   Quiet Minute write to the same `quietMinute_history` key, so this
+   read is source-agnostic. */
+try {
+  var qm = window.localStorage.getItem(&quot;quietMinute_history&quot;);
+  if (qm) {
+    var hist = JSON.parse(qm);
+    if (hist &amp;&amp; hist.length &gt; 0) {
+      var entry = hist[0];
+      var todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      if (entry.when &amp;&amp; entry.when &gt;= todayStart.getTime()) {
+        State.variables.lastSys = Number(entry.sys) || 0;
+        State.variables.lastDia = Number(entry.dia) || 0;
+      }
+    }
+  }
+} catch (e) { /* keep prior values */ }
+
+/*
+  Self-correcting fallback: if Hub renders with $lastSys still 0
+  AFTER reading localStorage, ask the host for today&#39;s BP via the
+  bridge. This covers the case where a child Quiet Landscape host
+  popped back to us with the BP map but the parent&#39;s runJavaScript
+  injection raced the WebView resume and didn&#39;t paint, AND the
+  per-WebView localStorage isolation kept Quiet Landscape&#39;s own
+  write from reaching this WebView. The host responds by seeding
+  this WebView&#39;s localStorage AND calling Engine.show() — Hub
+  then redisplays with the correct BP without the participant
+  having to navigate Hub → mini-quest → Hub to &quot;wake up&quot; the gate.
+*/
+if ((!State.variables.lastSys || State.variables.lastSys === 0) &amp;&amp;
+    window.CCQ &amp;&amp; typeof window.CCQ.getTodayBP === &quot;function&quot;) {
+  try { window.CCQ.getTodayBP(); } catch (e) { /* swallow */ }
+}
+&lt;&lt;/script&gt;&gt;
 &lt;&lt;set _zk to &quot;unset&quot;&gt;&gt;
-&lt;&lt;set _zl to &quot;Take a Quiet Minute&quot;&gt;&gt;
-&lt;&lt;set _msg to &quot;Take a Quiet Minute and the village will see your reading.&quot;&gt;&gt;
+&lt;&lt;set _zl to &quot;Settle with Quiet Landscape&quot;&gt;&gt;
+&lt;&lt;set _msg to &quot;Settle with Quiet Landscape and the village will see your reading.&quot;&gt;&gt;
 &lt;&lt;if $lastSys gt 0&gt;&gt;
   &lt;&lt;if $lastSys lt 120 and $lastDia lt 80&gt;&gt;
     &lt;&lt;set _zk to &quot;normal&quot;&gt;&gt;&lt;&lt;set _zl to &quot;Normal&quot;&gt;&gt;
@@ -2373,16 +2651,25 @@ Welcome) with a no-op spinner UI.
 
 &lt;/div&gt;
 &lt;/div&gt;</tw-passagedata><tw-passagedata pid="16" name="Launch Quiet Minute" tags="nobr" position="725,225" size="100,100">/*
-TRAMPOLINE PASSAGE — invoked by the &quot;OPEN QUIET MINUTE&quot; button on the
-intro screen. Fires the LAUNCH_GAME bridge call so the Flutter host
-pushes Quiet Minute on top of this game, then immediately navigates to
-Hub so Vascular Village settles there underneath. When Quiet Minute
-ends, the host injects $lastSys/$lastDia into our SugarCube state and
-re-renders Hub so the village reflects the fresh reading.
+TRAMPOLINE PASSAGE — invoked by the &quot;OPEN QUIET LANDSCAPE&quot; button on
+the intro screen. Despite the legacy passage name (kept stable so any
+historical telemetry/links still resolve), this launches Quiet
+Landscape, NOT Quiet Minute. Per the 2026-05-10 dry-run-2 feedback,
+Quiet Minute remains the dashboard BG log card and Quiet Landscape
+becomes Vascular Village&#39;s in-game BP capture (longer breathing
+settle before reading). Both games write to the same
+`quietMinute_history` localStorage key, so the StoryInit /
+Hub-render BP read paths keep working unchanged.
+
+Fires LAUNCH_GAME so the Flutter host pushes Quiet Landscape on top
+of this game, then immediately navigates to Hub so Vascular Village
+settles there underneath. When the BP capture ends, the host injects
+$lastSys / $lastDia into our SugarCube state and re-renders Hub so
+the village reflects the fresh reading.
 */
 &lt;&lt;run
   if (window.CCQ &amp;&amp; typeof window.CCQ.launchGame === &quot;function&quot;) {
-    window.CCQ.launchGame(&quot;quiet_minute&quot;);
+    window.CCQ.launchGame(&quot;quiet_landscape&quot;);
   }
 &gt;&gt;
 &lt;&lt;goto &quot;Hub&quot;&gt;&gt;</tw-passagedata></tw-storydata>

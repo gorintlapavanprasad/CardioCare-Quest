@@ -13,14 +13,27 @@ Salt Sludge
 ::UserStylesheet [stylesheet]
 /* ============================================================
    SALT SLUDGE — visual stylesheet
-   Phone-frame UI, warm dark gradient, large food cards.
+   Phone-frame UI, large food cards.
+
+   CardioCareQuest viridis palette (canonical across all games):
+     #440154  deep purple   — phone gradient stop 1
+     #3b528b  blue          — phone gradient stop 2
+     #21918c  teal          — phone gradient stop 3 / nutrient mid
+     #5ec962  green          — nutrient bright / verdict good (#1a5a1f deep)
+     #fde725  yellow         — primary CTA / attention
+     #f4f1d8  cream          — page background
+   The sludge meter intentionally stays warm (#f0a020 → #d04020) —
+   it's a semantic clinical warning, same convention Vascular
+   Village uses for BP stage-1/2 zones. The verdict-bad text color
+   #8a2025 follows the same warm-warning convention. Everything
+   else follows viridis stops.
    ============================================================ */
 
 * { box-sizing: border-box; }
 
 body {
-  font-family: "Times New Roman", Times, serif;
-  background-color: #c8ccd1;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif;
+  background-color: #f4f1d8;
   margin: 0;
   padding: 1.5em 0;
 }
@@ -42,7 +55,7 @@ body {
 
 /* Phone frame */
 .phone {
-  background: linear-gradient(180deg, #2a1a1a 0%, #3a2828 50%, #4a3838 100%);
+  background: linear-gradient(180deg, #440154 0%, #3b528b 50%, #21918c 100%);
   border-radius: 32px;
   overflow: hidden;
   box-shadow: 0 8px 30px rgba(0,0,0,0.18);
@@ -115,10 +128,14 @@ body {
   width: 0%;
 }
 .meter-bar-fill.sludge {
-  background: linear-gradient(90deg, #c97339 0%, #a04d20 100%);
+  /* Warm-warning gradient — matches Vascular Village's BP stage-1/2
+     bars. Semantic exception to the otherwise-viridis chrome. */
+  background: linear-gradient(90deg, #f0a020 0%, #d04020 100%);
 }
 .meter-bar-fill.nutrient {
-  background: linear-gradient(90deg, #5dd97a 0%, #2a9a3f 100%);
+  /* Viridis green → teal — bright = good, mirrors the path-stone
+     gradient in Pill Path and the progress bar in Vascular Village. */
+  background: linear-gradient(90deg, #5ec962 0%, #21918c 100%);
 }
 
 /* Content area — flex column, fills remaining height */
@@ -230,7 +247,7 @@ body {
   justify-content: center !important;
   align-items: center !important;
   text-align: center !important;
-  font-family: "Times New Roman", Times, serif !important;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif !important;
   box-shadow: 0 2px 8px rgba(0,0,0,0.15) !important;
   transition: transform 0.15s ease !important;
   width: 100% !important;
@@ -345,8 +362,8 @@ body {
   display: block !important;
   width: 100% !important;
   padding: 18px !important;
-  background-color: #ffffff !important;
-  color: #2a1a1a !important;
+  background-color: #fde725 !important;
+  color: #2a1a4a !important;
   border: none !important;
   border-radius: 14px !important;
   font-weight: bold !important;
@@ -354,7 +371,7 @@ body {
   letter-spacing: 0.1em !important;
   text-align: center !important;
   text-decoration: none !important;
-  font-family: "Times New Roman", Times, serif !important;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif !important;
   cursor: pointer !important;
   margin-bottom: 10px !important;
   box-sizing: border-box !important;
@@ -374,7 +391,7 @@ body {
   letter-spacing: 0.05em !important;
   text-align: center !important;
   text-decoration: none !important;
-  font-family: "Times New Roman", Times, serif !important;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif !important;
   box-sizing: border-box !important;
 }
 
@@ -464,6 +481,11 @@ You do not need to edit this.
 <<set $score to 0>>
 <<set $day to 1>>
 <<set $foodChoice to "">>
+/* Re-played-this-session guard for the Final Result submitResponse
+   call. Reset on every Story innit run so a participant who finishes
+   then taps PLAY AGAIN gets a fresh shot at submitting (one submit
+   per session, per play-through). */
+<<set $submittedThisSession to false>>
 
 <<goto "Welcome">>
 
@@ -877,7 +899,36 @@ Then moves to next day or final result after Day 5.
 DENOUEMENT: End of game.
 Personalized message based on final sludge level.
 Score shown. Option to play again.
+
+The <<run>> below fires the canonical SUBMIT_RESPONSE event so
+research data sees a Salt Sludge play landing in
+`surveys/salt_sludge/responses/{auto}` and a
+`survey_response_submitted` event with surveyId='salt_sludge'.
+The Community Stats engagement-bar query keys on the surveyId,
+so without this firing the Diet category bar would stay at 0
+no matter how many participants finish the game. Guarded by a
+session flag so PLAY AGAIN doesn't double-credit.
 */
+
+<<if not $submittedThisSession>>
+<<set $submittedThisSession to true>>
+<<run
+  try {
+    if (window.CCQ && typeof window.CCQ.submitResponse === "function") {
+      var verdict = "heavy";
+      if (State.variables.sludge < 30) { verdict = "clean"; }
+      else if (State.variables.sludge < 60) { verdict = "middle"; }
+      window.CCQ.submitResponse({
+        playerName: State.variables.playerName,
+        sludge: State.variables.sludge,
+        score: State.variables.score,
+        verdict: verdict,
+        daysCompleted: 5
+      }, { pointsEarned: 50, countAsCompletion: true });
+    }
+  } catch (e) { /* swallow */ }
+>>
+<</if>>
 
 <div class="phone">
 <div class="header"><span>Salt Sludge</span><span class="day-label">5 days done</span></div>

@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:get_it/get_it.dart';
+import 'package:uuid/uuid.dart';
 
 import 'package:cardio_care_quest/core/constants/firestore_paths.dart';
 import 'package:cardio_care_quest/core/services/offline_queue.dart';
@@ -29,6 +30,7 @@ import '_geohash.dart';
 /// hooks under the hood.
 abstract class MovementHooks {
   static OfflineQueue get _queue => GetIt.instance<OfflineQueue>();
+  static const _uuid = Uuid();
 
   /// Mints a fresh session ID prefixed with the gameId. Stable across
   /// resumes once minted (the host stores it in `ongoingSessionId`).
@@ -208,6 +210,31 @@ abstract class MovementHooks {
           'lastCompletedAt': OfflineFieldValue.nowTimestamp(),
         },
         merge: true,
+      ),
+      // Top-level events row — mirrors what every other completion
+      // hook writes. Without this, Dog Quest finishes are invisible
+      // to the Community Stats query (which scans top-level
+      // `events`, not the `Movement Data/.../CheckData/` subtree)
+      // and the cohort engagement bar for Exercise stays at 0
+      // even when participants are walking. Same shape as
+      // `game_quest_completed` events from GameLogHooks so the
+      // service's existing query branch handles it too.
+      PendingOp.set(
+        '${FirestorePaths.events}/${_uuid.v4()}',
+        {
+          'id': sessionId,
+          'userId': uid,
+          'event': 'game_quest_completed',
+          'gameId': gameId,
+          'questId': completionEventName ?? '${gameId}_completed',
+          'sessionId': sessionId,
+          'pointsEarned': pointsEarned,
+          'distanceWalked': distanceWalked,
+          'targetDistance': targetDistance,
+          'countAsCompletion': true,
+          'timestamp': OfflineFieldValue.nowTimestamp(),
+          'syncedAt': OfflineFieldValue.nowTimestamp(),
+        },
       ),
     ]);
   }

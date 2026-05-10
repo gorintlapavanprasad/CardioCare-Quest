@@ -140,6 +140,37 @@ class UserDataProvider extends ChangeNotifier {
   }
 
   Future<void> fetchUserData({String? participantId}) async {
+    // Wipe in-memory user data BEFORE the network round-trip so any
+    // concurrent reader (the dashboard, the WebView host's `_uid`
+    // getter, the GET_TODAY_BP bridge handler) sees `null` rather
+    // than the previous participant's map during the fetch window.
+    //
+    // Without this, switching from participant A to participant B
+    // leaks A's data into B's session for the duration of the
+    // Firestore query: the WebView's user-agent stamp at TwineHost
+    // initState time can read A's uid, the bridge's participant-
+    // isolation check then thinks "same user, no wipe", and A's
+    // `quietMinute_history` localStorage remains visible to B's
+    // Vascular Village. The participant sees A's BP on B's village
+    // welcome screen, which is exactly the leak we hit on
+    // 2026-05-10.
+    //
+    // We only wipe when the caller is asking for a participant we
+    // don't already have loaded — refetching the same participant
+    // (e.g. after a BP submit, to refresh `lastSystolic`) keeps
+    // the cached map visible during the round-trip so the UI
+    // doesn't flicker to a loading state for in-place updates.
+    final currentLoadedPid =
+        (_userData?['participantId'] ?? _userData?['uid']) as String?;
+    final isUserSwitch = participantId != null &&
+        currentLoadedPid != null &&
+        currentLoadedPid != participantId;
+    if (isUserSwitch) {
+      _userData = null;
+      _isLoading = true;
+      notifyListeners();
+    }
+
     final user = FirebaseAuth.instance.currentUser;
     if (user == null && participantId == null) {
       debugPrint('No authenticated user and no participantId provided');

@@ -56,31 +56,49 @@ can paint its own backdrop.
 
 /* Locally bundled Nunito so the game runs offline at the workshop. */
 @font-face {
-  font-family: 'Nunito';
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif;
   font-style: normal;
   font-weight: 600;
   font-display: swap;
   src: url('fonts/Nunito-SemiBold.ttf') format('truetype');
 }
 @font-face {
-  font-family: 'Nunito';
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif;
   font-style: normal;
   font-weight: 700;
   font-display: swap;
   src: url('fonts/Nunito-Bold.ttf') format('truetype');
 }
 @font-face {
-  font-family: 'Nunito';
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif;
   font-style: normal;
   font-weight: 800;
   font-display: swap;
   src: url('fonts/Nunito-ExtraBold.ttf') format('truetype');
 }
 
+/* CardioCareQuest viridis palette (canonical across all games):
+     #440154  deep purple   — phone gradient stop 1
+     #3b528b  blue          — phone gradient stop 2
+     #21918c  teal          — phone gradient stop 3
+     #5ec962  green          — success bright
+     #fde725  yellow         — primary CTA / attention
+     #f4f1d8  cream          — page background
+   Dog Quest is the most scenic game in the catalog (sky / clouds /
+   landscape illustrations), so it does NOT swap its scenic
+   illustration colors (sky gradients, cloud purples, character
+   shadows). It DOES align the chrome layer with viridis:
+     --accent-yellow now uses viridis yellow (#fde725 ← #e4aa24)
+     page background now cream (#f4f1d8 ← #c8ccd1)
+   --cloud-purple (#9c88b1) is kept because it is both the cloud
+   fill AND the soft text accent — replacing it with viridis
+   #440154 would turn the clouds deep purple. It sits halfway
+   between the viridis deep-purple anchor and white, which is
+   close enough for the scenic intent. */
 :root {
   --cloud-white: #ffffff;
   --cloud-purple: #9c88b1;
-  --accent-yellow: #e4aa24;
+  --accent-yellow: #fde725;
   --text-dark: #3e4a59;
   --progress-bg: #514f35;
   --progress-fill: #786187;
@@ -89,11 +107,12 @@ can paint its own backdrop.
 body, html {
   margin: 0;
   padding: 0;
-  font-family: 'Nunito', sans-serif;
-  /* Light grey backdrop so the dark phone box stands out in twinery.org
-     preview. On device, the build-time viewport override flattens .phone
-     so the body never shows. */
-  background-color: #c8ccd1;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif;
+  /* Cream backdrop matches the rest of the catalog. On device the
+     build-time viewport override flattens .phone so the body
+     rarely shows; in Twinery preview it gives the dark phone box
+     enough contrast to stand out. */
+  background-color: #f4f1d8;
 }
 
 /* body padding removed — was 1.5em 0, which left a visible empty
@@ -178,12 +197,23 @@ body { padding: 0; }
   z-index: 20;
 }
 .header h1 {
-  font-size: 0.7rem;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.55);
+  font-size: 0.78rem;
+  font-weight: 700;
+  /* Default light-text colour matches the dark gradient on
+     scenes 1, 2 and 4. Scene 3 (active walk) uses a LIGHT
+     sky-blue gradient from #e0e9ed → #5e8c9c — translucent
+     white on light blue is invisible. The .scene-3 override
+     below switches to dark text so the "EXERCISE" label and
+     the bridge-injected burger icon stay legible against
+     the active-walk background. */
+  color: rgba(255, 255, 255, 0.7);
   margin: 0;
   letter-spacing: 1.5px;
   text-transform: uppercase;
+}
+.phone.scene-3 .header h1,
+.phone.scene-3 .menu-icon {
+  color: rgba(31, 58, 102, 0.85) !important;
 }
 /* Removed `.menu-icon { display: none }` — the bridge auto-injects
    the burger control and we want it visible here too. */
@@ -200,19 +230,32 @@ body { padding: 0; }
    relative path resolves to twinery's domain (404) so the <img>'s
    onerror handler swaps to the .dog-emoji fallback — same dimensions,
    service-dog emoji, no broken-image icon. */
-.dog-image { width: 200px; height: auto; z-index: 3; position: relative; }
+/* Responsive dog sizing — clamp(min, preferred, max).
+   On a 720px-tall .phone (typical mid-size phone) `28vh` ≈ 201px,
+   matching the legacy fixed 200px. On a shorter 600px viewport
+   `28vh` ≈ 168px, freeing ~32px for the button stack so the third
+   "Beat a boss" tile stops getting clipped at the bottom of the
+   screen. The 140px floor keeps the dog readable on tiny test
+   devices (phones with viewport < 500px). The 200px ceiling caps
+   it on tablets so it doesn't blow up. */
+.dog-image {
+  width: clamp(140px, 28vh, 200px);
+  height: auto;
+  z-index: 3;
+  position: relative;
+}
 .dog-emoji {
   display: none;
-  width: 200px;
-  height: 200px;
-  font-size: 160px;
-  line-height: 200px;
+  width: clamp(140px, 28vh, 200px);
+  height: clamp(140px, 28vh, 200px);
+  font-size: clamp(112px, 22vh, 160px);
+  line-height: clamp(140px, 28vh, 200px);
   text-align: center;
   z-index: 3;
   position: relative;
 }
 .character-shadow {
-  width: 200px;
+  width: clamp(140px, 28vh, 200px);
   height: 14px;
   background-color: #69658a;
   border-radius: 50%;
@@ -240,7 +283,7 @@ body { padding: 0; }
   font-size: 1.15rem;
   cursor: pointer;
   box-shadow: 0 5px 0px #c6942a;
-  font-family: 'Nunito', sans-serif;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif;
   z-index: 10;
   position: relative;
 }
@@ -254,7 +297,13 @@ body { padding: 0; }
   color: #2a2a2a !important;
   text-decoration: none;
   width: 100%;
-  padding: 12px 10px;
+  /* 14px vertical / 16px horizontal — earlier 12px / 10px felt
+     cramped, especially with the desc line wrapping on narrow
+     phones. Combined with min-height below, gives every quest
+     tile a 64px tap target which matches accessibility guidance
+     for elderly users. */
+  padding: 14px 16px;
+  min-height: 64px;
   border-radius: 25px;
   text-align: center;
   cursor: pointer;
@@ -264,14 +313,29 @@ body { padding: 0; }
   align-items: center;
   justify-content: center;
   transition: transform 0.1s;
-  font-family: 'Nunito', sans-serif;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif;
+  box-sizing: border-box;
 }
 .button-stack a.link-internal:active {
   transform: translateY(4px);
   box-shadow: 0 0px 0px #b88616;
 }
-.button-stack a.link-internal .quest-title { font-weight: 800; font-size: 1.15rem; margin-bottom: 2px; }
-.button-stack a.link-internal .quest-desc  { font-weight: 700; font-size: 0.75rem; opacity: 0.9; }
+/* Bumped from 0.75rem to 0.92rem (~14.7px) — the smaller size
+   was illegible for the 60+ low-vision target audience. Title
+   stays at 1.15rem; gap between the two lines bumped to 4px so
+   neither runs into the other. */
+.button-stack a.link-internal .quest-title {
+  font-weight: 800;
+  font-size: 1.15rem;
+  line-height: 1.25;
+  margin-bottom: 4px;
+}
+.button-stack a.link-internal .quest-desc {
+  font-weight: 700;
+  font-size: 0.92rem;
+  line-height: 1.35;
+  opacity: 0.9;
+}
 
 /* Celebration scene buttons — primary (Do Another Quest) is the
    yellow accent that matches BEGIN on Welcome; secondary (Return to
@@ -288,7 +352,7 @@ body { padding: 0; }
   text-align: center;
   font-size: 16px;
   font-weight: 800;
-  font-family: 'Nunito', sans-serif;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif;
   cursor: pointer;
   border-radius: 16px;
   padding: 18px;
@@ -331,7 +395,7 @@ body { padding: 0; }
   font-size: 0.75rem;
   font-style: italic;
   text-decoration: underline;
-  font-family: 'Nunito', sans-serif;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
 /* --- Scene 1: intro --- */
@@ -391,7 +455,7 @@ body { padding: 0; }
   box-shadow: 0 5px 0px #c6942a;
   border: none;
   z-index: 10;
-  font-family: 'Nunito', sans-serif;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 .footer-btn:active { transform: translateY(3px); box-shadow: 0 2px 0px #c6942a; }
 
@@ -409,7 +473,15 @@ body { padding: 0; }
 }
 .scene-2 .cloud-area {
   position: absolute;
-  top: 16%;
+  /* Was top: 16% — that put the cloud top at ~115px on a 720px
+     viewport, which on a real device with a status-bar safe inset
+     and 2-line subtitle ("Regular exercise can help lower blood
+     pressure and improve heart health.") had the cloud's top edge
+     visually touching the subtitle's last line. Pushed to 24% so
+     there's a clear gap between subtitle and cloud bubble — the
+     subtitle is the instruction, the cloud is the heading-of-
+     options below it; they read as separate UI blocks now. */
+  top: 24%;
   left: 0;
   width: 100%;
   height: 22%;
@@ -435,19 +507,38 @@ body { padding: 0; }
 
 .scene-2 .character-container {
   margin-top: auto;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
   text-align: center;
   width: 100%;
   position: relative;
   z-index: 5;
 }
 
+/* Short-viewport tweak for compact phones where the dog image,
+   three quest buttons, and breathing space don't all fit on
+   720px. Tightens vertical rhythms so the "Beat a boss" tile
+   isn't visually clipped at the bottom edge. */
+@media (max-height: 680px) {
+  .scene-2 .character-container { margin-bottom: 10px; }
+  .button-stack { gap: 10px; margin-bottom: 12px; }
+  .button-stack a.link-internal {
+    padding: 12px 14px;
+    min-height: 60px;
+  }
+  .button-stack a.link-internal .quest-title { font-size: 1.05rem; }
+  .button-stack a.link-internal .quest-desc { font-size: 0.85rem; }
+}
+
 .button-stack {
-  width: 90%;
+  /* 92% width gives a few extra px of breathing room on the
+     sides versus the previous 90% — visually more aligned with
+     the subtitle / cloud / character above. */
+  width: 92%;
+  max-width: 360px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  margin-bottom: 25px;
+  gap: 14px;
+  margin-bottom: 20px;
   z-index: 10;
 }
 .quest-btn {
@@ -465,7 +556,7 @@ body { padding: 0; }
   align-items: center;
   justify-content: center;
   transition: transform 0.1s;
-  font-family: 'Nunito', sans-serif;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 .quest-btn:active { transform: translateY(4px); box-shadow: 0 0px 0px #b88616; }
 .quest-title { font-weight: 800; font-size: 1.15rem; margin-bottom: 2px; }
@@ -1135,7 +1226,7 @@ and the player sees just the loading text below.
 <div class="phone scene-1">
   <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh;">
     <div style="font-size:72px; animation: pulse 1.5s infinite;">🐾</div>
-    <div style="font-family:'Nunito',sans-serif; font-weight:700; color:#9c88b1; margin-top:24px; font-size:18px;">
+    <div style="font-family:'Atkinson Hyperlegible',system-ui,-apple-system,"Segoe UI",sans-serif; font-weight:700; color:#9c88b1; margin-top:24px; font-size:18px;">
       Returning to dashboard…
     </div>
   </div>

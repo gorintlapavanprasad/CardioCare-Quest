@@ -152,10 +152,21 @@ var saveAs=saveAs||navigator.msSaveBlob&&navigator.msSaveBlob.bind(navigator)||f
       var savedPid = window.localStorage.getItem('ccq_active_pid') || '';
       if (savedPid !== currentPid) {
         // Add new keys to this list as games introduce them.
+        // 2026-05-10: pill_path_save was missing — participant A's
+        // 7-stone path data was leaking to participant B on shared
+        // devices. Same vector as quietMinute_history.
+        // 2026-05-10 (later): cardiocarequest_survey added — the
+        // post-play survey writes a defensive backup of every
+        // participant's full payload to that key on the Done
+        // passage. Without this entry, participant B would see
+        // participant A's last survey responses if A's WebView
+        // localStorage were inspected.
         var staleKeys = [
           'quietMinute_history',
           'quietMinute_points',
           'vv_save',
+          'pill_path_save',
+          'cardiocarequest_survey',
         ];
         for (var i = 0; i < staleKeys.length; i++) {
           try {
@@ -166,6 +177,66 @@ var saveAs=saveAs||navigator.msSaveBlob&&navigator.msSaveBlob.bind(navigator)||f
       }
     }
   } catch (e) { /* keep going — isolation is best-effort */ }
+
+  // ───────────────────────────────────────────────────────────────────
+  // ATKINSON HYPERLEGIBLE FONT
+  //
+  // Designed by the Braille Institute for low-vision readability.
+  // Bundled locally (TTF in `assets/fonts/Atkinson_Hyperlegible/`,
+  // declared in `pubspec.yaml`) so the font loads even when offline
+  // and on devices Google Fonts can't reach. We inject `@font-face`
+  // declarations once per WebView via a <style> tag in <head>; the
+  // path is resolved relative to the compiled HTML's location, which
+  // is `assets/game/<game>.html` under flutter_assets, so `../fonts/`
+  // walks one directory up to the bundled font folder.
+  //
+  // Idempotent via the id check so the style block doesn't duplicate
+  // across passage re-renders or LAUNCH_GAME sub-host stacking.
+  // ───────────────────────────────────────────────────────────────────
+  try {
+    var injectFontFace = function () {
+      if (document.getElementById('ccq-fonts-style')) return;
+      var style = document.createElement('style');
+      style.id = 'ccq-fonts-style';
+      style.textContent =
+        "@font-face {" +
+        "  font-family: 'Atkinson Hyperlegible';" +
+        "  src: url('../fonts/Atkinson_Hyperlegible/AtkinsonHyperlegible-Regular.ttf') format('truetype');" +
+        "  font-weight: 400;" +
+        "  font-style: normal;" +
+        "  font-display: swap;" +
+        "}" +
+        "@font-face {" +
+        "  font-family: 'Atkinson Hyperlegible';" +
+        "  src: url('../fonts/Atkinson_Hyperlegible/AtkinsonHyperlegible-Italic.ttf') format('truetype');" +
+        "  font-weight: 400;" +
+        "  font-style: italic;" +
+        "  font-display: swap;" +
+        "}" +
+        "@font-face {" +
+        "  font-family: 'Atkinson Hyperlegible';" +
+        "  src: url('../fonts/Atkinson_Hyperlegible/AtkinsonHyperlegible-Bold.ttf') format('truetype');" +
+        "  font-weight: 700;" +
+        "  font-style: normal;" +
+        "  font-display: swap;" +
+        "}" +
+        "@font-face {" +
+        "  font-family: 'Atkinson Hyperlegible';" +
+        "  src: url('../fonts/Atkinson_Hyperlegible/AtkinsonHyperlegible-BoldItalic.ttf') format('truetype');" +
+        "  font-weight: 700;" +
+        "  font-style: italic;" +
+        "  font-display: swap;" +
+        "}";
+      var head = document.head || document.getElementsByTagName('head')[0];
+      if (head) head.appendChild(style);
+    };
+    if (document.head) {
+      injectFontFace();
+    } else {
+      // <head> not yet parsed — defer until it exists.
+      document.addEventListener('DOMContentLoaded', injectFontFace);
+    }
+  } catch (e) { /* font is best-effort — fallback stack handles it */ }
 
   function post(payload) {
     try {
@@ -347,6 +418,33 @@ var saveAs=saveAs||navigator.msSaveBlob&&navigator.msSaveBlob.bind(navigator)||f
     post({type: 'LAUNCH_GAME', gameId: gameId});
   }
 
+  /**
+   * Pull the latest blood-pressure reading FOR TODAY from Firestore via
+   * the host. Fire-and-forget: the host responds asynchronously by
+   * calling `runJavaScript` to set:
+   *   SugarCube.State.variables.lastSys
+   *   SugarCube.State.variables.lastDia
+   * and then `Engine.play(currentPassage)` so the rendered passage
+   * picks up the fresh reading.
+   *
+   * Why this exists: webview_flutter on Android does NOT reliably
+   * share localStorage across WebViewController instances — Quiet
+   * Landscape's `quietMinute_history` write lands in its own WebView's
+   * storage and Vascular Village's StoryInit can't see it. Calling
+   * this in StoryInit gives Vascular Village a Firestore-backed
+   * fallback so the village BP gate works regardless of how the
+   * platform's WebView implements storage isolation. The host also
+   * seeds `quietMinute_history` in this WebView's localStorage so
+   * subsequent renders inside the same launch (e.g. Hub's self-heal
+   * script) hit the cache rather than asking Flutter again.
+   *
+   * No-op when called from a host that doesn't recognise GET_TODAY_BP
+   * (older builds) — the host swallows unknown message types.
+   */
+  function getTodayBP() {
+    post({type: 'GET_TODAY_BP'});
+  }
+
   window.CCQ = {
     startTracking: startTracking,
     setBuddyName: setBuddyName,
@@ -358,21 +456,27 @@ var saveAs=saveAs||navigator.msSaveBlob&&navigator.msSaveBlob.bind(navigator)||f
     logQuestCompletion: logQuestCompletion,
     logBP: logBP,
     launchGame: launchGame,
+    getTodayBP: getTodayBP,
   };
 
   // ───────────────────────────────────────────────────────────────────
-  // BURGER MENU
+  // BURGER MENU — LEFT-SIDE OFF-CANVAS DRAWER
   //
   // Every compiled Twine game has a `<span class="menu-icon">≡</span>`
-  // (or similar) in its header. Handling the menu HERE — in the shared
-  // bridge — instead of per-game means all 7 games inherit the same
-  // options, the same animation, and the same UX without duplicating
-  // markup across 7 .tw files.
+  // (or similar) in its header. Tapping it slides a drawer in from the
+  // LEFT edge (matching netguage's SugarCube UIBar pattern) with four
+  // options. Handling the menu HERE — in the shared bridge — instead
+  // of per-game means all 7 games inherit the same options, the same
+  // animation, and the same UX without duplicating markup across 7
+  // .tw files.
   //
-  // Options exposed today:
-  //   • Go to dashboard — calls CCQ.goHome()
-  //   • Restart this game — calls SugarCube.Engine.restart()
-  //   • Close menu — dismisses the panel
+  // Options:
+  //   • Home              — CCQ.goHome() (back to Flutter dashboard)
+  //   • Back              — SugarCube.Engine.backward() (one passage)
+  //   • Exit the game     — CCQ.goHome() (same effect as Home; the
+  //                         label is for participants who think of
+  //                         "leaving" as different from "Home")
+  //   • Play from beginning — SugarCube.Engine.restart() (full reset)
   //
   // Implementation notes:
   //   • Click delegation on `document` (capture phase) so the trigger
@@ -380,6 +484,8 @@ var saveAs=saveAs||navigator.msSaveBlob&&navigator.msSaveBlob.bind(navigator)||f
   //     and survives every passage transition.
   //   • Overlay div is created lazily on first open — by then body
   //     exists, even though this script runs in <head>.
+  //   • Drawer slides in via `transform: translateX` so the animation
+  //     stays GPU-composited; the dim backdrop fades in via `opacity`.
   //   • Inline styles use Nunito (matches the games) with a system-
   //     font fallback so the menu still reads if Nunito hasn't loaded.
   // ───────────────────────────────────────────────────────────────────
@@ -416,53 +522,122 @@ var saveAs=saveAs||navigator.msSaveBlob&&navigator.msSaveBlob.bind(navigator)||f
       '  min-width: 28px;' +
       '  min-height: 28px;' +
       '}' +
+      // Backdrop: full-screen dim layer beneath the drawer. Click
+      // anywhere on it (outside the panel) to dismiss.
       '.ccq-menu-overlay {' +
       '  position: fixed; inset: 0;' +
-      '  background: rgba(20, 22, 32, 0.55);' +
-      '  display: flex; align-items: flex-start; justify-content: flex-end;' +
+      '  background: rgba(15, 18, 28, 0.55);' +
       '  z-index: 99999;' +
       '  opacity: 0; pointer-events: none;' +
-      '  transition: opacity 0.18s ease-out;' +
-      '  font-family: \'Nunito\', system-ui, -apple-system, "Segoe UI", sans-serif;' +
+      '  transition: opacity 0.22s ease-out;' +
+      '  font-family: \'Atkinson Hyperlegible\', system-ui, -apple-system, "Segoe UI", sans-serif;' +
       '}' +
       '.ccq-menu-overlay.ccq-open { opacity: 1; pointer-events: auto; }' +
+      // Drawer: full-screen overlay that slides in from the left.
+      // Width is 100vw so the menu fully covers the game while open
+      // — easier reading for older participants and removes any
+      // ambiguity about what's tappable. Gradient mirrors the
+      // in-game phone-frame palette so the drawer reads as part of
+      // the game, not a stray dialog.
       '.ccq-menu-panel {' +
-      '  margin: 14px;' +
-      '  background: #ffffff;' +
-      '  border-radius: 14px;' +
-      '  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28);' +
-      '  min-width: 240px; max-width: 80vw;' +
-      '  overflow: hidden;' +
-      '  transform: translateY(-8px);' +
-      '  transition: transform 0.18s ease-out;' +
+      '  position: fixed; top: 0; left: 0; bottom: 0; right: 0;' +
+      '  width: 100vw;' +
+      '  background: linear-gradient(180deg, #2a1a4a 0%, #3b528b 55%, #21918c 100%);' +
+      '  box-shadow: 4px 0 28px rgba(0, 0, 0, 0.45);' +
+      '  display: flex; flex-direction: column;' +
+      '  padding: 0 0 12px 0;' +
+      '  transform: translateX(-100%);' +
+      '  transition: transform 0.25s ease-out;' +
+      '  overflow-y: auto;' +
+      '  -webkit-overflow-scrolling: touch;' +
       '}' +
-      '.ccq-menu-overlay.ccq-open .ccq-menu-panel { transform: translateY(0); }' +
+      '.ccq-menu-overlay.ccq-open .ccq-menu-panel { transform: translateX(0); }' +
+      // Header row: "MENU" label + an X close button. With the
+      // panel full-width there's no exposed backdrop to tap-to-
+      // dismiss, so we need an explicit close affordance for
+      // participants who open the menu and change their mind.
+      //
+      // Layout: header is a flex row with align-items: center, so
+      // both children (the MENU span and the X button) land with
+      // their vertical centers on the same y. The header's
+      // top-padding uses `env(safe-area-inset-top)` so the row sits
+      // BELOW the system status bar on devices that report one,
+      // matching the game's own .header behaviour set by the build-
+      // time viewport override.
+      '.ccq-menu-header {' +
+      '  padding-top: max(20px, calc(env(safe-area-inset-top, 0px) + 12px));' +
+      '  padding-right: 16px;' +
+      '  padding-bottom: 14px;' +
+      '  padding-left: 22px;' +
+      '  font-size: 12px;' +
+      '  letter-spacing: 1.6px;' +
+      '  text-transform: uppercase;' +
+      '  color: rgba(255, 255, 255, 0.65);' +
+      '  font-weight: 800;' +
+      '  display: flex;' +
+      '  align-items: center;' +
+      '  justify-content: space-between;' +
+      '  min-height: 56px;' +
+      '  box-sizing: border-box;' +
+      '}' +
+      // 44×44 square button — gives a recommended-minimum tap
+      // target without resorting to a negative-margin trick that
+      // used to knock the X out of vertical alignment with the
+      // MENU label. flex centering on the inner X glyph keeps it
+      // pixel-centered inside the square regardless of font
+      // metrics. The button itself is then vertically centered
+      // by the parent row's align-items: center, so MENU + X
+      // share the same y baseline.
+      '.ccq-menu-close {' +
+      '  background: transparent;' +
+      '  border: none;' +
+      '  color: rgba(255, 255, 255, 0.92);' +
+      '  font-size: 22px;' +
+      '  line-height: 1;' +
+      '  cursor: pointer;' +
+      '  width: 44px;' +
+      '  height: 44px;' +
+      '  display: flex;' +
+      '  align-items: center;' +
+      '  justify-content: center;' +
+      '  padding: 0;' +
+      '  margin: 0;' +
+      '  border-radius: 50%;' +
+      '  font-family: inherit;' +
+      '}' +
+      '.ccq-menu-close:hover, .ccq-menu-close:active, .ccq-menu-close:focus {' +
+      '  background: rgba(255, 255, 255, 0.10);' +
+      '  outline: none;' +
+      '}' +
       '.ccq-menu-item {' +
-      '  padding: 14px 18px;' +
-      '  font-size: 15px;' +
+      '  padding: 16px 22px;' +
+      '  font-size: 16px;' +
       '  font-weight: 700;' +
-      '  color: #2d3140;' +
+      '  color: rgba(255, 255, 255, 0.95);' +
       '  cursor: pointer;' +
       '  display: flex;' +
       '  align-items: center;' +
-      '  gap: 12px;' +
-      '  border-bottom: 1px solid rgba(0, 0, 0, 0.06);' +
-      '  background: #ffffff;' +
+      '  gap: 14px;' +
       '  border: none;' +
+      '  background: transparent;' +
       '  width: 100%;' +
       '  text-align: left;' +
       '  font-family: inherit;' +
+      '  border-left: 3px solid transparent;' +
+      '  transition: background-color 0.12s ease-out, border-color 0.12s ease-out;' +
       '}' +
-      '.ccq-menu-item:last-child { border-bottom: none; }' +
-      '.ccq-menu-item:hover, .ccq-menu-item:active { background: #f4f5f7; }' +
+      '.ccq-menu-item:hover, .ccq-menu-item:active, .ccq-menu-item:focus {' +
+      '  background: rgba(255, 255, 255, 0.10);' +
+      '  border-left-color: #fde725;' +
+      '  outline: none;' +
+      '}' +
       '.ccq-menu-icon-glyph {' +
-      '  width: 22px;' +
+      '  width: 24px;' +
       '  text-align: center;' +
-      '  font-size: 17px;' +
-      '  flex: 0 0 22px;' +
-      '}' +
-      '.ccq-menu-item-restart { color: #2d7d6d; }' +
-      '.ccq-menu-item-close   { color: #6b7280; }';
+      '  font-size: 20px;' +
+      '  flex: 0 0 24px;' +
+      '  opacity: 0.9;' +
+      '}';
     document.head.appendChild(style);
   }
 
@@ -473,18 +648,26 @@ var saveAs=saveAs||navigator.msSaveBlob&&navigator.msSaveBlob.bind(navigator)||f
     overlay.setAttribute('role', 'dialog');
     overlay.setAttribute('aria-label', 'Game menu');
     overlay.innerHTML =
-      '<div class="ccq-menu-panel">' +
+      '<div class="ccq-menu-panel" role="navigation">' +
+      '  <div class="ccq-menu-header">' +
+      '    <span>Menu</span>' +
+      '    <button class="ccq-menu-close" data-action="close" aria-label="Close menu">✕</button>' +
+      '  </div>' +
       '  <button class="ccq-menu-item" data-action="dashboard">' +
       '    <span class="ccq-menu-icon-glyph">⌂</span>' +
-      '    <span>Go to dashboard</span>' +
+      '    <span>Home</span>' +
       '  </button>' +
-      '  <button class="ccq-menu-item ccq-menu-item-restart" data-action="restart">' +
+      '  <button class="ccq-menu-item" data-action="back">' +
+      '    <span class="ccq-menu-icon-glyph">←</span>' +
+      '    <span>Back</span>' +
+      '  </button>' +
+      '  <button class="ccq-menu-item" data-action="exit">' +
+      '    <span class="ccq-menu-icon-glyph">⏻</span>' +
+      '    <span>Exit the game</span>' +
+      '  </button>' +
+      '  <button class="ccq-menu-item" data-action="restart">' +
       '    <span class="ccq-menu-icon-glyph">↻</span>' +
-      '    <span>Restart this game</span>' +
-      '  </button>' +
-      '  <button class="ccq-menu-item ccq-menu-item-close" data-action="close">' +
-      '    <span class="ccq-menu-icon-glyph">✕</span>' +
-      '    <span>Close menu</span>' +
+      '    <span>Play from beginning</span>' +
       '  </button>' +
       '</div>';
 
@@ -502,20 +685,38 @@ var saveAs=saveAs||navigator.msSaveBlob&&navigator.msSaveBlob.bind(navigator)||f
       e.preventDefault();
       e.stopPropagation();
 
-      if (action === 'close') {
-        closeMenu();
-      } else if (action === 'dashboard') {
-        closeMenu();
-        try { goHome(); } catch (err) { console.error('[CCQ] goHome failed:', err); }
-      } else if (action === 'restart') {
-        closeMenu();
+      // Every action closes the drawer first so the slide-out
+      // animation runs before the page does its thing — keeps the
+      // transition feeling intentional rather than abrupt.
+      closeMenu();
+
+      if (action === 'dashboard' || action === 'exit') {
+        // Home and Exit both return to the Flutter dashboard. Kept
+        // as separate menu entries because participants think of
+        // "going home" and "exiting the game" as distinct ideas
+        // even though the underlying call is the same.
         try {
-          if (window.SugarCube && window.SugarCube.Engine && typeof window.SugarCube.Engine.restart === 'function') {
+          goHome();
+        } catch (err) { console.error('[CCQ] goHome failed:', err); }
+      } else if (action === 'back') {
+        // SugarCube's history.backward — undoes the last passage
+        // navigation. No-ops silently if there's nothing to undo
+        // (e.g. fresh game launch) since `backward()` returns false.
+        try {
+          if (window.SugarCube && window.SugarCube.Engine
+              && typeof window.SugarCube.Engine.backward === 'function') {
+            window.SugarCube.Engine.backward();
+          }
+        } catch (err) { console.error('[CCQ] back failed:', err); }
+      } else if (action === 'restart') {
+        try {
+          if (window.SugarCube && window.SugarCube.Engine
+              && typeof window.SugarCube.Engine.restart === 'function') {
             window.SugarCube.Engine.restart();
           } else {
-            // Fallback for the very rare case where SugarCube isn't on
-            // the window namespace yet — reload the page so the player
-            // gets a clean start either way.
+            // Fallback for the very rare case where SugarCube isn't
+            // on the window namespace yet — reload the page so the
+            // player gets a clean start either way.
             window.location.reload();
           }
         } catch (err) {
@@ -835,13 +1036,25 @@ a.ccq-home-trigger.link-external::after {
   Phone-first, accessibility-conscious.
   Same family as Salt Sludge / Vascular Village / Quiet Minute.
   Pale cream page, deep viridis phone, large tap tiles, emoji-first.
+
+  CardioCareQuest viridis palette (canonical across all games):
+    #440154  deep purple   — phone gradient stop 1
+    #3b528b  blue          — phone gradient stop 2 / rank button
+    #21918c  teal          — phone gradient stop 3
+    #5ec962  green          — agree-end of SUS scale
+    #fde725  yellow         — primary CTA / progress
+    #f4f1d8  cream          — page background
+  The 5-tone agree/disagree scale tile gradients (red→orange→yellow
+  →green) are an explicit semantic exception — they communicate
+  Likert direction at a glance and would lose meaning if compressed
+  into the cooler half of viridis.
 */
 
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; }
 
 body {
-  font-family: "Times New Roman", Times, serif;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif;
   background-color: #f4f1d8;
   padding: 16px 12px;
   font-size: 18px;
@@ -958,7 +1171,7 @@ body {
   background-color: rgba(255,255,255,0.10);
   border: 1px solid rgba(255,255,255,0.25);
   color: #ffffff;
-  font-family: "Times New Roman", Times, serif;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif;
   font-size: 13px;
   letter-spacing: 0.04em;
   padding: 8px 14px;
@@ -994,18 +1207,75 @@ body {
   align-items: center !important;
   justify-content: flex-start !important;
   text-align: center !important;
-  font-family: "Times New Roman", Times, serif !important;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif !important;
   box-shadow: 0 2px 6px rgba(40, 20, 60, 0.18) !important;
   transition: transform 0.12s ease, box-shadow 0.12s ease, border 0.12s ease !important;
   flex: 1 1 0 !important;
   min-width: 0 !important;
   min-height: 102px !important;
+  /* `position: relative` anchors the ::after checkmark badge that
+     appears when this tile is selected. Without it, the badge
+     would position relative to the nearest positioned ancestor
+     (the .phone) and float somewhere far from the tile. */
+  position: relative !important;
 }
 .scale-tile:hover,
 .tile-row a.scale-tile:hover,
 .tile-row a.macro-link:hover {
   transform: translateY(-2px) !important;
   box-shadow: 0 4px 12px rgba(40, 20, 60, 0.28) !important;
+}
+
+/*
+  SELECTED state for the SUS / Q3 emoji-scale tiles. Originally the
+  tiles had no .selected style at all — the only feedback when a
+  participant tapped was the 2px hover lift, which dry-run-3
+  participants reported was "very hard to notice" (especially since
+  touch input doesn't reliably trigger :hover and the visual was
+  showing for the wrong tile sometimes).
+
+  The selected state now stacks four independent cues so the
+  participant cannot miss it, even with low vision:
+    1. Thick viridis-blue border (3px) — high contrast against
+       every bg-1..bg-5 pastel gradient.
+    2. A glow ring (4px wide rgba blue) around the tile to make
+       it visibly "pop" out of the row.
+    3. A bigger lift (4px) and stronger shadow.
+    4. A green checkmark badge (::after) in the top-right corner
+       — same green as the choice-tile's check, same UX vocabulary
+       researchers and participants have already learned from
+       Q1/Q4. The badge is hidden by `display: none` until the
+       tile gets `.selected`, then shown via flex.
+*/
+.scale-tile.selected,
+.tile-row a.scale-tile.selected {
+  border: 3px solid #3b528b !important;
+  box-shadow: 0 0 0 4px rgba(59, 82, 139, 0.30),
+              0 6px 16px rgba(40, 20, 60, 0.32) !important;
+  transform: translateY(-4px) !important;
+}
+.scale-tile::after {
+  content: "✓";
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background-color: #5ec962;
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: bold;
+  line-height: 1;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.25);
+  display: none;
+  pointer-events: none;
+}
+.scale-tile.selected::after,
+.tile-row a.scale-tile.selected::after {
+  display: flex !important;
 }
 .scale-emoji {
   font-size: 40px !important;
@@ -1053,7 +1323,7 @@ body {
   align-items: center !important;
   gap: 14px !important;
   text-align: left !important;
-  font-family: "Times New Roman", Times, serif !important;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif !important;
   box-shadow: 0 2px 8px rgba(40, 20, 60, 0.18) !important;
   transition: transform 0.12s ease, border 0.12s ease !important;
   width: 100% !important;
@@ -1099,33 +1369,62 @@ body {
 .text-input-wrap {
   background-color: #ffffff;
   border-radius: 14px;
-  padding: 4px;
-  margin-bottom: 14px;
-  /* Flex-grow so the textarea fills the column instead of leaving a
-     large blank gradient between itself and the NEXT button. Q1-Q4
-     fill that space naturally with choice-tile lists; Q5 only has
-     this one input, so without flex-grow the leftover space pushed
-     by `.spacer` reads as a "blank screen behind". */
-  display: flex;
-  flex-direction: column;
-  flex: 1 1 auto;
-  min-height: 200px;
+  padding: 14px !important;
+  /* Explicit horizontal box: `width: 100%` + `box-sizing: border-box`
+     + `min-width: 0` together prevent the wrap from inheriting the
+     textarea's intrinsic width (Android WebView's textarea reports a
+     `cols`-derived intrinsic that can exceed the parent column width
+     on some builds — the wrap was visibly extending past `.content`'s
+     22px right inset, with the right corner clipping into the
+     emulator chrome). Margin: 0 makes sure no inherited horizontal
+     margin pushes the wrap sideways. */
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  margin: 0 0 14px 0 !important;
+  box-sizing: border-box !important;
+  display: block !important;
+  /* Subtle border so the white wrap reads as a distinct field
+     against the lightest part of the viridis gradient (teal) at
+     the bottom of Q5 — without it, on the lower 30% of the
+     screen the wrap can blend into the gradient. */
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: 0 2px 8px rgba(40, 20, 60, 0.18);
 }
 .text-input-wrap textarea {
   width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  display: block !important;
   border: none !important;
-  background: #ffffff !important;
-  font-family: "Times New Roman", Times, serif !important;
+  background: transparent !important;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif !important;
   font-size: 18px !important;
+  line-height: 1.5 !important;
   color: #1a1a1a !important;
-  padding: 14px !important;
+  /* The wrap's own 14px padding gives the breathing room — the
+     textarea inside sits flush so its scrollable area fills the
+     wrap edge-to-edge. Avoids the prior "padding inside padding"
+     stack where the wrap had 4px and the textarea had 14px,
+     which compounded into double-bordered rounded corners. */
+  padding: 0 !important;
+  margin: 0 !important;
   resize: none !important;
   outline: none !important;
   box-sizing: border-box !important;
-  min-height: 180px !important;
-  flex: 1 1 auto !important;
-  border-radius: 12px !important;
+  /* ~7 rows of 18px text + line-height — capped so a misconfigured
+     `rows` attr can't blow up the layout again. */
+  height: 180px !important;
+  max-height: 220px !important;
+  border-radius: 0 !important;
   caret-color: #3b528b !important;
+  -webkit-appearance: none !important;
+  appearance: none !important;
+}
+.text-input-wrap textarea::placeholder {
+  color: #9aa0a6 !important;
+  font-style: italic;
+  opacity: 1;
 }
 
 .three-input-stack {
@@ -1152,7 +1451,7 @@ body {
   flex: 1 !important;
   border: none !important;
   background: transparent !important;
-  font-family: "Times New Roman", Times, serif !important;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif !important;
   font-size: 18px !important;
   color: #1a1a1a !important;
   padding: 16px 16px 16px 0 !important;
@@ -1213,7 +1512,7 @@ body {
   cursor: pointer !important;
   font-size: 14px !important;
   font-weight: bold !important;
-  font-family: "Times New Roman", Times, serif !important;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
@@ -1260,7 +1559,7 @@ body {
   letter-spacing: 0.1em !important;
   text-align: center !important;
   text-decoration: none !important;
-  font-family: "Times New Roman", Times, serif !important;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif !important;
   cursor: pointer !important;
   margin-bottom: 10px !important;
   box-sizing: border-box !important;
@@ -1289,7 +1588,7 @@ body {
   letter-spacing: 0.06em !important;
   text-align: center !important;
   text-decoration: none !important;
-  font-family: "Times New Roman", Times, serif !important;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif !important;
   box-sizing: border-box !important;
   margin-bottom: 0 !important;
   min-height: 44px !important;
@@ -1505,7 +1804,25 @@ State.variables.startedAt = Date.now();
 &lt;/div&gt;
 &lt;/div&gt;</tw-passagedata><tw-passagedata pid="4" name="Q1 Favorite" tags="nobr" position="475,100" size="100,100">/*
 END SURVEY Q1: Which game was your favorite?
-Single-select tile list.
+Single-select tile list with explicit confirm-then-next.
+
+UX history: this used to use SugarCube `&lt;&lt;link&gt;&gt;` macros that
+auto-advanced to Q2 the moment a tile was tapped. Participants
+in dry-run-2 reported the screen shifted &quot;very fast&quot; with no
+chance to confirm or change their pick. Reworked to use plain
+`&lt;a class=&quot;choice-tile&quot;&gt;` with a JS click handler that sets the
+SugarCube variable AND visually highlights the tile WITHOUT
+navigating. The participant then taps NEXT to advance, or BACK
+to return to Welcome and re-read the intro. Same pattern now
+used by Q3 Feeling, Q4 Again, and the SUS questions.
+
+The NEXT button starts without a `data-passage` attribute (so
+the bridge JS click delegation has nothing to navigate to) and
+the script adds `data-passage=&quot;Q2 Fun&quot;` only after a selection
+exists. The `.disabled` class is purely visual at that point —
+the lack of `data-passage` is what actually blocks navigation,
+which keeps the UX honest even if the .disabled class is ever
+removed by mistake.
 */
 
 &lt;div class=&quot;phone&quot;&gt;
@@ -1521,41 +1838,90 @@ Single-select tile list.
 
 &lt;div class=&quot;choice-list&quot; id=&quot;fav-list&quot;&gt;
 
-&lt;&lt;link &#39;&lt;span class=&quot;choice-emoji&quot;&gt;🧂&lt;/span&gt;&lt;div class=&quot;choice-text&quot;&gt;Salt Sludge&lt;/div&gt;&lt;span class=&quot;choice-check&quot;&gt;✓&lt;/span&gt;&#39;&gt;&gt;
-&lt;&lt;set $favoriteGame to &quot;Salt Sludge&quot;&gt;&gt;
-&lt;&lt;goto &quot;Q2 Fun&quot;&gt;&gt;
-&lt;&lt;/link&gt;&gt;
+&lt;a class=&quot;choice-tile&quot; data-fav=&quot;Salt Sludge&quot;&gt;
+&lt;span class=&quot;choice-emoji&quot;&gt;🧂&lt;/span&gt;
+&lt;div class=&quot;choice-text&quot;&gt;Salt Sludge&lt;/div&gt;
+&lt;span class=&quot;choice-check&quot;&gt;✓&lt;/span&gt;
+&lt;/a&gt;
 
-&lt;&lt;link &#39;&lt;span class=&quot;choice-emoji&quot;&gt;🐕&lt;/span&gt;&lt;div class=&quot;choice-text&quot;&gt;Dog Walking&lt;/div&gt;&lt;span class=&quot;choice-check&quot;&gt;✓&lt;/span&gt;&#39;&gt;&gt;
-&lt;&lt;set $favoriteGame to &quot;Dog Walking&quot;&gt;&gt;
-&lt;&lt;goto &quot;Q2 Fun&quot;&gt;&gt;
-&lt;&lt;/link&gt;&gt;
+&lt;a class=&quot;choice-tile&quot; data-fav=&quot;Dog Walking&quot;&gt;
+&lt;span class=&quot;choice-emoji&quot;&gt;🐕&lt;/span&gt;
+&lt;div class=&quot;choice-text&quot;&gt;Dog Walking&lt;/div&gt;
+&lt;span class=&quot;choice-check&quot;&gt;✓&lt;/span&gt;
+&lt;/a&gt;
 
-&lt;&lt;link &#39;&lt;span class=&quot;choice-emoji&quot;&gt;🥗&lt;/span&gt;&lt;div class=&quot;choice-text&quot;&gt;DASH Diet Game&lt;/div&gt;&lt;span class=&quot;choice-check&quot;&gt;✓&lt;/span&gt;&#39;&gt;&gt;
-&lt;&lt;set $favoriteGame to &quot;DASH Diet Game&quot;&gt;&gt;
-&lt;&lt;goto &quot;Q2 Fun&quot;&gt;&gt;
-&lt;&lt;/link&gt;&gt;
+&lt;a class=&quot;choice-tile&quot; data-fav=&quot;DASH Diet Game&quot;&gt;
+&lt;span class=&quot;choice-emoji&quot;&gt;🥗&lt;/span&gt;
+&lt;div class=&quot;choice-text&quot;&gt;DASH Diet Game&lt;/div&gt;
+&lt;span class=&quot;choice-check&quot;&gt;✓&lt;/span&gt;
+&lt;/a&gt;
 
-&lt;&lt;link &#39;&lt;span class=&quot;choice-emoji&quot;&gt;🏘️&lt;/span&gt;&lt;div class=&quot;choice-text&quot;&gt;Vascular Village&lt;/div&gt;&lt;span class=&quot;choice-check&quot;&gt;✓&lt;/span&gt;&#39;&gt;&gt;
-&lt;&lt;set $favoriteGame to &quot;Vascular Village&quot;&gt;&gt;
-&lt;&lt;goto &quot;Q2 Fun&quot;&gt;&gt;
-&lt;&lt;/link&gt;&gt;
+&lt;a class=&quot;choice-tile&quot; data-fav=&quot;Vascular Village&quot;&gt;
+&lt;span class=&quot;choice-emoji&quot;&gt;🏘️&lt;/span&gt;
+&lt;div class=&quot;choice-text&quot;&gt;Vascular Village&lt;/div&gt;
+&lt;span class=&quot;choice-check&quot;&gt;✓&lt;/span&gt;
+&lt;/a&gt;
 
-&lt;&lt;link &#39;&lt;span class=&quot;choice-emoji&quot;&gt;🎯&lt;/span&gt;&lt;div class=&quot;choice-text&quot;&gt;Bingo Bash&lt;/div&gt;&lt;span class=&quot;choice-check&quot;&gt;✓&lt;/span&gt;&#39;&gt;&gt;
-&lt;&lt;set $favoriteGame to &quot;Bingo Bash&quot;&gt;&gt;
-&lt;&lt;goto &quot;Q2 Fun&quot;&gt;&gt;
-&lt;&lt;/link&gt;&gt;
+&lt;a class=&quot;choice-tile&quot; data-fav=&quot;Bingo Bash&quot;&gt;
+&lt;span class=&quot;choice-emoji&quot;&gt;🎯&lt;/span&gt;
+&lt;div class=&quot;choice-text&quot;&gt;Bingo Bash&lt;/div&gt;
+&lt;span class=&quot;choice-check&quot;&gt;✓&lt;/span&gt;
+&lt;/a&gt;
 
 &lt;/div&gt;
+
+&lt;div class=&quot;spacer&quot;&gt;&lt;/div&gt;
+
+&lt;a class=&quot;btn-primary disabled&quot; id=&quot;q1-next&quot;&gt;NEXT&lt;/a&gt;
+&lt;a class=&quot;btn-secondary&quot; data-passage=&quot;Welcome&quot;&gt;BACK&lt;/a&gt;
 
 &lt;/div&gt;
 &lt;/div&gt;
 
 &lt;&lt;script&gt;&gt;
 setTimeout(function () {
-  document.querySelectorAll(&quot;#fav-list a.macro-link, #fav-list a.link-internal&quot;).forEach(function (a) {
-    a.classList.add(&quot;choice-tile&quot;);
+  /*
+    NEXT navigation uses an explicit Engine.play() call rather than a
+    runtime-set `data-passage` attribute. Reason: SugarCube binds its
+    `data-passage` click handlers when the passage renders. Adding the
+    attribute via JS *after* render doesn&#39;t pick up that binding, so
+    the bridge&#39;s document-level click delegation logs the click but
+    nothing navigates. Calling Engine.play() from our own bound
+    handler sidesteps SugarCube&#39;s attribute scanning entirely. Same
+    pattern the SUS Q passage uses.
+  */
+  var current = State.variables.favoriteGame || &quot;&quot;;
+  var nextBtn = document.getElementById(&quot;q1-next&quot;);
+  function enableNext() {
+    if (nextBtn) nextBtn.classList.remove(&quot;disabled&quot;);
+  }
+  document.querySelectorAll(&quot;#fav-list a.choice-tile&quot;).forEach(function (t) {
+    if (t.dataset.fav === current) {
+      t.classList.add(&quot;selected&quot;);
+      enableNext();
+    }
+    if (t.dataset.bound === &quot;1&quot;) return;
+    t.dataset.bound = &quot;1&quot;;
+    t.addEventListener(&quot;click&quot;, function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      document.querySelectorAll(&quot;#fav-list a.choice-tile&quot;).forEach(function (x) {
+        x.classList.remove(&quot;selected&quot;);
+      });
+      t.classList.add(&quot;selected&quot;);
+      State.variables.favoriteGame = t.dataset.fav;
+      enableNext();
+    });
   });
+  if (nextBtn &amp;&amp; nextBtn.dataset.bound !== &quot;1&quot;) {
+    nextBtn.dataset.bound = &quot;1&quot;;
+    nextBtn.addEventListener(&quot;click&quot;, function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (nextBtn.classList.contains(&quot;disabled&quot;)) return;
+      Engine.play(&quot;Q2 Fun&quot;);
+    });
+  }
   if (setup.bindSpeak) setup.bindSpeak();
 }, 0);
 &lt;&lt;/script&gt;&gt;</tw-passagedata><tw-passagedata pid="5" name="Q2 Fun" tags="nobr" position="600,100" size="100,100">/*
@@ -1612,6 +1978,7 @@ Player can pick multiple, then tap NEXT.
 &lt;div class=&quot;spacer&quot;&gt;&lt;/div&gt;
 
 &lt;a class=&quot;btn-primary&quot; data-passage=&quot;Q3 Feeling&quot;&gt;NEXT&lt;/a&gt;
+&lt;a class=&quot;btn-secondary&quot; data-passage=&quot;Q1 Favorite&quot;&gt;BACK&lt;/a&gt;
 
 &lt;/div&gt;
 &lt;/div&gt;
@@ -1641,6 +2008,7 @@ setTimeout(function () {
 }, 0);
 &lt;&lt;/script&gt;&gt;</tw-passagedata><tw-passagedata pid="6" name="Q3 Feeling" tags="nobr" position="725,100" size="100,100">/*
 END SURVEY Q3: How do you feel right now? 5-emoji scale.
+Same select-then-confirm pattern as Q1 — see ::Q1 Favorite docstring.
 */
 
 &lt;div class=&quot;phone&quot;&gt;
@@ -1656,46 +2024,62 @@ END SURVEY Q3: How do you feel right now? 5-emoji scale.
 
 &lt;div class=&quot;tile-row&quot; id=&quot;feel-row&quot;&gt;
 
-&lt;&lt;link &#39;&lt;span class=&quot;scale-emoji&quot;&gt;😢&lt;/span&gt;&lt;span class=&quot;scale-label&quot;&gt;Very sad&lt;/span&gt;&#39;&gt;&gt;
-&lt;&lt;set $feeling to 1&gt;&gt;
-&lt;&lt;goto &quot;Q4 Again&quot;&gt;&gt;
-&lt;&lt;/link&gt;&gt;
-
-&lt;&lt;link &#39;&lt;span class=&quot;scale-emoji&quot;&gt;🙁&lt;/span&gt;&lt;span class=&quot;scale-label&quot;&gt;Sad&lt;/span&gt;&#39;&gt;&gt;
-&lt;&lt;set $feeling to 2&gt;&gt;
-&lt;&lt;goto &quot;Q4 Again&quot;&gt;&gt;
-&lt;&lt;/link&gt;&gt;
-
-&lt;&lt;link &#39;&lt;span class=&quot;scale-emoji&quot;&gt;😐&lt;/span&gt;&lt;span class=&quot;scale-label&quot;&gt;Okay&lt;/span&gt;&#39;&gt;&gt;
-&lt;&lt;set $feeling to 3&gt;&gt;
-&lt;&lt;goto &quot;Q4 Again&quot;&gt;&gt;
-&lt;&lt;/link&gt;&gt;
-
-&lt;&lt;link &#39;&lt;span class=&quot;scale-emoji&quot;&gt;🙂&lt;/span&gt;&lt;span class=&quot;scale-label&quot;&gt;Good&lt;/span&gt;&#39;&gt;&gt;
-&lt;&lt;set $feeling to 4&gt;&gt;
-&lt;&lt;goto &quot;Q4 Again&quot;&gt;&gt;
-&lt;&lt;/link&gt;&gt;
-
-&lt;&lt;link &#39;&lt;span class=&quot;scale-emoji&quot;&gt;😄&lt;/span&gt;&lt;span class=&quot;scale-label&quot;&gt;Very good&lt;/span&gt;&#39;&gt;&gt;
-&lt;&lt;set $feeling to 5&gt;&gt;
-&lt;&lt;goto &quot;Q4 Again&quot;&gt;&gt;
-&lt;&lt;/link&gt;&gt;
+&lt;a class=&quot;scale-tile bg-1&quot; data-feel=&quot;1&quot;&gt;&lt;span class=&quot;scale-emoji&quot;&gt;😢&lt;/span&gt;&lt;span class=&quot;scale-label&quot;&gt;Very sad&lt;/span&gt;&lt;/a&gt;
+&lt;a class=&quot;scale-tile bg-2&quot; data-feel=&quot;2&quot;&gt;&lt;span class=&quot;scale-emoji&quot;&gt;🙁&lt;/span&gt;&lt;span class=&quot;scale-label&quot;&gt;Sad&lt;/span&gt;&lt;/a&gt;
+&lt;a class=&quot;scale-tile bg-3&quot; data-feel=&quot;3&quot;&gt;&lt;span class=&quot;scale-emoji&quot;&gt;😐&lt;/span&gt;&lt;span class=&quot;scale-label&quot;&gt;Okay&lt;/span&gt;&lt;/a&gt;
+&lt;a class=&quot;scale-tile bg-4&quot; data-feel=&quot;4&quot;&gt;&lt;span class=&quot;scale-emoji&quot;&gt;🙂&lt;/span&gt;&lt;span class=&quot;scale-label&quot;&gt;Good&lt;/span&gt;&lt;/a&gt;
+&lt;a class=&quot;scale-tile bg-5&quot; data-feel=&quot;5&quot;&gt;&lt;span class=&quot;scale-emoji&quot;&gt;😄&lt;/span&gt;&lt;span class=&quot;scale-label&quot;&gt;Very good&lt;/span&gt;&lt;/a&gt;
 
 &lt;/div&gt;
+
+&lt;div class=&quot;spacer&quot;&gt;&lt;/div&gt;
+
+&lt;a class=&quot;btn-primary disabled&quot; id=&quot;q3-next&quot;&gt;NEXT&lt;/a&gt;
+&lt;a class=&quot;btn-secondary&quot; data-passage=&quot;Q2 Fun&quot;&gt;BACK&lt;/a&gt;
 
 &lt;/div&gt;
 &lt;/div&gt;
 
 &lt;&lt;script&gt;&gt;
 setTimeout(function () {
-  document.querySelectorAll(&quot;#feel-row a.macro-link, #feel-row a.link-internal&quot;).forEach(function (a, i) {
-    a.classList.add(&quot;scale-tile&quot;);
-    a.classList.add(&quot;bg-&quot; + (i + 1));
+  /* NEXT uses explicit Engine.play() — see ::Q1 Favorite note. */
+  var current = State.variables.feeling || 0;
+  var nextBtn = document.getElementById(&quot;q3-next&quot;);
+  function enableNext() {
+    if (nextBtn) nextBtn.classList.remove(&quot;disabled&quot;);
+  }
+  document.querySelectorAll(&quot;#feel-row a.scale-tile&quot;).forEach(function (t) {
+    if (Number(t.dataset.feel) === current) {
+      t.classList.add(&quot;selected&quot;);
+      enableNext();
+    }
+    if (t.dataset.bound === &quot;1&quot;) return;
+    t.dataset.bound = &quot;1&quot;;
+    t.addEventListener(&quot;click&quot;, function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      document.querySelectorAll(&quot;#feel-row a.scale-tile&quot;).forEach(function (x) {
+        x.classList.remove(&quot;selected&quot;);
+      });
+      t.classList.add(&quot;selected&quot;);
+      State.variables.feeling = Number(t.dataset.feel);
+      enableNext();
+    });
   });
+  if (nextBtn &amp;&amp; nextBtn.dataset.bound !== &quot;1&quot;) {
+    nextBtn.dataset.bound = &quot;1&quot;;
+    nextBtn.addEventListener(&quot;click&quot;, function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (nextBtn.classList.contains(&quot;disabled&quot;)) return;
+      Engine.play(&quot;Q4 Again&quot;);
+    });
+  }
   if (setup.bindSpeak) setup.bindSpeak();
 }, 0);
 &lt;&lt;/script&gt;&gt;</tw-passagedata><tw-passagedata pid="7" name="Q4 Again" tags="nobr" position="850,100" size="100,100">/*
 END SURVEY Q4: Would you like to play again?
+Same select-then-confirm pattern as Q1 — see ::Q1 Favorite docstring.
 */
 
 &lt;div class=&quot;phone&quot;&gt;
@@ -1711,31 +2095,69 @@ END SURVEY Q4: Would you like to play again?
 
 &lt;div class=&quot;choice-list&quot; id=&quot;again-list&quot;&gt;
 
-&lt;&lt;link &#39;&lt;span class=&quot;choice-emoji&quot;&gt;😄&lt;/span&gt;&lt;div class=&quot;choice-text&quot;&gt;Yes&lt;/div&gt;&lt;span class=&quot;choice-check&quot;&gt;✓&lt;/span&gt;&#39;&gt;&gt;
-&lt;&lt;set $playAgain to &quot;yes&quot;&gt;&gt;
-&lt;&lt;goto &quot;Q5 Wish&quot;&gt;&gt;
-&lt;&lt;/link&gt;&gt;
+&lt;a class=&quot;choice-tile&quot; data-again=&quot;yes&quot;&gt;
+&lt;span class=&quot;choice-emoji&quot;&gt;😄&lt;/span&gt;
+&lt;div class=&quot;choice-text&quot;&gt;Yes&lt;/div&gt;
+&lt;span class=&quot;choice-check&quot;&gt;✓&lt;/span&gt;
+&lt;/a&gt;
 
-&lt;&lt;link &#39;&lt;span class=&quot;choice-emoji&quot;&gt;🤔&lt;/span&gt;&lt;div class=&quot;choice-text&quot;&gt;Maybe&lt;/div&gt;&lt;span class=&quot;choice-check&quot;&gt;✓&lt;/span&gt;&#39;&gt;&gt;
-&lt;&lt;set $playAgain to &quot;maybe&quot;&gt;&gt;
-&lt;&lt;goto &quot;Q5 Wish&quot;&gt;&gt;
-&lt;&lt;/link&gt;&gt;
+&lt;a class=&quot;choice-tile&quot; data-again=&quot;maybe&quot;&gt;
+&lt;span class=&quot;choice-emoji&quot;&gt;🤔&lt;/span&gt;
+&lt;div class=&quot;choice-text&quot;&gt;Maybe&lt;/div&gt;
+&lt;span class=&quot;choice-check&quot;&gt;✓&lt;/span&gt;
+&lt;/a&gt;
 
-&lt;&lt;link &#39;&lt;span class=&quot;choice-emoji&quot;&gt;🤷&lt;/span&gt;&lt;div class=&quot;choice-text&quot;&gt;Not sure&lt;/div&gt;&lt;span class=&quot;choice-check&quot;&gt;✓&lt;/span&gt;&#39;&gt;&gt;
-&lt;&lt;set $playAgain to &quot;not_sure&quot;&gt;&gt;
-&lt;&lt;goto &quot;Q5 Wish&quot;&gt;&gt;
-&lt;&lt;/link&gt;&gt;
+&lt;a class=&quot;choice-tile&quot; data-again=&quot;not_sure&quot;&gt;
+&lt;span class=&quot;choice-emoji&quot;&gt;🤷&lt;/span&gt;
+&lt;div class=&quot;choice-text&quot;&gt;Not sure&lt;/div&gt;
+&lt;span class=&quot;choice-check&quot;&gt;✓&lt;/span&gt;
+&lt;/a&gt;
 
 &lt;/div&gt;
+
+&lt;div class=&quot;spacer&quot;&gt;&lt;/div&gt;
+
+&lt;a class=&quot;btn-primary disabled&quot; id=&quot;q4-next&quot;&gt;NEXT&lt;/a&gt;
+&lt;a class=&quot;btn-secondary&quot; data-passage=&quot;Q3 Feeling&quot;&gt;BACK&lt;/a&gt;
 
 &lt;/div&gt;
 &lt;/div&gt;
 
 &lt;&lt;script&gt;&gt;
 setTimeout(function () {
-  document.querySelectorAll(&quot;#again-list a.macro-link, #again-list a.link-internal&quot;).forEach(function (a) {
-    a.classList.add(&quot;choice-tile&quot;);
+  /* NEXT uses explicit Engine.play() — see ::Q1 Favorite note. */
+  var current = State.variables.playAgain || &quot;&quot;;
+  var nextBtn = document.getElementById(&quot;q4-next&quot;);
+  function enableNext() {
+    if (nextBtn) nextBtn.classList.remove(&quot;disabled&quot;);
+  }
+  document.querySelectorAll(&quot;#again-list a.choice-tile&quot;).forEach(function (t) {
+    if (t.dataset.again === current) {
+      t.classList.add(&quot;selected&quot;);
+      enableNext();
+    }
+    if (t.dataset.bound === &quot;1&quot;) return;
+    t.dataset.bound = &quot;1&quot;;
+    t.addEventListener(&quot;click&quot;, function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      document.querySelectorAll(&quot;#again-list a.choice-tile&quot;).forEach(function (x) {
+        x.classList.remove(&quot;selected&quot;);
+      });
+      t.classList.add(&quot;selected&quot;);
+      State.variables.playAgain = t.dataset.again;
+      enableNext();
+    });
   });
+  if (nextBtn &amp;&amp; nextBtn.dataset.bound !== &quot;1&quot;) {
+    nextBtn.dataset.bound = &quot;1&quot;;
+    nextBtn.addEventListener(&quot;click&quot;, function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (nextBtn.classList.contains(&quot;disabled&quot;)) return;
+      Engine.play(&quot;Q5 Wish&quot;);
+    });
+  }
   if (setup.bindSpeak) setup.bindSpeak();
 }, 0);
 &lt;&lt;/script&gt;&gt;</tw-passagedata><tw-passagedata pid="8" name="Q5 Wish" tags="nobr" position="975,100" size="100,100">/*
@@ -1755,10 +2177,13 @@ END SURVEY Q5: Anything you wish the game had? Optional open text.
 &lt;/div&gt;
 
 &lt;div class=&quot;text-input-wrap&quot;&gt;
-&lt;textarea id=&quot;wish-input&quot; rows=&quot;7&quot;&gt;&lt;/textarea&gt;
+&lt;textarea id=&quot;wish-input&quot; rows=&quot;6&quot; placeholder=&quot;Type here, or skip&quot;&gt;&lt;/textarea&gt;
 &lt;/div&gt;
 
+&lt;div class=&quot;spacer&quot;&gt;&lt;/div&gt;
+
 &lt;a class=&quot;btn-primary&quot; data-passage=&quot;SUS Intro&quot;&gt;NEXT&lt;/a&gt;
+&lt;a class=&quot;btn-secondary&quot; data-passage=&quot;Q4 Again&quot;&gt;BACK&lt;/a&gt;
 
 &lt;/div&gt;
 &lt;/div&gt;
@@ -1799,12 +2224,21 @@ SUS preamble.
 &lt;div class=&quot;spacer&quot;&gt;&lt;/div&gt;
 
 &lt;a class=&quot;btn-primary&quot; data-passage=&quot;SUS Q&quot;&gt;START&lt;/a&gt;
+&lt;a class=&quot;btn-secondary&quot; data-passage=&quot;Q5 Wish&quot;&gt;BACK&lt;/a&gt;
 
 &lt;/div&gt;
 &lt;/div&gt;</tw-passagedata><tw-passagedata pid="10" name="SUS Q" tags="nobr" position="1225,100" size="100,100">/*
 SUS QUESTION SCREEN.
-Single passage handles all 10 SUS questions, advancing $susIdx each time.
-On the 10th tap, navigates to Three Words.
+Single passage handles all 10 SUS questions; advancing/retreating
+mutates $susIdx and re-renders (&quot;SUS Q&quot; calls itself via &lt;&lt;goto&gt;&gt;).
+On NEXT past Q10, navigates to &quot;Three Words&quot;. BACK from Q1 returns
+to &quot;SUS Intro&quot;.
+
+Same select-then-confirm pattern as Q1 / Q3 / Q4 — tapping a tile
+records the rating in $susAnswers[idx] and highlights the tile;
+NEXT button advances. Restoring a previously-given rating on
+BACK is what makes the BACK button useful, so the script reads
+$susAnswers[idx-1] on render and pre-selects it.
 */
 
 &lt;&lt;set _susQs to [
@@ -1836,42 +2270,96 @@ On the 10th tap, navigates to Three Words.
 
 &lt;div class=&quot;tile-row&quot; id=&quot;sus-row&quot;&gt;
 
-&lt;&lt;link &#39;&lt;span class=&quot;scale-emoji&quot;&gt;😠&lt;/span&gt;&lt;span class=&quot;scale-label&quot;&gt;Strongly disagree&lt;/span&gt;&#39;&gt;&gt;
-&lt;&lt;set $susAnswers[$susIdx - 1] to 1&gt;&gt;
-&lt;&lt;if $susIdx lt 10&gt;&gt;&lt;&lt;set $susIdx to $susIdx + 1&gt;&gt;&lt;&lt;goto &quot;SUS Q&quot;&gt;&gt;&lt;&lt;else&gt;&gt;&lt;&lt;goto &quot;Three Words&quot;&gt;&gt;&lt;&lt;/if&gt;&gt;
-&lt;&lt;/link&gt;&gt;
-
-&lt;&lt;link &#39;&lt;span class=&quot;scale-emoji&quot;&gt;🙁&lt;/span&gt;&lt;span class=&quot;scale-label&quot;&gt;Disagree&lt;/span&gt;&#39;&gt;&gt;
-&lt;&lt;set $susAnswers[$susIdx - 1] to 2&gt;&gt;
-&lt;&lt;if $susIdx lt 10&gt;&gt;&lt;&lt;set $susIdx to $susIdx + 1&gt;&gt;&lt;&lt;goto &quot;SUS Q&quot;&gt;&gt;&lt;&lt;else&gt;&gt;&lt;&lt;goto &quot;Three Words&quot;&gt;&gt;&lt;&lt;/if&gt;&gt;
-&lt;&lt;/link&gt;&gt;
-
-&lt;&lt;link &#39;&lt;span class=&quot;scale-emoji&quot;&gt;😐&lt;/span&gt;&lt;span class=&quot;scale-label&quot;&gt;Neutral&lt;/span&gt;&#39;&gt;&gt;
-&lt;&lt;set $susAnswers[$susIdx - 1] to 3&gt;&gt;
-&lt;&lt;if $susIdx lt 10&gt;&gt;&lt;&lt;set $susIdx to $susIdx + 1&gt;&gt;&lt;&lt;goto &quot;SUS Q&quot;&gt;&gt;&lt;&lt;else&gt;&gt;&lt;&lt;goto &quot;Three Words&quot;&gt;&gt;&lt;&lt;/if&gt;&gt;
-&lt;&lt;/link&gt;&gt;
-
-&lt;&lt;link &#39;&lt;span class=&quot;scale-emoji&quot;&gt;🙂&lt;/span&gt;&lt;span class=&quot;scale-label&quot;&gt;Agree&lt;/span&gt;&#39;&gt;&gt;
-&lt;&lt;set $susAnswers[$susIdx - 1] to 4&gt;&gt;
-&lt;&lt;if $susIdx lt 10&gt;&gt;&lt;&lt;set $susIdx to $susIdx + 1&gt;&gt;&lt;&lt;goto &quot;SUS Q&quot;&gt;&gt;&lt;&lt;else&gt;&gt;&lt;&lt;goto &quot;Three Words&quot;&gt;&gt;&lt;&lt;/if&gt;&gt;
-&lt;&lt;/link&gt;&gt;
-
-&lt;&lt;link &#39;&lt;span class=&quot;scale-emoji&quot;&gt;😍&lt;/span&gt;&lt;span class=&quot;scale-label&quot;&gt;Strongly agree&lt;/span&gt;&#39;&gt;&gt;
-&lt;&lt;set $susAnswers[$susIdx - 1] to 5&gt;&gt;
-&lt;&lt;if $susIdx lt 10&gt;&gt;&lt;&lt;set $susIdx to $susIdx + 1&gt;&gt;&lt;&lt;goto &quot;SUS Q&quot;&gt;&gt;&lt;&lt;else&gt;&gt;&lt;&lt;goto &quot;Three Words&quot;&gt;&gt;&lt;&lt;/if&gt;&gt;
-&lt;&lt;/link&gt;&gt;
+&lt;a class=&quot;scale-tile bg-1&quot; data-sus=&quot;1&quot;&gt;&lt;span class=&quot;scale-emoji&quot;&gt;😠&lt;/span&gt;&lt;span class=&quot;scale-label&quot;&gt;Strongly disagree&lt;/span&gt;&lt;/a&gt;
+&lt;a class=&quot;scale-tile bg-2&quot; data-sus=&quot;2&quot;&gt;&lt;span class=&quot;scale-emoji&quot;&gt;🙁&lt;/span&gt;&lt;span class=&quot;scale-label&quot;&gt;Disagree&lt;/span&gt;&lt;/a&gt;
+&lt;a class=&quot;scale-tile bg-3&quot; data-sus=&quot;3&quot;&gt;&lt;span class=&quot;scale-emoji&quot;&gt;😐&lt;/span&gt;&lt;span class=&quot;scale-label&quot;&gt;Neutral&lt;/span&gt;&lt;/a&gt;
+&lt;a class=&quot;scale-tile bg-4&quot; data-sus=&quot;4&quot;&gt;&lt;span class=&quot;scale-emoji&quot;&gt;🙂&lt;/span&gt;&lt;span class=&quot;scale-label&quot;&gt;Agree&lt;/span&gt;&lt;/a&gt;
+&lt;a class=&quot;scale-tile bg-5&quot; data-sus=&quot;5&quot;&gt;&lt;span class=&quot;scale-emoji&quot;&gt;😍&lt;/span&gt;&lt;span class=&quot;scale-label&quot;&gt;Strongly agree&lt;/span&gt;&lt;/a&gt;
 
 &lt;/div&gt;
+
+&lt;div class=&quot;spacer&quot;&gt;&lt;/div&gt;
+
+&lt;a class=&quot;btn-primary disabled&quot; id=&quot;sus-next&quot;&gt;NEXT&lt;/a&gt;
+&lt;a class=&quot;btn-secondary&quot; id=&quot;sus-back&quot;&gt;BACK&lt;/a&gt;
 
 &lt;/div&gt;
 &lt;/div&gt;
 
 &lt;&lt;script&gt;&gt;
 setTimeout(function () {
-  document.querySelectorAll(&quot;#sus-row a.macro-link, #sus-row a.link-internal&quot;).forEach(function (a, i) {
-    a.classList.add(&quot;scale-tile&quot;);
-    a.classList.add(&quot;bg-&quot; + (i + 1));
+  var idx = State.variables.susIdx || 1;
+  var current = (State.variables.susAnswers || [])[idx - 1] || 0;
+  var nextBtn = document.getElementById(&quot;sus-next&quot;);
+  var backBtn = document.getElementById(&quot;sus-back&quot;);
+
+  function enableNext() {
+    if (!nextBtn) return;
+    nextBtn.classList.remove(&quot;disabled&quot;);
+    /* Tag NEXT with a sentinel data-sus-ready so its own click
+       handler (below) knows there&#39;s a valid answer and can decide
+       whether to advance susIdx or jump to Three Words. We don&#39;t
+       use data-passage here because the navigation target depends
+       on whether this is the 10th question. */
+    nextBtn.setAttribute(&quot;data-sus-ready&quot;, &quot;1&quot;);
+  }
+
+  /* Restore previous answer if the user is revisiting via BACK. */
+  document.querySelectorAll(&quot;#sus-row a.scale-tile&quot;).forEach(function (t) {
+    if (Number(t.dataset.sus) === current) {
+      t.classList.add(&quot;selected&quot;);
+      enableNext();
+    }
+    if (t.dataset.bound === &quot;1&quot;) return;
+    t.dataset.bound = &quot;1&quot;;
+    t.addEventListener(&quot;click&quot;, function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      document.querySelectorAll(&quot;#sus-row a.scale-tile&quot;).forEach(function (x) {
+        x.classList.remove(&quot;selected&quot;);
+      });
+      t.classList.add(&quot;selected&quot;);
+      var arr = State.variables.susAnswers || [];
+      arr[idx - 1] = Number(t.dataset.sus);
+      State.variables.susAnswers = arr;
+      enableNext();
+    });
   });
+
+  /* NEXT: advance susIdx and re-render this passage, OR jump
+     to Three Words on Q10. */
+  if (nextBtn &amp;&amp; nextBtn.dataset.bound !== &quot;1&quot;) {
+    nextBtn.dataset.bound = &quot;1&quot;;
+    nextBtn.addEventListener(&quot;click&quot;, function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (nextBtn.classList.contains(&quot;disabled&quot;)) return;
+      if (idx &gt;= 10) {
+        Engine.play(&quot;Three Words&quot;);
+      } else {
+        State.variables.susIdx = idx + 1;
+        Engine.play(&quot;SUS Q&quot;);
+      }
+    });
+  }
+
+  /* BACK: decrement susIdx and re-render, OR return to SUS Intro
+     on Q1. The participant&#39;s previous answer for the prior
+     question is restored by the render-time selected check above. */
+  if (backBtn &amp;&amp; backBtn.dataset.bound !== &quot;1&quot;) {
+    backBtn.dataset.bound = &quot;1&quot;;
+    backBtn.addEventListener(&quot;click&quot;, function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (idx &lt;= 1) {
+        Engine.play(&quot;SUS Intro&quot;);
+      } else {
+        State.variables.susIdx = idx - 1;
+        Engine.play(&quot;SUS Q&quot;);
+      }
+    });
+  }
+
   if (setup.bindSpeak) setup.bindSpeak();
 }, 0);
 &lt;&lt;/script&gt;&gt;</tw-passagedata><tw-passagedata pid="11" name="Three Words" tags="nobr" position="100,225" size="100,100">/*
@@ -1899,6 +2387,7 @@ Three text inputs. Neutral prompt, no example words shown.
 &lt;div class=&quot;spacer&quot;&gt;&lt;/div&gt;
 
 &lt;a class=&quot;btn-primary&quot; data-passage=&quot;Rank Fun&quot;&gt;NEXT&lt;/a&gt;
+&lt;a class=&quot;btn-secondary&quot; data-passage=&quot;SUS Q&quot;&gt;BACK&lt;/a&gt;
 
 &lt;/div&gt;
 &lt;/div&gt;
@@ -1949,6 +2438,7 @@ Position 1 (top) = most fun, Position 5 (bottom) = least fun.
 &lt;p class=&quot;rank-hint&quot;&gt;Tap up or down to move a game.&lt;/p&gt;
 
 &lt;a class=&quot;btn-primary&quot; data-passage=&quot;Rank Health&quot;&gt;NEXT RANKING&lt;/a&gt;
+&lt;a class=&quot;btn-secondary&quot; data-passage=&quot;Three Words&quot;&gt;BACK&lt;/a&gt;
 
 &lt;/div&gt;
 &lt;/div&gt;
@@ -1980,6 +2470,7 @@ STEP 12 PASS 2: Rank by importance for health.
 &lt;p class=&quot;rank-hint&quot;&gt;Tap up or down to move a game.&lt;/p&gt;
 
 &lt;a class=&quot;btn-primary&quot; data-passage=&quot;Done&quot;&gt;FINISH&lt;/a&gt;
+&lt;a class=&quot;btn-secondary&quot; data-passage=&quot;Rank Fun&quot;&gt;BACK&lt;/a&gt;
 
 &lt;/div&gt;
 &lt;/div&gt;
@@ -2056,7 +2547,7 @@ DONE. Compute SUS score, persist payload, show thank-you.
 
 &lt;div class=&quot;spacer&quot;&gt;&lt;/div&gt;
 
-&lt;a class=&quot;btn-primary&quot; onclick=&quot;if(window.CCQ){CCQ.goHome();}return false;&quot; href=&quot;#&quot;&gt;DONE&lt;/a&gt;
+&lt;a class=&quot;btn-primary ccq-home-trigger&quot;&gt;DONE&lt;/a&gt;
 
 &lt;/div&gt;
 &lt;/div&gt;</tw-passagedata></tw-storydata>

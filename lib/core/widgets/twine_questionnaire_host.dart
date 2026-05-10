@@ -104,6 +104,23 @@ class _TwineQuestionnaireHostState extends State<TwineQuestionnaireHost> {
   // those cases via the deferred bump.
   bool _completionAlreadyBumped = false;
 
+  // True once a HealthKit snapshot has been logged for this session.
+  // Set by:
+  //   * LOG_BP handler — captures vitals at the moment the participant
+  //     saved their BP reading (most research-meaningful moment for
+  //     Quiet Minute / Quiet Landscape).
+  //   * SUBMIT_RESPONSE handler when countAsCompletion=true — captures
+  //     vitals at the moment the success screen appears (Salt Sludge's
+  //     Final Result, DASH Diet's Meal Result, Bingo Bash on win, etc.).
+  //   * LOG_QUEST_COMPLETION handler when countAsCompletion=true — same.
+  // Used by _performExit to skip its catch-all snapshot if one already
+  // fired during the session. Mirrors the `_snapshotLogged` flag in
+  // TwineGameHost (which had the same pattern in place for movement
+  // games but TwineQuestionnaireHost was previously missing it —
+  // research data was capturing vitals AFTER the participant tapped
+  // BACK TO CARDIOCAREQUEST instead of at the moment of success).
+  bool _snapshotLogged = false;
+
   // Per-play session id stamped onto every write that comes out of this
   // host instance (telemetry, BP reading, HealthKit snapshot, survey
   // response). Lets researchers do a single Firestore query to
@@ -227,6 +244,20 @@ class _TwineQuestionnaireHostState extends State<TwineQuestionnaireHost> {
           // the fresh reading.
           _lastLoggedSys = sys.toInt();
           _lastLoggedDia = dia.toInt();
+          // Capture vitals AT the moment the BP reading is saved —
+          // not later when the participant taps Done. The watch's
+          // heart-rate / HRV at the moment of a settled BP reading
+          // is the research-meaningful snapshot; vitals minutes
+          // later (after the participant has been navigating menus)
+          // are noise.
+          if (!_snapshotLogged) {
+            _snapshotLogged = true;
+            unawaited(HealthHooks.logSnapshot(
+              uid: _uid,
+              gameId: widget.surveyId,
+              sessionId: _sessionId,
+            ));
+          }
           if (mounted) {
             PointsHooks.applyIncrements(context, const {
               'points': 50,
@@ -268,20 +299,189 @@ class _TwineQuestionnaireHostState extends State<TwineQuestionnaireHost> {
             final sys = result['systolic'];
             final dia = result['diastolic'];
             if (sys is int && dia is int) {
+              // Wait one frame after the route pop before we start
+              // calling into the parent's WebView. Without this the
+              // runJavaScript below sometimes fires while the view
+              // is still in its "resume from background" transition
+              // on Android webview_flutter, and the resulting
+              // Engine.show() repaints into the off-screen render
+              // tree that the user never sees. 50ms is empirically
+              // enough for the WebView to settle without being long
+              // enough to feel like a stutter.
+              await Future<void>.delayed(const Duration(milliseconds: 50));
+              if (!mounted) break;
+              final whenMs = DateTime.now().millisecondsSinceEpoch;
               // Inject the new BP into the parent game's SugarCube state
               // and re-render the current passage. Vascular Village's
               // Hub passage uses $lastSys / $lastDia at render time, so
               // this re-render is what makes the village reflect the
               // fresh reading without the player having to navigate.
+              //
+              // We ALSO seed `quietMinute_history` in this WebView's
+              // localStorage. Hub's per-render self-heal script reads
+              // that key on every render — without the seed, it sees
+              // an empty key (because Android webview_flutter doesn't
+              // share localStorage across WebViewController instances)
+              // and doesn't override $lastSys/$lastDia. The host's
+              // SugarCube state injection above SHOULD be enough on
+              // its own, but in practice players were seeing `--/--`
+              // until they navigated Hub → mini-quest → Hub once
+              // (the second Hub render eventually picked up the
+              // value somehow). Seeding localStorage here makes the
+              // self-heal a positive override path that mirrors the
+              // host injection — belt and suspenders, removes the
+              // race.
               _controller.runJavaScript('''
                 try {
+                  /* Seed `quietMinute_history` so Hub's self-heal
+                     script finds the reading on its very next render.
+                     unshift to keep "latest first" — same shape Quiet
+                     Landscape uses. _seededFrom is a debug breadcrumb
+                     researchers can use to distinguish writes from
+                     in-game saves vs. host injections in the per-
+                     WebView storage. */
+                  try {
+                    var hist = [];
+                    try {
+                      var existing = window.localStorage.getItem(
+                          "quietMinute_history");
+                      if (existing) hist = JSON.parse(existing) || [];
+                    } catch (e) {}
+                    hist.unshift({
+                      sys: $sys,
+                      dia: $dia,
+                      when: $whenMs,
+                      _seededFrom: "host_launchgame_popback"
+                    });
+                    if (hist.length > 100) hist = hist.slice(0, 100);
+                    window.localStorage.setItem(
+                        "quietMinute_history",
+                        JSON.stringify(hist));
+                  } catch (e) {}
+
                   if (window.SugarCube && SugarCube.State) {
                     SugarCube.State.variables.lastSys = $sys;
                     SugarCube.State.variables.lastDia = $dia;
                   }
-                  if (window.Engine && typeof Engine.play === "function" &&
-                      window.SugarCube && SugarCube.State &&
-                      SugarCube.State.passage) {
+                  /* Use Engine.show() (in-place redisplay of the
+                     current passage) rather than Engine.play() —
+                     play() pushes a new history moment which on
+                     Android webview_flutter sometimes lands AFTER
+                     the resume-from-background visual settle and
+                     the participant sees the stale render until
+                     they navigate elsewhere and back. show() is
+                     the documented "I changed variables, please
+                     refresh the view" path and it repaints the
+                     current moment immediately. Falls back to a
+                     no-op if Engine isn't ready yet. */
+                  if (window.Engine && typeof Engine.show === "function") {
+                    Engine.show();
+                  } else if (window.Engine &&
+                             typeof Engine.play === "function" &&
+                             window.SugarCube && SugarCube.State &&
+                             SugarCube.State.passage) {
+                    Engine.play(SugarCube.State.passage);
+                  }
+                } catch (e) { /* swallow */ }
+              ''');
+            }
+          }
+        }
+        break;
+
+      case 'GET_TODAY_BP':
+        // Cross-WebView fallback for the Quiet-Landscape → Vascular
+        // Village BP handoff. webview_flutter on Android does not
+        // reliably share localStorage across WebViewController
+        // instances, so a BP saved into Quiet Landscape's WebView
+        // (`quietMinute_history`) isn't visible to Vascular Village's
+        // WebView at StoryInit time — the village then routes the
+        // participant back through the trampoline even though they
+        // already entered a reading today.
+        //
+        // We answer from `UserDataProvider`, which holds the
+        // canonical Firestore values: every successful LOG_BP above
+        // bumps `lastSystolic` / `lastDiastolic` / `lastBPLogDate`
+        // via PointsHooks.applySets, so this read is always at
+        // least as fresh as the last in-app reading regardless of
+        // which game's WebView wrote it.
+        //
+        // We also seed `quietMinute_history` in THIS WebView's
+        // localStorage so Hub's per-render self-heal script hits
+        // the cache on subsequent renders rather than rebroadcasting
+        // GET_TODAY_BP each time.
+        if (mounted) {
+          final provider =
+              Provider.of<UserDataProvider>(context, listen: false);
+          final userMap = provider.userData;
+          final today =
+              DateTime.now().toIso8601String().split('T')[0];
+          // Defensive: only inject when the loaded userData
+          // belongs to the participant THIS host was constructed
+          // for. The host's `_uid` is read live from the provider
+          // so it tracks the current user; if the provider's map
+          // is stale (mid-fetch during a participant switch) or
+          // belongs to a different participant than this WebView's
+          // UA was stamped with, refuse to inject. Without this
+          // guard, a fast user-switch could leak A's BP into B's
+          // village even though my fetchUserData wipe normally
+          // closes that window. Two-belt safety because cross-user
+          // BP leakage is a research-data integrity issue, not
+          // just a cosmetic glitch.
+          final loadedUid = userMap?['uid'] as String?;
+          final liveUid = _uid;
+          final uidMatches = loadedUid != null &&
+              loadedUid.isNotEmpty &&
+              liveUid.isNotEmpty &&
+              loadedUid == liveUid;
+          if (userMap != null &&
+              uidMatches &&
+              userMap['lastBPLogDate'] == today) {
+            final sys = (userMap['lastSystolic'] as num?)?.toInt();
+            final dia = (userMap['lastDiastolic'] as num?)?.toInt();
+            if (sys != null && dia != null) {
+              final whenMs = DateTime.now().millisecondsSinceEpoch;
+              _controller.runJavaScript('''
+                try {
+                  /* Seed this WebView's localStorage so Hub's
+                     self-heal script (and any future StoryInit in
+                     the same launch) finds the reading without
+                     another round-trip. unshift to keep "latest
+                     first" — same shape Quiet Landscape uses. */
+                  try {
+                    var hist = [];
+                    try {
+                      var existing = window.localStorage.getItem(
+                          "quietMinute_history");
+                      if (existing) hist = JSON.parse(existing) || [];
+                    } catch (e) {}
+                    hist.unshift({
+                      sys: $sys,
+                      dia: $dia,
+                      when: $whenMs,
+                      _seededFrom: "host_firestore"
+                    });
+                    if (hist.length > 100) hist = hist.slice(0, 100);
+                    window.localStorage.setItem(
+                        "quietMinute_history",
+                        JSON.stringify(hist));
+                  } catch (e) {}
+                  /* Inject into SugarCube state and re-render the
+                     current passage so Welcome / Hub picks up the
+                     fresh reading immediately. Engine.show() does
+                     an in-place redisplay without pushing a new
+                     history moment — see the LAUNCH_GAME case for
+                     the why-not-Engine.play rationale. */
+                  if (window.SugarCube && SugarCube.State) {
+                    SugarCube.State.variables.lastSys = $sys;
+                    SugarCube.State.variables.lastDia = $dia;
+                  }
+                  if (window.Engine && typeof Engine.show === "function") {
+                    Engine.show();
+                  } else if (window.Engine &&
+                             typeof Engine.play === "function" &&
+                             window.SugarCube && SugarCube.State &&
+                             SugarCube.State.passage) {
                     Engine.play(SugarCube.State.passage);
                   }
                 } catch (e) { /* swallow */ }
@@ -340,6 +540,21 @@ class _TwineQuestionnaireHostState extends State<TwineQuestionnaireHost> {
             PointsHooks.applyIncrements(context, increments);
           }
 
+          // Capture vitals at the moment the success screen renders.
+          // countAsCompletion: true means this submit IS the canonical
+          // "game completed" event for this play (Salt Sludge / DASH
+          // Diet / Bingo Bash / post-play survey). Per-quest submits
+          // (countAsCompletion: false from Vascular Village) use
+          // _performExit's catch-all snapshot at session end.
+          if (countAsCompletion && !_snapshotLogged) {
+            _snapshotLogged = true;
+            unawaited(HealthHooks.logSnapshot(
+              uid: _uid,
+              gameId: widget.surveyId,
+              sessionId: _sessionId,
+            ));
+          }
+
           TelemetryHooks.logEvent(
             '${widget.surveyId}_response_submitted',
             parameters: {
@@ -393,6 +608,21 @@ class _TwineQuestionnaireHostState extends State<TwineQuestionnaireHost> {
               _completionAlreadyBumped = true;
             }
             PointsHooks.applyIncrements(context, increments);
+          }
+
+          // Same snapshot-on-success gate as SUBMIT_RESPONSE: only fire
+          // for whole-game completions (countAsCompletion: true), not
+          // per-quest credits like Vascular Village's mini-quests or
+          // Pill Path's daily taps. Those rely on _performExit's catch-
+          // all at session end so we get one snapshot per session
+          // rather than one per quest.
+          if (countAsCompletion && !_snapshotLogged) {
+            _snapshotLogged = true;
+            unawaited(HealthHooks.logSnapshot(
+              uid: _uid,
+              gameId: gameId,
+              sessionId: _sessionId,
+            ));
           }
 
           TelemetryHooks.logEvent(
@@ -473,15 +703,24 @@ class _TwineQuestionnaireHostState extends State<TwineQuestionnaireHost> {
           )));
         }
       }
-      // Fire-and-forget HealthKit snapshot stamped with this play's
-      // sessionId so researchers can join the snapshot to the rest of
-      // the per-session writes (passage_entered events, BP reading,
-      // summary doc).
-      unawaited(HealthHooks.logSnapshot(
-        uid: _uid,
-        gameId: widget.surveyId,
-        sessionId: _sessionId,
-      ));
+      // Catch-all HealthKit snapshot. Only fires if NO success-state
+      // handler (LOG_BP, SUBMIT_RESPONSE with countAsCompletion=true,
+      // or LOG_QUEST_COMPLETION with countAsCompletion=true) already
+      // fired one during the session. Covers two real cases:
+      //   1. Participant abandoned mid-game (no completion event ever
+      //      fired) — researchers still get vitals at exit.
+      //   2. Hub-and-spoke games (Vascular Village's per-quest credits,
+      //      Pill Path's daily taps) — each individual submit uses
+      //      countAsCompletion: false so they don't fire a snapshot
+      //      individually. One snapshot per session lands here.
+      if (!_snapshotLogged) {
+        _snapshotLogged = true;
+        unawaited(HealthHooks.logSnapshot(
+          uid: _uid,
+          gameId: widget.surveyId,
+          sessionId: _sessionId,
+        ));
+      }
       // Game-end summary doc — netguage CheckData-equivalent.
       unawaited(_writeSessionSummary(exitReason: exitReason));
     }

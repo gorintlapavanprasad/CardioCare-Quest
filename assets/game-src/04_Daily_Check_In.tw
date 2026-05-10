@@ -31,35 +31,46 @@ so the Twinery preview matches the rest of the catalog.
 */
 
 @font-face {
-  font-family: 'Nunito';
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif;
   font-style: normal;
   font-weight: 600;
   font-display: swap;
   src: url('fonts/Nunito-SemiBold.ttf') format('truetype');
 }
 @font-face {
-  font-family: 'Nunito';
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif;
   font-style: normal;
   font-weight: 700;
   font-display: swap;
   src: url('fonts/Nunito-Bold.ttf') format('truetype');
 }
 
+/* CardioCareQuest viridis palette (canonical across all games):
+     #440154  deep purple   — phone gradient stop 1
+     #3b528b  blue          — phone gradient stop 2 / accent
+     #21918c  teal          — phone gradient stop 3
+     #5ec962  green          — success bright
+     #fde725  yellow         — primary CTA / attention
+     #f4f1d8  cream          — page background
+   Daily Check-In is a "calm" light-theme game (no dark phone
+   frame); the viridis palette only contributes via --accent
+   (#3b528b) and the canonical cream page bg. 2026-05-10 swap
+   replaced the off-palette --accent #4a5b80 + --bg #f4f5f7. */
 :root {
-  --bg: #f4f5f7;
+  --bg: #f4f1d8;
   --card: #ffffff;
   --border: #d8dadf;
-  --text: #2d3140;
+  --text: #1a1a1a;
   --muted: #6b7280;
-  --accent: #4a5b80;
+  --accent: #3b528b;
   --accent-light: #e7ecf6;
 }
 
 body, html {
   margin: 0;
   padding: 0;
-  font-family: 'Nunito', system-ui, sans-serif;
-  background: #c8ccd1;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif;
+  background: #f4f1d8;
   color: var(--text);
   -webkit-text-size-adjust: 100%;
 }
@@ -222,7 +233,7 @@ p.lead {
   background: var(--bg);
   border: 2px solid var(--border);
   border-radius: 10px;
-  font-family: 'Nunito', system-ui, sans-serif;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif;
   font-size: 17px;
   font-weight: 600;
   color: var(--text);
@@ -245,7 +256,7 @@ p.lead {
   flex: 1;
   padding: 14px 18px;
   border-radius: 12px;
-  font-family: 'Nunito', system-ui, sans-serif;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif;
   font-size: 17px;
   font-weight: 700;
   cursor: pointer;
@@ -263,7 +274,7 @@ p.lead {
   background: var(--accent);
   color: #fff;
   border: none;
-  font-family: 'Nunito', system-ui, sans-serif;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif;
   font-size: 17px;
   font-weight: 700;
   cursor: pointer;

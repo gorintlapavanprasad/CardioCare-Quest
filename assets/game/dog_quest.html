@@ -152,10 +152,21 @@ var saveAs=saveAs||navigator.msSaveBlob&&navigator.msSaveBlob.bind(navigator)||f
       var savedPid = window.localStorage.getItem('ccq_active_pid') || '';
       if (savedPid !== currentPid) {
         // Add new keys to this list as games introduce them.
+        // 2026-05-10: pill_path_save was missing — participant A's
+        // 7-stone path data was leaking to participant B on shared
+        // devices. Same vector as quietMinute_history.
+        // 2026-05-10 (later): cardiocarequest_survey added — the
+        // post-play survey writes a defensive backup of every
+        // participant's full payload to that key on the Done
+        // passage. Without this entry, participant B would see
+        // participant A's last survey responses if A's WebView
+        // localStorage were inspected.
         var staleKeys = [
           'quietMinute_history',
           'quietMinute_points',
           'vv_save',
+          'pill_path_save',
+          'cardiocarequest_survey',
         ];
         for (var i = 0; i < staleKeys.length; i++) {
           try {
@@ -166,6 +177,66 @@ var saveAs=saveAs||navigator.msSaveBlob&&navigator.msSaveBlob.bind(navigator)||f
       }
     }
   } catch (e) { /* keep going — isolation is best-effort */ }
+
+  // ───────────────────────────────────────────────────────────────────
+  // ATKINSON HYPERLEGIBLE FONT
+  //
+  // Designed by the Braille Institute for low-vision readability.
+  // Bundled locally (TTF in `assets/fonts/Atkinson_Hyperlegible/`,
+  // declared in `pubspec.yaml`) so the font loads even when offline
+  // and on devices Google Fonts can't reach. We inject `@font-face`
+  // declarations once per WebView via a <style> tag in <head>; the
+  // path is resolved relative to the compiled HTML's location, which
+  // is `assets/game/<game>.html` under flutter_assets, so `../fonts/`
+  // walks one directory up to the bundled font folder.
+  //
+  // Idempotent via the id check so the style block doesn't duplicate
+  // across passage re-renders or LAUNCH_GAME sub-host stacking.
+  // ───────────────────────────────────────────────────────────────────
+  try {
+    var injectFontFace = function () {
+      if (document.getElementById('ccq-fonts-style')) return;
+      var style = document.createElement('style');
+      style.id = 'ccq-fonts-style';
+      style.textContent =
+        "@font-face {" +
+        "  font-family: 'Atkinson Hyperlegible';" +
+        "  src: url('../fonts/Atkinson_Hyperlegible/AtkinsonHyperlegible-Regular.ttf') format('truetype');" +
+        "  font-weight: 400;" +
+        "  font-style: normal;" +
+        "  font-display: swap;" +
+        "}" +
+        "@font-face {" +
+        "  font-family: 'Atkinson Hyperlegible';" +
+        "  src: url('../fonts/Atkinson_Hyperlegible/AtkinsonHyperlegible-Italic.ttf') format('truetype');" +
+        "  font-weight: 400;" +
+        "  font-style: italic;" +
+        "  font-display: swap;" +
+        "}" +
+        "@font-face {" +
+        "  font-family: 'Atkinson Hyperlegible';" +
+        "  src: url('../fonts/Atkinson_Hyperlegible/AtkinsonHyperlegible-Bold.ttf') format('truetype');" +
+        "  font-weight: 700;" +
+        "  font-style: normal;" +
+        "  font-display: swap;" +
+        "}" +
+        "@font-face {" +
+        "  font-family: 'Atkinson Hyperlegible';" +
+        "  src: url('../fonts/Atkinson_Hyperlegible/AtkinsonHyperlegible-BoldItalic.ttf') format('truetype');" +
+        "  font-weight: 700;" +
+        "  font-style: italic;" +
+        "  font-display: swap;" +
+        "}";
+      var head = document.head || document.getElementsByTagName('head')[0];
+      if (head) head.appendChild(style);
+    };
+    if (document.head) {
+      injectFontFace();
+    } else {
+      // <head> not yet parsed — defer until it exists.
+      document.addEventListener('DOMContentLoaded', injectFontFace);
+    }
+  } catch (e) { /* font is best-effort — fallback stack handles it */ }
 
   function post(payload) {
     try {
@@ -347,6 +418,33 @@ var saveAs=saveAs||navigator.msSaveBlob&&navigator.msSaveBlob.bind(navigator)||f
     post({type: 'LAUNCH_GAME', gameId: gameId});
   }
 
+  /**
+   * Pull the latest blood-pressure reading FOR TODAY from Firestore via
+   * the host. Fire-and-forget: the host responds asynchronously by
+   * calling `runJavaScript` to set:
+   *   SugarCube.State.variables.lastSys
+   *   SugarCube.State.variables.lastDia
+   * and then `Engine.play(currentPassage)` so the rendered passage
+   * picks up the fresh reading.
+   *
+   * Why this exists: webview_flutter on Android does NOT reliably
+   * share localStorage across WebViewController instances — Quiet
+   * Landscape's `quietMinute_history` write lands in its own WebView's
+   * storage and Vascular Village's StoryInit can't see it. Calling
+   * this in StoryInit gives Vascular Village a Firestore-backed
+   * fallback so the village BP gate works regardless of how the
+   * platform's WebView implements storage isolation. The host also
+   * seeds `quietMinute_history` in this WebView's localStorage so
+   * subsequent renders inside the same launch (e.g. Hub's self-heal
+   * script) hit the cache rather than asking Flutter again.
+   *
+   * No-op when called from a host that doesn't recognise GET_TODAY_BP
+   * (older builds) — the host swallows unknown message types.
+   */
+  function getTodayBP() {
+    post({type: 'GET_TODAY_BP'});
+  }
+
   window.CCQ = {
     startTracking: startTracking,
     setBuddyName: setBuddyName,
@@ -358,21 +456,27 @@ var saveAs=saveAs||navigator.msSaveBlob&&navigator.msSaveBlob.bind(navigator)||f
     logQuestCompletion: logQuestCompletion,
     logBP: logBP,
     launchGame: launchGame,
+    getTodayBP: getTodayBP,
   };
 
   // ───────────────────────────────────────────────────────────────────
-  // BURGER MENU
+  // BURGER MENU — LEFT-SIDE OFF-CANVAS DRAWER
   //
   // Every compiled Twine game has a `<span class="menu-icon">≡</span>`
-  // (or similar) in its header. Handling the menu HERE — in the shared
-  // bridge — instead of per-game means all 7 games inherit the same
-  // options, the same animation, and the same UX without duplicating
-  // markup across 7 .tw files.
+  // (or similar) in its header. Tapping it slides a drawer in from the
+  // LEFT edge (matching netguage's SugarCube UIBar pattern) with four
+  // options. Handling the menu HERE — in the shared bridge — instead
+  // of per-game means all 7 games inherit the same options, the same
+  // animation, and the same UX without duplicating markup across 7
+  // .tw files.
   //
-  // Options exposed today:
-  //   • Go to dashboard — calls CCQ.goHome()
-  //   • Restart this game — calls SugarCube.Engine.restart()
-  //   • Close menu — dismisses the panel
+  // Options:
+  //   • Home              — CCQ.goHome() (back to Flutter dashboard)
+  //   • Back              — SugarCube.Engine.backward() (one passage)
+  //   • Exit the game     — CCQ.goHome() (same effect as Home; the
+  //                         label is for participants who think of
+  //                         "leaving" as different from "Home")
+  //   • Play from beginning — SugarCube.Engine.restart() (full reset)
   //
   // Implementation notes:
   //   • Click delegation on `document` (capture phase) so the trigger
@@ -380,6 +484,8 @@ var saveAs=saveAs||navigator.msSaveBlob&&navigator.msSaveBlob.bind(navigator)||f
   //     and survives every passage transition.
   //   • Overlay div is created lazily on first open — by then body
   //     exists, even though this script runs in <head>.
+  //   • Drawer slides in via `transform: translateX` so the animation
+  //     stays GPU-composited; the dim backdrop fades in via `opacity`.
   //   • Inline styles use Nunito (matches the games) with a system-
   //     font fallback so the menu still reads if Nunito hasn't loaded.
   // ───────────────────────────────────────────────────────────────────
@@ -416,53 +522,122 @@ var saveAs=saveAs||navigator.msSaveBlob&&navigator.msSaveBlob.bind(navigator)||f
       '  min-width: 28px;' +
       '  min-height: 28px;' +
       '}' +
+      // Backdrop: full-screen dim layer beneath the drawer. Click
+      // anywhere on it (outside the panel) to dismiss.
       '.ccq-menu-overlay {' +
       '  position: fixed; inset: 0;' +
-      '  background: rgba(20, 22, 32, 0.55);' +
-      '  display: flex; align-items: flex-start; justify-content: flex-end;' +
+      '  background: rgba(15, 18, 28, 0.55);' +
       '  z-index: 99999;' +
       '  opacity: 0; pointer-events: none;' +
-      '  transition: opacity 0.18s ease-out;' +
-      '  font-family: \'Nunito\', system-ui, -apple-system, "Segoe UI", sans-serif;' +
+      '  transition: opacity 0.22s ease-out;' +
+      '  font-family: \'Atkinson Hyperlegible\', system-ui, -apple-system, "Segoe UI", sans-serif;' +
       '}' +
       '.ccq-menu-overlay.ccq-open { opacity: 1; pointer-events: auto; }' +
+      // Drawer: full-screen overlay that slides in from the left.
+      // Width is 100vw so the menu fully covers the game while open
+      // — easier reading for older participants and removes any
+      // ambiguity about what's tappable. Gradient mirrors the
+      // in-game phone-frame palette so the drawer reads as part of
+      // the game, not a stray dialog.
       '.ccq-menu-panel {' +
-      '  margin: 14px;' +
-      '  background: #ffffff;' +
-      '  border-radius: 14px;' +
-      '  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28);' +
-      '  min-width: 240px; max-width: 80vw;' +
-      '  overflow: hidden;' +
-      '  transform: translateY(-8px);' +
-      '  transition: transform 0.18s ease-out;' +
+      '  position: fixed; top: 0; left: 0; bottom: 0; right: 0;' +
+      '  width: 100vw;' +
+      '  background: linear-gradient(180deg, #2a1a4a 0%, #3b528b 55%, #21918c 100%);' +
+      '  box-shadow: 4px 0 28px rgba(0, 0, 0, 0.45);' +
+      '  display: flex; flex-direction: column;' +
+      '  padding: 0 0 12px 0;' +
+      '  transform: translateX(-100%);' +
+      '  transition: transform 0.25s ease-out;' +
+      '  overflow-y: auto;' +
+      '  -webkit-overflow-scrolling: touch;' +
       '}' +
-      '.ccq-menu-overlay.ccq-open .ccq-menu-panel { transform: translateY(0); }' +
+      '.ccq-menu-overlay.ccq-open .ccq-menu-panel { transform: translateX(0); }' +
+      // Header row: "MENU" label + an X close button. With the
+      // panel full-width there's no exposed backdrop to tap-to-
+      // dismiss, so we need an explicit close affordance for
+      // participants who open the menu and change their mind.
+      //
+      // Layout: header is a flex row with align-items: center, so
+      // both children (the MENU span and the X button) land with
+      // their vertical centers on the same y. The header's
+      // top-padding uses `env(safe-area-inset-top)` so the row sits
+      // BELOW the system status bar on devices that report one,
+      // matching the game's own .header behaviour set by the build-
+      // time viewport override.
+      '.ccq-menu-header {' +
+      '  padding-top: max(20px, calc(env(safe-area-inset-top, 0px) + 12px));' +
+      '  padding-right: 16px;' +
+      '  padding-bottom: 14px;' +
+      '  padding-left: 22px;' +
+      '  font-size: 12px;' +
+      '  letter-spacing: 1.6px;' +
+      '  text-transform: uppercase;' +
+      '  color: rgba(255, 255, 255, 0.65);' +
+      '  font-weight: 800;' +
+      '  display: flex;' +
+      '  align-items: center;' +
+      '  justify-content: space-between;' +
+      '  min-height: 56px;' +
+      '  box-sizing: border-box;' +
+      '}' +
+      // 44×44 square button — gives a recommended-minimum tap
+      // target without resorting to a negative-margin trick that
+      // used to knock the X out of vertical alignment with the
+      // MENU label. flex centering on the inner X glyph keeps it
+      // pixel-centered inside the square regardless of font
+      // metrics. The button itself is then vertically centered
+      // by the parent row's align-items: center, so MENU + X
+      // share the same y baseline.
+      '.ccq-menu-close {' +
+      '  background: transparent;' +
+      '  border: none;' +
+      '  color: rgba(255, 255, 255, 0.92);' +
+      '  font-size: 22px;' +
+      '  line-height: 1;' +
+      '  cursor: pointer;' +
+      '  width: 44px;' +
+      '  height: 44px;' +
+      '  display: flex;' +
+      '  align-items: center;' +
+      '  justify-content: center;' +
+      '  padding: 0;' +
+      '  margin: 0;' +
+      '  border-radius: 50%;' +
+      '  font-family: inherit;' +
+      '}' +
+      '.ccq-menu-close:hover, .ccq-menu-close:active, .ccq-menu-close:focus {' +
+      '  background: rgba(255, 255, 255, 0.10);' +
+      '  outline: none;' +
+      '}' +
       '.ccq-menu-item {' +
-      '  padding: 14px 18px;' +
-      '  font-size: 15px;' +
+      '  padding: 16px 22px;' +
+      '  font-size: 16px;' +
       '  font-weight: 700;' +
-      '  color: #2d3140;' +
+      '  color: rgba(255, 255, 255, 0.95);' +
       '  cursor: pointer;' +
       '  display: flex;' +
       '  align-items: center;' +
-      '  gap: 12px;' +
-      '  border-bottom: 1px solid rgba(0, 0, 0, 0.06);' +
-      '  background: #ffffff;' +
+      '  gap: 14px;' +
       '  border: none;' +
+      '  background: transparent;' +
       '  width: 100%;' +
       '  text-align: left;' +
       '  font-family: inherit;' +
+      '  border-left: 3px solid transparent;' +
+      '  transition: background-color 0.12s ease-out, border-color 0.12s ease-out;' +
       '}' +
-      '.ccq-menu-item:last-child { border-bottom: none; }' +
-      '.ccq-menu-item:hover, .ccq-menu-item:active { background: #f4f5f7; }' +
+      '.ccq-menu-item:hover, .ccq-menu-item:active, .ccq-menu-item:focus {' +
+      '  background: rgba(255, 255, 255, 0.10);' +
+      '  border-left-color: #fde725;' +
+      '  outline: none;' +
+      '}' +
       '.ccq-menu-icon-glyph {' +
-      '  width: 22px;' +
+      '  width: 24px;' +
       '  text-align: center;' +
-      '  font-size: 17px;' +
-      '  flex: 0 0 22px;' +
-      '}' +
-      '.ccq-menu-item-restart { color: #2d7d6d; }' +
-      '.ccq-menu-item-close   { color: #6b7280; }';
+      '  font-size: 20px;' +
+      '  flex: 0 0 24px;' +
+      '  opacity: 0.9;' +
+      '}';
     document.head.appendChild(style);
   }
 
@@ -473,18 +648,26 @@ var saveAs=saveAs||navigator.msSaveBlob&&navigator.msSaveBlob.bind(navigator)||f
     overlay.setAttribute('role', 'dialog');
     overlay.setAttribute('aria-label', 'Game menu');
     overlay.innerHTML =
-      '<div class="ccq-menu-panel">' +
+      '<div class="ccq-menu-panel" role="navigation">' +
+      '  <div class="ccq-menu-header">' +
+      '    <span>Menu</span>' +
+      '    <button class="ccq-menu-close" data-action="close" aria-label="Close menu">✕</button>' +
+      '  </div>' +
       '  <button class="ccq-menu-item" data-action="dashboard">' +
       '    <span class="ccq-menu-icon-glyph">⌂</span>' +
-      '    <span>Go to dashboard</span>' +
+      '    <span>Home</span>' +
       '  </button>' +
-      '  <button class="ccq-menu-item ccq-menu-item-restart" data-action="restart">' +
+      '  <button class="ccq-menu-item" data-action="back">' +
+      '    <span class="ccq-menu-icon-glyph">←</span>' +
+      '    <span>Back</span>' +
+      '  </button>' +
+      '  <button class="ccq-menu-item" data-action="exit">' +
+      '    <span class="ccq-menu-icon-glyph">⏻</span>' +
+      '    <span>Exit the game</span>' +
+      '  </button>' +
+      '  <button class="ccq-menu-item" data-action="restart">' +
       '    <span class="ccq-menu-icon-glyph">↻</span>' +
-      '    <span>Restart this game</span>' +
-      '  </button>' +
-      '  <button class="ccq-menu-item ccq-menu-item-close" data-action="close">' +
-      '    <span class="ccq-menu-icon-glyph">✕</span>' +
-      '    <span>Close menu</span>' +
+      '    <span>Play from beginning</span>' +
       '  </button>' +
       '</div>';
 
@@ -502,20 +685,38 @@ var saveAs=saveAs||navigator.msSaveBlob&&navigator.msSaveBlob.bind(navigator)||f
       e.preventDefault();
       e.stopPropagation();
 
-      if (action === 'close') {
-        closeMenu();
-      } else if (action === 'dashboard') {
-        closeMenu();
-        try { goHome(); } catch (err) { console.error('[CCQ] goHome failed:', err); }
-      } else if (action === 'restart') {
-        closeMenu();
+      // Every action closes the drawer first so the slide-out
+      // animation runs before the page does its thing — keeps the
+      // transition feeling intentional rather than abrupt.
+      closeMenu();
+
+      if (action === 'dashboard' || action === 'exit') {
+        // Home and Exit both return to the Flutter dashboard. Kept
+        // as separate menu entries because participants think of
+        // "going home" and "exiting the game" as distinct ideas
+        // even though the underlying call is the same.
         try {
-          if (window.SugarCube && window.SugarCube.Engine && typeof window.SugarCube.Engine.restart === 'function') {
+          goHome();
+        } catch (err) { console.error('[CCQ] goHome failed:', err); }
+      } else if (action === 'back') {
+        // SugarCube's history.backward — undoes the last passage
+        // navigation. No-ops silently if there's nothing to undo
+        // (e.g. fresh game launch) since `backward()` returns false.
+        try {
+          if (window.SugarCube && window.SugarCube.Engine
+              && typeof window.SugarCube.Engine.backward === 'function') {
+            window.SugarCube.Engine.backward();
+          }
+        } catch (err) { console.error('[CCQ] back failed:', err); }
+      } else if (action === 'restart') {
+        try {
+          if (window.SugarCube && window.SugarCube.Engine
+              && typeof window.SugarCube.Engine.restart === 'function') {
             window.SugarCube.Engine.restart();
           } else {
-            // Fallback for the very rare case where SugarCube isn't on
-            // the window namespace yet — reload the page so the player
-            // gets a clean start either way.
+            // Fallback for the very rare case where SugarCube isn't
+            // on the window namespace yet — reload the page so the
+            // player gets a clean start either way.
             window.location.reload();
           }
         } catch (err) {
@@ -839,31 +1040,49 @@ can paint its own backdrop.
 
 /* Locally bundled Nunito so the game runs offline at the workshop. */
 @font-face {
-  font-family: 'Nunito';
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif;
   font-style: normal;
   font-weight: 600;
   font-display: swap;
   src: url('fonts/Nunito-SemiBold.ttf') format('truetype');
 }
 @font-face {
-  font-family: 'Nunito';
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif;
   font-style: normal;
   font-weight: 700;
   font-display: swap;
   src: url('fonts/Nunito-Bold.ttf') format('truetype');
 }
 @font-face {
-  font-family: 'Nunito';
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif;
   font-style: normal;
   font-weight: 800;
   font-display: swap;
   src: url('fonts/Nunito-ExtraBold.ttf') format('truetype');
 }
 
+/* CardioCareQuest viridis palette (canonical across all games):
+     #440154  deep purple   — phone gradient stop 1
+     #3b528b  blue          — phone gradient stop 2
+     #21918c  teal          — phone gradient stop 3
+     #5ec962  green          — success bright
+     #fde725  yellow         — primary CTA / attention
+     #f4f1d8  cream          — page background
+   Dog Quest is the most scenic game in the catalog (sky / clouds /
+   landscape illustrations), so it does NOT swap its scenic
+   illustration colors (sky gradients, cloud purples, character
+   shadows). It DOES align the chrome layer with viridis:
+     --accent-yellow now uses viridis yellow (#fde725 ← #e4aa24)
+     page background now cream (#f4f1d8 ← #c8ccd1)
+   --cloud-purple (#9c88b1) is kept because it is both the cloud
+   fill AND the soft text accent — replacing it with viridis
+   #440154 would turn the clouds deep purple. It sits halfway
+   between the viridis deep-purple anchor and white, which is
+   close enough for the scenic intent. */
 :root {
   --cloud-white: #ffffff;
   --cloud-purple: #9c88b1;
-  --accent-yellow: #e4aa24;
+  --accent-yellow: #fde725;
   --text-dark: #3e4a59;
   --progress-bg: #514f35;
   --progress-fill: #786187;
@@ -872,11 +1091,12 @@ can paint its own backdrop.
 body, html {
   margin: 0;
   padding: 0;
-  font-family: 'Nunito', sans-serif;
-  /* Light grey backdrop so the dark phone box stands out in twinery.org
-     preview. On device, the build-time viewport override flattens .phone
-     so the body never shows. */
-  background-color: #c8ccd1;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif;
+  /* Cream backdrop matches the rest of the catalog. On device the
+     build-time viewport override flattens .phone so the body
+     rarely shows; in Twinery preview it gives the dark phone box
+     enough contrast to stand out. */
+  background-color: #f4f1d8;
 }
 
 /* body padding removed — was 1.5em 0, which left a visible empty
@@ -961,12 +1181,23 @@ body { padding: 0; }
   z-index: 20;
 }
 .header h1 {
-  font-size: 0.7rem;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.55);
+  font-size: 0.78rem;
+  font-weight: 700;
+  /* Default light-text colour matches the dark gradient on
+     scenes 1, 2 and 4. Scene 3 (active walk) uses a LIGHT
+     sky-blue gradient from #e0e9ed → #5e8c9c — translucent
+     white on light blue is invisible. The .scene-3 override
+     below switches to dark text so the "EXERCISE" label and
+     the bridge-injected burger icon stay legible against
+     the active-walk background. */
+  color: rgba(255, 255, 255, 0.7);
   margin: 0;
   letter-spacing: 1.5px;
   text-transform: uppercase;
+}
+.phone.scene-3 .header h1,
+.phone.scene-3 .menu-icon {
+  color: rgba(31, 58, 102, 0.85) !important;
 }
 /* Removed `.menu-icon { display: none }` — the bridge auto-injects
    the burger control and we want it visible here too. */
@@ -983,19 +1214,32 @@ body { padding: 0; }
    relative path resolves to twinery's domain (404) so the <img>'s
    onerror handler swaps to the .dog-emoji fallback — same dimensions,
    service-dog emoji, no broken-image icon. */
-.dog-image { width: 200px; height: auto; z-index: 3; position: relative; }
+/* Responsive dog sizing — clamp(min, preferred, max).
+   On a 720px-tall .phone (typical mid-size phone) `28vh` ≈ 201px,
+   matching the legacy fixed 200px. On a shorter 600px viewport
+   `28vh` ≈ 168px, freeing ~32px for the button stack so the third
+   "Beat a boss" tile stops getting clipped at the bottom of the
+   screen. The 140px floor keeps the dog readable on tiny test
+   devices (phones with viewport < 500px). The 200px ceiling caps
+   it on tablets so it doesn't blow up. */
+.dog-image {
+  width: clamp(140px, 28vh, 200px);
+  height: auto;
+  z-index: 3;
+  position: relative;
+}
 .dog-emoji {
   display: none;
-  width: 200px;
-  height: 200px;
-  font-size: 160px;
-  line-height: 200px;
+  width: clamp(140px, 28vh, 200px);
+  height: clamp(140px, 28vh, 200px);
+  font-size: clamp(112px, 22vh, 160px);
+  line-height: clamp(140px, 28vh, 200px);
   text-align: center;
   z-index: 3;
   position: relative;
 }
 .character-shadow {
-  width: 200px;
+  width: clamp(140px, 28vh, 200px);
   height: 14px;
   background-color: #69658a;
   border-radius: 50%;
@@ -1023,7 +1267,7 @@ body { padding: 0; }
   font-size: 1.15rem;
   cursor: pointer;
   box-shadow: 0 5px 0px #c6942a;
-  font-family: 'Nunito', sans-serif;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif;
   z-index: 10;
   position: relative;
 }
@@ -1037,7 +1281,13 @@ body { padding: 0; }
   color: #2a2a2a !important;
   text-decoration: none;
   width: 100%;
-  padding: 12px 10px;
+  /* 14px vertical / 16px horizontal — earlier 12px / 10px felt
+     cramped, especially with the desc line wrapping on narrow
+     phones. Combined with min-height below, gives every quest
+     tile a 64px tap target which matches accessibility guidance
+     for elderly users. */
+  padding: 14px 16px;
+  min-height: 64px;
   border-radius: 25px;
   text-align: center;
   cursor: pointer;
@@ -1047,14 +1297,29 @@ body { padding: 0; }
   align-items: center;
   justify-content: center;
   transition: transform 0.1s;
-  font-family: 'Nunito', sans-serif;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif;
+  box-sizing: border-box;
 }
 .button-stack a.link-internal:active {
   transform: translateY(4px);
   box-shadow: 0 0px 0px #b88616;
 }
-.button-stack a.link-internal .quest-title { font-weight: 800; font-size: 1.15rem; margin-bottom: 2px; }
-.button-stack a.link-internal .quest-desc  { font-weight: 700; font-size: 0.75rem; opacity: 0.9; }
+/* Bumped from 0.75rem to 0.92rem (~14.7px) — the smaller size
+   was illegible for the 60+ low-vision target audience. Title
+   stays at 1.15rem; gap between the two lines bumped to 4px so
+   neither runs into the other. */
+.button-stack a.link-internal .quest-title {
+  font-weight: 800;
+  font-size: 1.15rem;
+  line-height: 1.25;
+  margin-bottom: 4px;
+}
+.button-stack a.link-internal .quest-desc {
+  font-weight: 700;
+  font-size: 0.92rem;
+  line-height: 1.35;
+  opacity: 0.9;
+}
 
 /* Celebration scene buttons — primary (Do Another Quest) is the
    yellow accent that matches BEGIN on Welcome; secondary (Return to
@@ -1071,7 +1336,7 @@ body { padding: 0; }
   text-align: center;
   font-size: 16px;
   font-weight: 800;
-  font-family: 'Nunito', sans-serif;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif;
   cursor: pointer;
   border-radius: 16px;
   padding: 18px;
@@ -1114,7 +1379,7 @@ body { padding: 0; }
   font-size: 0.75rem;
   font-style: italic;
   text-decoration: underline;
-  font-family: 'Nunito', sans-serif;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
 /* --- Scene 1: intro --- */
@@ -1174,7 +1439,7 @@ body { padding: 0; }
   box-shadow: 0 5px 0px #c6942a;
   border: none;
   z-index: 10;
-  font-family: 'Nunito', sans-serif;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 .footer-btn:active { transform: translateY(3px); box-shadow: 0 2px 0px #c6942a; }
 
@@ -1192,7 +1457,15 @@ body { padding: 0; }
 }
 .scene-2 .cloud-area {
   position: absolute;
-  top: 16%;
+  /* Was top: 16% — that put the cloud top at ~115px on a 720px
+     viewport, which on a real device with a status-bar safe inset
+     and 2-line subtitle ("Regular exercise can help lower blood
+     pressure and improve heart health.") had the cloud's top edge
+     visually touching the subtitle's last line. Pushed to 24% so
+     there's a clear gap between subtitle and cloud bubble — the
+     subtitle is the instruction, the cloud is the heading-of-
+     options below it; they read as separate UI blocks now. */
+  top: 24%;
   left: 0;
   width: 100%;
   height: 22%;
@@ -1218,19 +1491,38 @@ body { padding: 0; }
 
 .scene-2 .character-container {
   margin-top: auto;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
   text-align: center;
   width: 100%;
   position: relative;
   z-index: 5;
 }
 
+/* Short-viewport tweak for compact phones where the dog image,
+   three quest buttons, and breathing space don't all fit on
+   720px. Tightens vertical rhythms so the "Beat a boss" tile
+   isn't visually clipped at the bottom edge. */
+@media (max-height: 680px) {
+  .scene-2 .character-container { margin-bottom: 10px; }
+  .button-stack { gap: 10px; margin-bottom: 12px; }
+  .button-stack a.link-internal {
+    padding: 12px 14px;
+    min-height: 60px;
+  }
+  .button-stack a.link-internal .quest-title { font-size: 1.05rem; }
+  .button-stack a.link-internal .quest-desc { font-size: 0.85rem; }
+}
+
 .button-stack {
-  width: 90%;
+  /* 92% width gives a few extra px of breathing room on the
+     sides versus the previous 90% — visually more aligned with
+     the subtitle / cloud / character above. */
+  width: 92%;
+  max-width: 360px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  margin-bottom: 25px;
+  gap: 14px;
+  margin-bottom: 20px;
   z-index: 10;
 }
 .quest-btn {
@@ -1248,7 +1540,7 @@ body { padding: 0; }
   align-items: center;
   justify-content: center;
   transition: transform 0.1s;
-  font-family: 'Nunito', sans-serif;
+  font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 .quest-btn:active { transform: translateY(4px); box-shadow: 0 0px 0px #b88616; }
 .quest-title { font-weight: 800; font-size: 1.15rem; margin-bottom: 2px; }
@@ -1923,7 +2215,7 @@ and the player sees just the loading text below.
 &lt;div class=&quot;phone scene-1&quot;&gt;
   &lt;div style=&quot;display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh;&quot;&gt;
     &lt;div style=&quot;font-size:72px; animation: pulse 1.5s infinite;&quot;&gt;🐾&lt;/div&gt;
-    &lt;div style=&quot;font-family:&#39;Nunito&#39;,sans-serif; font-weight:700; color:#9c88b1; margin-top:24px; font-size:18px;&quot;&gt;
+    &lt;div style=&quot;font-family:&#39;Atkinson Hyperlegible&#39;,system-ui,-apple-system,&quot;Segoe UI&quot;,sans-serif; font-weight:700; color:#9c88b1; margin-top:24px; font-size:18px;&quot;&gt;
       Returning to dashboard…
     &lt;/div&gt;
   &lt;/div&gt;
