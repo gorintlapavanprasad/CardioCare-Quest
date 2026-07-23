@@ -579,6 +579,16 @@ class _TwineGameHostState extends State<TwineGameHost> {
             position.longitude,
           );
 
+          // Reject implausible jumps. Fixes arrive ~1s apart; >50m in that
+          // window is ~180km/h — a GPS glitch, not a walk. Without this cap a
+          // single spurious fix could add hundreds of metres and complete the
+          // quest on its own. Re-baseline to this position but don't credit
+          // the jump. (custom_walk_game applies the same guard.)
+          if (distance > 50.0) {
+            _lastPosition = position;
+            return;
+          }
+
           _writeCount++;
           if (_writeCount % 5 == 0 &&
               _sessionId != null &&
@@ -647,7 +657,18 @@ class _TwineGameHostState extends State<TwineGameHost> {
     final uid = _uid;
     if (uid.isEmpty) return;
 
-    final pointsGained = widget.pointsCalculator(_targetDistance);
+    // Partial-walk credit: scale the full reward by how far the participant
+    // actually walked, so a walk ended early (via the bridge's
+    // FINISH_QUEST_DATA "I'm done" path) is credited proportionally instead
+    // of paying full points for zero movement. A completed walk has
+    // _distanceWalked >= _targetDistance, so the ratio clamps to 1.0 and full
+    // walks are unaffected. Floored so truncation can never round a partial
+    // walk up to full. Mirrors custom_walk_game's model.
+    final fullPoints = widget.pointsCalculator(_targetDistance);
+    final ratio = _targetDistance > 0
+        ? (_distanceWalked / _targetDistance).clamp(0.0, 1.0)
+        : 0.0;
+    final pointsGained = (fullPoints * ratio).floor();
     final sessionId = _sessionId;
 
     TelemetryHooks.logEvent(

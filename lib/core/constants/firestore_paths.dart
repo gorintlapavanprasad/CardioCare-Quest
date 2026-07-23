@@ -43,5 +43,20 @@ class FirestorePaths {
   /// across devices when they log in with the same Unique ID.
   static const preferences = 'preferences';
   static const favorites = 'favorites';
+
+  /// Root collection grouping a co-play session (participant + caregiver).
+  /// `pairedSessions/{pairedSessionId}` carries session metadata + joint
+  /// settings; every write made during the session (events, movement,
+  /// surveys) also carries a `pairedSessionId` correlation field so the
+  /// whole session can be reconstructed. A thin mirror lives at
+  /// `userData/{uid}/pairedSessions/{id}` for per-participant queries.
+  static const pairedSessions = 'pairedSessions';
+
+  /// Sub-collections of `pairedSessions/{id}` for the caregiver view:
+  /// `helpMarkers` — one doc each time the caregiver marks that help was
+  /// given (with the game/step context); `notes` — free-text caregiver
+  /// observations, one doc per entry (never overwritten).
+  static const helpMarkers = 'helpMarkers';
+  static const notes = 'notes';
 }
 

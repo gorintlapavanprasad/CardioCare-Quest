@@ -69,7 +69,10 @@ class NfcService {
       await NfcManager.instance.startSession(
         alertMessage: alertMessage,
         onDiscovered: (NfcTag tag) async {
-          final id = _extractParticipantId(tag);
+          // Android's `cachedMessage` is often null/empty on re-scan or
+          // for certain tag techs, so `_extractParticipantId` now does a
+          // live `ndef.read()` fallback — hence it is async and awaited.
+          final id = await _extractParticipantId(tag);
           try {
             await NfcManager.instance.stopSession(
               alertMessage: id != null ? 'Logged in.' : null,
@@ -86,7 +89,22 @@ class NfcService {
       if (!completer.isCompleted) completer.complete(null);
     }
 
-    return completer.future;
+    // Honour the contract in this method's doc: resolve with `null` if no
+    // tag is presented within a reasonable window instead of hanging the
+    // login screen forever (the old code had no timeout, so a mis-tap
+    // that never fired `onDiscovered` left the future pending).
+    return completer.future.timeout(
+      const Duration(seconds: 20),
+      onTimeout: () async {
+        await stopScan();
+        lastDiagnostic =
+            'Scan timed out — no tag detected. Hold the card flat against '
+            'the back of the phone and try again.';
+        debugPrint('NfcService: $lastDiagnostic');
+        _scanning = false;
+        return null;
+      },
+    );
   }
 
   /// Cancel an in-flight scan. Safe to call when no scan is active.
@@ -117,7 +135,7 @@ class NfcService {
   /// Read-only from outside; cleared by the next `startScan` call.
   String? lastDiagnostic;
 
-  String? _extractParticipantId(NfcTag tag) {
+  Future<String?> _extractParticipantId(NfcTag tag) async {
     lastDiagnostic = null;
     try {
       final ndef = Ndef.from(tag);
@@ -128,8 +146,22 @@ class NfcService {
         debugPrint('NfcService: $lastDiagnostic');
         return null;
       }
-      final cached = ndef.cachedMessage;
+      // Prefer the message snapshotted at discovery time; on Android this
+      // is frequently null/empty (re-scan within a session, TECH_DISCOVERED
+      // dispatch, certain tag techs), so fall back to an active read. This
+      // is the fix for "some scans write no identifier" on Android.
+      var cached = ndef.cachedMessage;
       if (cached == null || cached.records.isEmpty) {
+        try {
+          cached = await ndef.read();
+        } catch (e) {
+          lastDiagnostic = 'Tag is NDEF but no cached message and a live '
+              'read failed: $e';
+          debugPrint('NfcService: $lastDiagnostic');
+          return null;
+        }
+      }
+      if (cached.records.isEmpty) {
         lastDiagnostic = 'Tag is NDEF but carries no records.';
         debugPrint('NfcService: $lastDiagnostic');
         return null;

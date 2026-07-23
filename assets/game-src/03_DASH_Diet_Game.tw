@@ -296,6 +296,10 @@ body {
   cursor: pointer !important;
   border: 2px solid !important;
   box-sizing: border-box !important;
+  min-height: 48px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
 }
 .choice-btn.lowers,
 .phone a.choice-btn.lowers,
@@ -560,6 +564,10 @@ body {
   text-decoration: none !important;
   font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif !important;
   box-sizing: border-box !important;
+  min-height: 48px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
 }
 
 /* Plain in-text links */
@@ -683,6 +691,152 @@ $(document).on(":passagedisplay", function (ev) {
 
 
 
+::DashHelpers [script]
+/*
+DASH Diet Game — food POOL + weighted, non-repeating picker.
+Convention: game logic lives here in a [script] passage's setup.*
+namespace rather than inline in passages (mirrors Salt Sludge's
+SaltHelpers). UPDATE6 (no repeat), UPDATE7 (self-terminating via
+null), UPDATE8 (weight the draw toward packaged foods).
+
+setup.dash.foods — every classifiable food. Each object:
+  { id, emoji, name, desc, correct: 'lowers'|'raises', explain, packaged }
+The emoji / name / desc / correct / explain content for the first six
+items is lifted verbatim from the old hardcoded Food Card 1..6 + the
+Food Result explain chain; the remaining packaged items were added so
+the packaged-weighting actually biases the draw.
+*/
+setup.dash = setup.dash || {};
+
+setup.dash.foods = [
+  {
+    id: "banana",
+    emoji: "🍌",
+    name: "Banana",
+    desc: "A common fruit. Sweet. Easy to find. You probably already know someone who eats one every morning.",
+    correct: "lowers",
+    explain: "Bananas are high in potassium, which helps your kidneys flush excess sodium out. Less sodium means less pressure on your artery walls. A banana a day is a real cardiovascular tool.",
+    packaged: false
+  },
+  {
+    id: "noodles",
+    emoji: "🍜",
+    name: "Instant Noodles",
+    desc: "Quick to make. Inexpensive. A meal that shows up in most kitchens at some point.",
+    correct: "raises",
+    explain: "One packet of instant noodles can contain 1500 milligrams of sodium. The recommended daily limit is 2300. One packet gets you halfway there before anything else.",
+    packaged: true
+  },
+  {
+    id: "darkchocolate",
+    emoji: "🍫",
+    name: "Dark Chocolate",
+    desc: "Not milk chocolate. Dark, seventy percent cacao or higher. A small square. Not a whole bar.",
+    correct: "lowers",
+    explain: "Dark chocolate contains flavonoids that help blood vessels relax and widen. A small amount, around one square, can produce a measurable drop in blood pressure. The key word is small.",
+    packaged: false
+  },
+  {
+    id: "bacon",
+    emoji: "🥓",
+    name: "Bacon",
+    desc: "Cured in salt. High in saturated fat. A food that appears on a lot of breakfast plates.",
+    correct: "raises",
+    explain: "Bacon is cured in salt and high in saturated fat. Sodium increases blood volume. Saturated fat stiffens artery walls. Together they are a real cardiovascular load.",
+    packaged: true
+  },
+  {
+    id: "spinach",
+    emoji: "🥬",
+    name: "Spinach",
+    desc: "A leafy green. Eaten raw or cooked. Shows up in salads, soups, side dishes.",
+    correct: "lowers",
+    explain: "Spinach is high in potassium and magnesium, two minerals that directly support healthy blood pressure. One of the most nutrient-dense foods for the heart.",
+    packaged: false
+  },
+  {
+    id: "cannedsoup",
+    emoji: "🥫",
+    name: "Canned Soup",
+    desc: "Warm. Convenient. A common meal for busy days or cold evenings.",
+    correct: "raises",
+    explain: "One serving of canned soup often contains 800 to 1200 milligrams of sodium. Many cans hold two servings. Checking labels on canned food is one of the best things you can do for blood pressure.",
+    packaged: true
+  },
+  {
+    id: "pretzels",
+    emoji: "🥨",
+    name: "Salted Pretzels",
+    desc: "A crunchy snack straight from the bag. Twisted, golden, coated in coarse salt.",
+    correct: "raises",
+    explain: "Those salt crystals on top are the giveaway. A single serving of pretzels carries several hundred milligrams of sodium, and the bag rarely holds just one serving.",
+    packaged: true
+  },
+  {
+    id: "frozenpizza",
+    emoji: "🍕",
+    name: "Frozen Pizza",
+    desc: "Straight from the freezer to the oven. Cheese, cured toppings, a salted crust.",
+    correct: "raises",
+    explain: "Between the cheese, the processed meat, and the dough, one frozen pizza can hold most of a day's sodium in a single meal.",
+    packaged: true
+  },
+  {
+    id: "deliham",
+    emoji: "🍖",
+    name: "Deli Ham",
+    desc: "Sliced at the deli counter. Pink, thin, ready for a sandwich.",
+    correct: "raises",
+    explain: "Processed deli meats are cured and preserved with salt. A few slices deliver a surprising sodium load before the bread is even added.",
+    packaged: true
+  },
+  {
+    id: "sweetpotato",
+    emoji: "🍠",
+    name: "Sweet Potato",
+    desc: "An orange root vegetable. Baked, roasted, or mashed. Naturally sweet.",
+    correct: "lowers",
+    explain: "Sweet potato is quietly one of the best blood pressure foods. High in potassium, low in sodium. Your arteries appreciate it.",
+    packaged: false
+  }
+];
+
+/* Draw the next food:
+   - candidates = foods not yet in seenFoods (UPDATE6, no repeats)
+   - none left  -> return null so Round Start ends the quiz (UPDATE7)
+   - otherwise weight packaged items 2.5x vs 1x for fresh (UPDATE8),
+     record the pick in seenFoods, stash it in $currentFood, return it. */
+setup.dash.pickFood = function () {
+  var seen = State.variables.seenFoods || [];
+  var candidates = setup.dash.foods.filter(function (f) {
+    return seen.indexOf(f.id) === -1;
+  });
+  if (candidates.length === 0) {
+    return null;
+  }
+  var weights = candidates.map(function (f) {
+    return f.packaged ? 2.5 : 1;
+  });
+  var total = 0;
+  for (var i = 0; i < weights.length; i++) {
+    total += weights[i];
+  }
+  var r = Math.random() * total;
+  var chosen = candidates[candidates.length - 1];
+  for (var j = 0; j < candidates.length; j++) {
+    r -= weights[j];
+    if (r <= 0) {
+      chosen = candidates[j];
+      break;
+    }
+  }
+  seen.push(chosen.id);
+  State.variables.seenFoods = seen;
+  State.variables.currentFood = chosen;
+  return chosen;
+};
+
+
 ::Story innit [Important/Needed]
 /*
 SYSTEM CODE: runs once at the very start.
@@ -708,6 +862,12 @@ You do not need to edit this.
 <<set $lastFood to "">>
 <<set $lastCorrect to false>>
 <<set $meal to []>>
+/* Food-pool state (UPDATE6/7/8): seenFoods tracks which pool ids have
+   already been shown this play-through; currentFood is the object the
+   generic Food Card / Food Result render. Reset here so PLAY AGAIN
+   starts from a full, unshuffled-order pool. */
+<<set $seenFoods to []>>
+<<set $currentFood to null>>
 /* One-shot guard so Meal Result's submitResponse fires exactly once
    per play-through. Reset on Story innit so PLAY AGAIN gets a fresh
    shot. See ::Meal Result for the submit body. */
@@ -774,37 +934,28 @@ Card 2 of 2 before gameplay starts.
 
 ::Round Start [Important/Needed nobr]
 /*
-START OF EACH FOOD CARD ROUND.
-Shows current round, score meters, and routes to the food card.
+ROUND ROUTER (UPDATE6/7/8).
+No longer a UI screen. Draws the next food from the weighted,
+non-repeating pool via setup.dash.pickFood(). When the pool is
+exhausted pickFood() returns null and we advance to the meal builder
+(the same phase the old Food Result advanced to after the last card).
+Otherwise we render the single generic Food Card for $currentFood.
 */
-
-<div class="phone">
-<div class="header"><span>DASH Game</span><span class="round-label">Round $round of 6</span></div>
-
-<div class="meters-wrap">
-<div class="meter-row"><div class="meter-label">Correct</div><div class="meter-bar"><div class="meter-bar-fill correct" @style="'width: ' + Math.min(100, ($score / 6) * 100) + '%'"></div></div></div>
-<div class="meter-row"><div class="meter-label">Wrong</div><div class="meter-bar"><div class="meter-bar-fill wrong" @style="'width: ' + Math.min(100, ($wrong / 6) * 100) + '%'"></div></div></div>
-</div>
-
-<div class="content">
-
-<p class="round-status">A food is coming. Think about what it does to blood pressure before you answer.</p>
-
-<div class="spacer"></div>
-
-<<if $round is 1>><a class="btn-primary" data-passage="Food Card 1">SHOW ME THE FOOD</a><<elseif $round is 2>><a class="btn-primary" data-passage="Food Card 2">SHOW ME THE FOOD</a><<elseif $round is 3>><a class="btn-primary" data-passage="Food Card 3">SHOW ME THE FOOD</a><<elseif $round is 4>><a class="btn-primary" data-passage="Food Card 4">SHOW ME THE FOOD</a><<elseif $round is 5>><a class="btn-primary" data-passage="Food Card 5">SHOW ME THE FOOD</a><<else>><a class="btn-primary" data-passage="Food Card 6">SHOW ME THE FOOD</a><</if>>
-
-</div>
-</div>
+<<set _f to setup.dash.pickFood()>>
+<<if _f is null>><<goto "Meal Builder Intro">><<else>><<goto "Food Card">><</if>>
 
 
-::Food Card 1 [Important/Needed nobr]
+::Food Card [Important/Needed nobr]
 /*
-FOOD CARD 1: Banana. Correct = Lowers BP.
+GENERIC FOOD CARD (UPDATE6/7/8).
+Renders whatever setup.dash.pickFood() stashed in $currentFood. The two
+choices score against $currentFood.correct: a matching answer bumps
+$score and sets $lastCorrect true; a mismatch bumps $wrong and sets it
+false. Then on to Food Result. Replaces the old hardcoded Food Card 1..6.
 */
 
 <div class="phone">
-<div class="header"><span>DASH Game</span><span class="round-label">Round 1 of 6</span></div>
+<div class="header"><span>DASH Game</span><span class="round-label">Round $round of <<print setup.dash.foods.length>></span></div>
 
 <div class="meters-wrap">
 <div class="meter-row"><div class="meter-label">Correct</div><div class="meter-bar"><div class="meter-bar-fill correct" @style="'width: ' + Math.min(100, ($score / 6) * 100) + '%'"></div></div></div>
@@ -814,9 +965,9 @@ FOOD CARD 1: Banana. Correct = Lowers BP.
 <div class="content">
 
 <div class="quiz-card">
-<span class="quiz-emoji">🍌</span>
-<h2 class="quiz-name">Banana</h2>
-<p class="quiz-desc">A common fruit. Sweet. Easy to find. You probably already know someone who eats one every morning.</p>
+<span class="quiz-emoji"><<print $currentFood.emoji>></span>
+<h2 class="quiz-name"><<print $currentFood.name>></h2>
+<p class="quiz-desc"><<print $currentFood.desc>></p>
 </div>
 
 <div class="question-prompt">What does it do to blood pressure?</div>
@@ -824,276 +975,26 @@ FOOD CARD 1: Banana. Correct = Lowers BP.
 <div class="choice-row">
 
 <<link '<span>LOWERS BP</span>'>>
-<<set $lastFood to "banana">>
+<<set $lastFood to $currentFood.id>>
+<<if $currentFood.correct is "lowers">>
 <<set $lastCorrect to true>>
 <<set $score to $score + 1>>
+<<else>>
+<<set $lastCorrect to false>>
+<<set $wrong to $wrong + 1>>
+<</if>>
 <<goto "Food Result">>
 <</link>>
 
 <<link '<span>RAISES BP</span>'>>
-<<set $lastFood to "banana">>
-<<set $lastCorrect to false>>
-<<set $wrong to $wrong + 1>>
-<<goto "Food Result">>
-<</link>>
-
-</div>
-</div>
-</div>
-
-<<script>>
-setTimeout(function () {
-  var btns = document.querySelectorAll('.choice-row a.macro-link, .choice-row a.link-internal');
-  if (btns.length >= 1) btns[0].classList.add('choice-btn', 'lowers');
-  if (btns.length >= 2) btns[1].classList.add('choice-btn', 'raises');
-}, 0);
-<</script>>
-
-
-::Food Card 2 [Important/Needed nobr]
-/*
-FOOD CARD 2: Instant Noodles. Correct = Raises BP.
-*/
-
-<div class="phone">
-<div class="header"><span>DASH Game</span><span class="round-label">Round 2 of 6</span></div>
-
-<div class="meters-wrap">
-<div class="meter-row"><div class="meter-label">Correct</div><div class="meter-bar"><div class="meter-bar-fill correct" @style="'width: ' + Math.min(100, ($score / 6) * 100) + '%'"></div></div></div>
-<div class="meter-row"><div class="meter-label">Wrong</div><div class="meter-bar"><div class="meter-bar-fill wrong" @style="'width: ' + Math.min(100, ($wrong / 6) * 100) + '%'"></div></div></div>
-</div>
-
-<div class="content">
-
-<div class="quiz-card">
-<span class="quiz-emoji">🍜</span>
-<h2 class="quiz-name">Instant Noodles</h2>
-<p class="quiz-desc">Quick to make. Inexpensive. A meal that shows up in most kitchens at some point.</p>
-</div>
-
-<div class="question-prompt">What does it do to blood pressure?</div>
-
-<div class="choice-row">
-
-<<link '<span>LOWERS BP</span>'>>
-<<set $lastFood to "noodles">>
-<<set $lastCorrect to false>>
-<<set $wrong to $wrong + 1>>
-<<goto "Food Result">>
-<</link>>
-
-<<link '<span>RAISES BP</span>'>>
-<<set $lastFood to "noodles">>
+<<set $lastFood to $currentFood.id>>
+<<if $currentFood.correct is "raises">>
 <<set $lastCorrect to true>>
 <<set $score to $score + 1>>
-<<goto "Food Result">>
-<</link>>
-
-</div>
-</div>
-</div>
-
-<<script>>
-setTimeout(function () {
-  var btns = document.querySelectorAll('.choice-row a.macro-link, .choice-row a.link-internal');
-  if (btns.length >= 1) btns[0].classList.add('choice-btn', 'lowers');
-  if (btns.length >= 2) btns[1].classList.add('choice-btn', 'raises');
-}, 0);
-<</script>>
-
-
-::Food Card 3 [Important/Needed nobr]
-/*
-FOOD CARD 3: Dark Chocolate. Correct = Lowers BP.
-*/
-
-<div class="phone">
-<div class="header"><span>DASH Game</span><span class="round-label">Round 3 of 6</span></div>
-
-<div class="meters-wrap">
-<div class="meter-row"><div class="meter-label">Correct</div><div class="meter-bar"><div class="meter-bar-fill correct" @style="'width: ' + Math.min(100, ($score / 6) * 100) + '%'"></div></div></div>
-<div class="meter-row"><div class="meter-label">Wrong</div><div class="meter-bar"><div class="meter-bar-fill wrong" @style="'width: ' + Math.min(100, ($wrong / 6) * 100) + '%'"></div></div></div>
-</div>
-
-<div class="content">
-
-<div class="quiz-card">
-<span class="quiz-emoji">🍫</span>
-<h2 class="quiz-name">Dark Chocolate</h2>
-<p class="quiz-desc">Not milk chocolate. Dark, seventy percent cacao or higher. A small square. Not a whole bar.</p>
-</div>
-
-<div class="question-prompt">What does it do to blood pressure?</div>
-
-<div class="choice-row">
-
-<<link '<span>LOWERS BP</span>'>>
-<<set $lastFood to "darkchocolate">>
-<<set $lastCorrect to true>>
-<<set $score to $score + 1>>
-<<goto "Food Result">>
-<</link>>
-
-<<link '<span>RAISES BP</span>'>>
-<<set $lastFood to "darkchocolate">>
+<<else>>
 <<set $lastCorrect to false>>
 <<set $wrong to $wrong + 1>>
-<<goto "Food Result">>
-<</link>>
-
-</div>
-</div>
-</div>
-
-<<script>>
-setTimeout(function () {
-  var btns = document.querySelectorAll('.choice-row a.macro-link, .choice-row a.link-internal');
-  if (btns.length >= 1) btns[0].classList.add('choice-btn', 'lowers');
-  if (btns.length >= 2) btns[1].classList.add('choice-btn', 'raises');
-}, 0);
-<</script>>
-
-
-::Food Card 4 [Important/Needed nobr]
-/*
-FOOD CARD 4: Bacon. Correct = Raises BP.
-*/
-
-<div class="phone">
-<div class="header"><span>DASH Game</span><span class="round-label">Round 4 of 6</span></div>
-
-<div class="meters-wrap">
-<div class="meter-row"><div class="meter-label">Correct</div><div class="meter-bar"><div class="meter-bar-fill correct" @style="'width: ' + Math.min(100, ($score / 6) * 100) + '%'"></div></div></div>
-<div class="meter-row"><div class="meter-label">Wrong</div><div class="meter-bar"><div class="meter-bar-fill wrong" @style="'width: ' + Math.min(100, ($wrong / 6) * 100) + '%'"></div></div></div>
-</div>
-
-<div class="content">
-
-<div class="quiz-card">
-<span class="quiz-emoji">🥓</span>
-<h2 class="quiz-name">Bacon</h2>
-<p class="quiz-desc">Cured in salt. High in saturated fat. A food that appears on a lot of breakfast plates.</p>
-</div>
-
-<div class="question-prompt">What does it do to blood pressure?</div>
-
-<div class="choice-row">
-
-<<link '<span>LOWERS BP</span>'>>
-<<set $lastFood to "bacon">>
-<<set $lastCorrect to false>>
-<<set $wrong to $wrong + 1>>
-<<goto "Food Result">>
-<</link>>
-
-<<link '<span>RAISES BP</span>'>>
-<<set $lastFood to "bacon">>
-<<set $lastCorrect to true>>
-<<set $score to $score + 1>>
-<<goto "Food Result">>
-<</link>>
-
-</div>
-</div>
-</div>
-
-<<script>>
-setTimeout(function () {
-  var btns = document.querySelectorAll('.choice-row a.macro-link, .choice-row a.link-internal');
-  if (btns.length >= 1) btns[0].classList.add('choice-btn', 'lowers');
-  if (btns.length >= 2) btns[1].classList.add('choice-btn', 'raises');
-}, 0);
-<</script>>
-
-
-::Food Card 5 [Important/Needed nobr]
-/*
-FOOD CARD 5: Spinach. Correct = Lowers BP.
-*/
-
-<div class="phone">
-<div class="header"><span>DASH Game</span><span class="round-label">Round 5 of 6</span></div>
-
-<div class="meters-wrap">
-<div class="meter-row"><div class="meter-label">Correct</div><div class="meter-bar"><div class="meter-bar-fill correct" @style="'width: ' + Math.min(100, ($score / 6) * 100) + '%'"></div></div></div>
-<div class="meter-row"><div class="meter-label">Wrong</div><div class="meter-bar"><div class="meter-bar-fill wrong" @style="'width: ' + Math.min(100, ($wrong / 6) * 100) + '%'"></div></div></div>
-</div>
-
-<div class="content">
-
-<div class="quiz-card">
-<span class="quiz-emoji">🥬</span>
-<h2 class="quiz-name">Spinach</h2>
-<p class="quiz-desc">A leafy green. Eaten raw or cooked. Shows up in salads, soups, side dishes.</p>
-</div>
-
-<div class="question-prompt">What does it do to blood pressure?</div>
-
-<div class="choice-row">
-
-<<link '<span>LOWERS BP</span>'>>
-<<set $lastFood to "spinach">>
-<<set $lastCorrect to true>>
-<<set $score to $score + 1>>
-<<goto "Food Result">>
-<</link>>
-
-<<link '<span>RAISES BP</span>'>>
-<<set $lastFood to "spinach">>
-<<set $lastCorrect to false>>
-<<set $wrong to $wrong + 1>>
-<<goto "Food Result">>
-<</link>>
-
-</div>
-</div>
-</div>
-
-<<script>>
-setTimeout(function () {
-  var btns = document.querySelectorAll('.choice-row a.macro-link, .choice-row a.link-internal');
-  if (btns.length >= 1) btns[0].classList.add('choice-btn', 'lowers');
-  if (btns.length >= 2) btns[1].classList.add('choice-btn', 'raises');
-}, 0);
-<</script>>
-
-
-::Food Card 6 [Important/Needed nobr]
-/*
-FOOD CARD 6: Canned Soup. Correct = Raises BP.
-*/
-
-<div class="phone">
-<div class="header"><span>DASH Game</span><span class="round-label">Round 6 of 6</span></div>
-
-<div class="meters-wrap">
-<div class="meter-row"><div class="meter-label">Correct</div><div class="meter-bar"><div class="meter-bar-fill correct" @style="'width: ' + Math.min(100, ($score / 6) * 100) + '%'"></div></div></div>
-<div class="meter-row"><div class="meter-label">Wrong</div><div class="meter-bar"><div class="meter-bar-fill wrong" @style="'width: ' + Math.min(100, ($wrong / 6) * 100) + '%'"></div></div></div>
-</div>
-
-<div class="content">
-
-<div class="quiz-card">
-<span class="quiz-emoji">🥫</span>
-<h2 class="quiz-name">Canned Soup</h2>
-<p class="quiz-desc">Warm. Convenient. A common meal for busy days or cold evenings.</p>
-</div>
-
-<div class="question-prompt">What does it do to blood pressure?</div>
-
-<div class="choice-row">
-
-<<link '<span>LOWERS BP</span>'>>
-<<set $lastFood to "cannedsoup">>
-<<set $lastCorrect to false>>
-<<set $wrong to $wrong + 1>>
-<<goto "Food Result">>
-<</link>>
-
-<<link '<span>RAISES BP</span>'>>
-<<set $lastFood to "cannedsoup">>
-<<set $lastCorrect to true>>
-<<set $score to $score + 1>>
+<</if>>
 <<goto "Food Result">>
 <</link>>
 
@@ -1118,7 +1019,7 @@ Moves to next round or meal builder after round 6.
 */
 
 <div class="phone">
-<div class="header"><span>DASH Game</span><span class="round-label">Round $round of 6</span></div>
+<div class="header"><span>DASH Game</span><span class="round-label">Round $round of <<print setup.dash.foods.length>></span></div>
 
 <div class="meters-wrap">
 <div class="meter-row"><div class="meter-label">Correct</div><div class="meter-bar"><div class="meter-bar-fill correct" @style="'width: ' + Math.min(100, ($score / 6) * 100) + '%'"></div></div></div>
@@ -1128,26 +1029,21 @@ Moves to next round or meal builder after round 6.
 <div class="content">
 
 <div class="result-card">
-<<if $lastFood is "banana">><span class="result-emoji">🍌</span><<elseif $lastFood is "noodles">><span class="result-emoji">🍜</span><<elseif $lastFood is "darkchocolate">><span class="result-emoji">🍫</span><<elseif $lastFood is "bacon">><span class="result-emoji">🥓</span><<elseif $lastFood is "spinach">><span class="result-emoji">🥬</span><<else>><span class="result-emoji">🥫</span><</if>>
+<span class="result-emoji"><<print $currentFood.emoji>></span>
 
 <<if $lastCorrect is true>><div class="result-verdict correct">Correct</div><<else>><div class="result-verdict wrong">Not quite</div><</if>>
 
-<p class="result-explain"><<if $lastFood is "banana">>Bananas are high in potassium, which helps your kidneys flush excess sodium out. Less sodium means less pressure on your artery walls. A banana a day is a real cardiovascular tool.<<elseif $lastFood is "noodles">>One packet of instant noodles can contain 1500 milligrams of sodium. The recommended daily limit is 2300. One packet gets you halfway there before anything else.<<elseif $lastFood is "darkchocolate">>Dark chocolate contains flavonoids that help blood vessels relax and widen. A small amount, around one square, can produce a measurable drop in blood pressure. The key word is small.<<elseif $lastFood is "bacon">>Bacon is cured in salt and high in saturated fat. Sodium increases blood volume. Saturated fat stiffens artery walls. Together they are a real cardiovascular load.<<elseif $lastFood is "spinach">>Spinach is high in potassium and magnesium, two minerals that directly support healthy blood pressure. One of the most nutrient-dense foods for the heart.<<else>>One serving of canned soup often contains 800 to 1200 milligrams of sodium. Many cans hold two servings. Checking labels on canned food is one of the best things you can do for blood pressure.<</if>></p>
+<p class="result-explain"><<print $currentFood.explain>></p>
 </div>
 
-<<if $round lt 6>>
+<!-- Termination is decided by the pool, not by $round: Round Start's
+     pickFood() returns null once every food has been seen and routes to
+     Meal Builder Intro. So Food Result always just advances the round
+     counter and hands back to Round Start for the next draw.
+     Per-round "BACK TO CARDIOCAREQUEST" stays removed — the burger
+     menu (≡) already exposes "Go to dashboard" on every screen. -->
 <<set $round to $round + 1>>
 <a class="btn-primary" data-passage="Round Start">NEXT FOOD</a>
-<!-- Per-round "BACK TO CARDIOCAREQUEST" removed — the burger menu (≡)
-     in the header already exposes "Go to dashboard" on every screen,
-     so showing a second exit button after every food card was both
-     redundant and visually noisy. Exit-to-dashboard is now offered
-     only at the FINAL Result screen + the Meal Result screen, where
-     the player has actually finished the game. -->
-<<else>>
-<a class="btn-primary" data-passage="Meal Builder Intro">NOW BUILD A MEAL</a>
-<<set $round to $round + 1>>
-<</if>>
 
 </div>
 </div>
@@ -1166,7 +1062,7 @@ TRANSITION: Cards done. Introduce meal building.
 
 <h2 class="intro-title">Build a Meal</h2>
 
-<p class="narrative center">You scored $score out of 6 on the cards.</p>
+<p class="narrative center">You scored $score out of <<print setup.dash.foods.length>> on the cards.</p>
 
 <p class="narrative">Now pick ingredients to build a meal. Tap each one to add it. The score bar fills as you choose.</p>
 
@@ -1260,6 +1156,10 @@ session flag so PLAY AGAIN doesn't double-credit.
     }
   } catch (e) { /* swallow */ }
 >>
+<!-- UPDATE12: chain the control Daily Check-In off the END of this game.
+     Inside the same submit-once guard so it launches exactly once per
+     play-through (PLAY AGAIN resets $submittedThisSession in Story innit). -->
+<<run try { if (window.CCQ && window.CCQ.launchGame) window.CCQ.launchGame("control_daily_checkin"); } catch (e) {} >>
 <</if>>
 
 <div class="phone">

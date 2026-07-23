@@ -17,10 +17,26 @@ State.variables.funReasons = [];
 State.variables.feeling = 0;
 State.variables.playAgain = "";
 State.variables.wishOpen = "";
-State.variables.susAnswers = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+State.variables.susAnswers = [0, 0, 0, 0];
 State.variables.threeWords = ["", "", ""];
-State.variables.rankFun = ["salt", "walk", "dash", "village", "bingo"];
-State.variables.rankHealth = ["salt", "walk", "dash", "village", "bingo"];
+/* Fisher–Yates shuffle so each ranking list starts in an
+   independent random order — removes the fixed-order bias that
+   came from both arrays being seeded identically. */
+var _ccqShuffle = function (a) {
+  for (var i = a.length - 1; i > 0; i--) {
+    var j = Math.floor(Math.random() * (i + 1));
+    var t = a[i]; a[i] = a[j]; a[j] = t;
+  }
+  return a;
+};
+State.variables.rankFun = _ccqShuffle(["salt", "walk", "dash", "village", "bingo"]);
+State.variables.rankHealth = _ccqShuffle(["salt", "walk", "dash", "village", "bingo"]);
+State.variables.rankFunTouched = false;
+State.variables.rankHealthTouched = false;
+State.variables.favoriteTouched = false;
+State.variables.feelingTouched = false;
+State.variables.playAgainTouched = false;
+State.variables.submittedThisSession = false;
 State.variables.susIdx = 1;
 State.variables.susScore = 0;
 State.variables.startedAt = Date.now();
@@ -98,6 +114,10 @@ setup.renderRank = function (containerId, varName) {
           var t2 = current[i]; current[i] = current[i + 1]; current[i + 1] = t2;
         }
         State.variables[varName] = current;
+        /* Record that the participant actually moved an item in this
+           list — detect which list is being rendered by varName. */
+        if (varName === "rankFun") State.variables.rankFunTouched = true;
+        if (varName === "rankHealth") State.variables.rankHealthTouched = true;
         draw();
       });
     });
@@ -892,6 +912,7 @@ setTimeout(function () {
       });
       t.classList.add("selected");
       State.variables.favoriteGame = t.dataset.fav;
+      State.variables.favoriteTouched = true;
       enableNext();
     });
   });
@@ -1053,6 +1074,7 @@ setTimeout(function () {
       });
       t.classList.add("selected");
       State.variables.feeling = Number(t.dataset.feel);
+      State.variables.feelingTouched = true;
       enableNext();
     });
   });
@@ -1101,6 +1123,12 @@ Same select-then-confirm pattern as Q1 — see ::Q1 Favorite docstring.
 <span class="choice-check">✓</span>
 </a>
 
+<a class="choice-tile" data-again="no">
+<span class="choice-emoji">🙁</span>
+<div class="choice-text">No</div>
+<span class="choice-check">✓</span>
+</a>
+
 <a class="choice-tile" data-again="not_sure">
 <span class="choice-emoji">🤷</span>
 <div class="choice-text">Not sure</div>
@@ -1140,6 +1168,7 @@ setTimeout(function () {
       });
       t.classList.add("selected");
       State.variables.playAgain = t.dataset.again;
+      State.variables.playAgainTouched = true;
       enableNext();
     });
   });
@@ -1213,7 +1242,7 @@ SUS preamble.
 
 <span class="hero-emoji">📊</span>
 
-<h2 class="intro-title">Ten quick questions</h2>
+<h2 class="intro-title">Four quick questions</h2>
 
 <p class="narrative center">For each one, tap how much you agree.</p>
 
@@ -1235,10 +1264,11 @@ SUS preamble.
 ::SUS Q [nobr]
 /*
 SUS QUESTION SCREEN.
-Single passage handles all 10 SUS questions; advancing/retreating
+Single passage handles all 4 usability questions; advancing/retreating
 mutates $susIdx and re-renders ("SUS Q" calls itself via <<goto>>).
-On NEXT past Q10, navigates to "Three Words". BACK from Q1 returns
-to "SUS Intro".
+On NEXT past Q4, navigates to "Three Words". BACK from Q1 returns
+to "SUS Intro". All four questions are positively worded, so the
+raw 1–5 ratings are stored directly with no reverse scoring.
 
 Same select-then-confirm pattern as Q1 / Q3 / Q4 — tapping a tile
 records the rating in $susAnswers[idx] and highlights the tile;
@@ -1248,23 +1278,17 @@ $susAnswers[idx-1] on render and pre-selects it.
 */
 
 <<set _susQs to [
-  "I think that I would like to use this system frequently.",
-  "I found the system unnecessarily complex.",
-  "I thought the system was easy to use.",
-  "I think that I would need the support of a technical person to use this system.",
-  "I found the various functions in this system were well integrated.",
-  "I thought there was too much inconsistency in this system.",
-  "I would imagine that most people would learn to use this system very quickly.",
-  "I found the system very cumbersome to use.",
-  "I felt very confident using the system.",
-  "I needed to learn a lot of things before I could get going with this system."
+  "The games were easy to use.",
+  "I would like to keep playing these games.",
+  "I could tell how well I was doing.",
+  "I felt sure about what to tap."
 ]>>
 <<set _i to $susIdx>>
 <<set _q to _susQs[_i - 1]>>
-<<set _pct to 75 + Math.floor((_i / 10) * 15)>>
+<<set _pct to 75 + Math.floor((_i / 4) * 15)>>
 
 <div class="phone">
-<div class="header"><span>System questions</span><span class="header-progress"><<print _i>> of 10</span></div>
+<div class="header"><span>System questions</span><span class="header-progress"><<print _i>> of 4</span></div>
 <div class="progress-track"><div class="progress-fill" @style="'width: ' + _pct + '%;'"></div></div>
 <div class="content">
 
@@ -1333,14 +1357,14 @@ setTimeout(function () {
   });
 
   /* NEXT: advance susIdx and re-render this passage, OR jump
-     to Three Words on Q10. */
+     to Three Words on Q4. */
   if (nextBtn && nextBtn.dataset.bound !== "1") {
     nextBtn.dataset.bound = "1";
     nextBtn.addEventListener("click", function (e) {
       e.preventDefault();
       e.stopPropagation();
       if (nextBtn.classList.contains("disabled")) return;
-      if (idx >= 10) {
+      if (idx >= 4) {
         Engine.play("Three Words");
       } else {
         State.variables.susIdx = idx + 1;
@@ -1503,23 +1527,15 @@ setTimeout(function () {
 
 ::Done [nobr]
 /*
-DONE. Compute SUS score, persist payload, show thank-you.
+DONE. Persist payload, submit once, show thank-you.
+The four usability questions are all positively worded, so their
+raw 1–5 ratings are stored directly under `usability` — no reverse
+scoring, no composite score.
 */
 
 <<script>>
 (function () {
   var ans = State.variables.susAnswers || [];
-  var sum = 0;
-  for (var i = 0; i < 10; i++) {
-    var v = Number(ans[i]) || 0;
-    if (i % 2 === 0) {
-      sum += (v - 1);
-    } else {
-      sum += (5 - v);
-    }
-  }
-  var score = sum * 2.5;
-  State.variables.susScore = score;
 
   var payload = {
     endSurvey: {
@@ -1529,10 +1545,25 @@ DONE. Compute SUS score, persist payload, show thank-you.
       playAgain: State.variables.playAgain,
       wishOpen: State.variables.wishOpen
     },
-    sus: { answers: ans, score: score },
+    usability: {
+      easy: State.variables.susAnswers[0],
+      keepPlaying: State.variables.susAnswers[1],
+      knewProgress: State.variables.susAnswers[2],
+      confident: State.variables.susAnswers[3]
+    },
     threeWords: State.variables.threeWords,
     rankFun: State.variables.rankFun,
     rankHealth: State.variables.rankHealth,
+    rankFunTouched: State.variables.rankFunTouched,
+    rankHealthTouched: State.variables.rankHealthTouched,
+    touched: {
+      favorite: State.variables.favoriteTouched,
+      feeling: State.variables.feelingTouched,
+      playAgain: State.variables.playAgainTouched,
+      rankFun: State.variables.rankFunTouched,
+      rankHealth: State.variables.rankHealthTouched
+    },
+    submissionKey: State.variables.startedAt,
     startedAt: State.variables.startedAt,
     completedAt: Date.now()
   };
@@ -1541,12 +1572,22 @@ DONE. Compute SUS score, persist payload, show thank-you.
   } catch (e) {}
   /* CCQ — push the full payload to Flutter so it lands in
      surveys/post_play_v1/responses/{auto} via SurveyHooks.submitResponse.
-     localStorage above is just a defensive backup on the device. */
-  try {
-    if (window.CCQ && typeof window.CCQ.submitResponse === "function") {
-      window.CCQ.submitResponse(payload, { pointsEarned: 25 });
-    }
-  } catch (e) { /* swallow */ }
+     localStorage above is just a defensive backup on the device.
+
+     One-shot guard: the Done passage re-renders on every visit /
+     :passagestart, which previously fired submitResponse each time
+     and wrote a duplicate response row. Guard on
+     $submittedThisSession so the network submit fires exactly once
+     per session; `submissionKey` (the story's startedAt) lets any
+     stray re-fire coalesce onto the same logical response. */
+  if (!State.variables.submittedThisSession) {
+    State.variables.submittedThisSession = true;
+    try {
+      if (window.CCQ && typeof window.CCQ.submitResponse === "function") {
+        window.CCQ.submitResponse(payload, { pointsEarned: 25 });
+      }
+    } catch (e) { /* swallow */ }
+  }
 })();
 <</script>>
 
@@ -1561,7 +1602,6 @@ DONE. Compute SUS score, persist payload, show thank-you.
 <p class="done-message">You finished the survey. Your answers are saved on this device.</p>
 <div>
 <<if $favoriteGame isnot "">><span class="done-stat">Favorite: $favoriteGame</span><</if>>
-<span class="done-stat">SUS score: <<print Math.round($susScore)>></span>
 </div>
 </div>
 

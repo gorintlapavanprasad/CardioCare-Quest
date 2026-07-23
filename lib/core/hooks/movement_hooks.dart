@@ -78,6 +78,12 @@ abstract class MovementHooks {
           'test': false,
           'userId': uid,
           'game': gameId,
+          // Running distance so the session doc carries a non-null distance
+          // even for a walk that never reaches target and thus never calls
+          // endSession. Previously totalDistance was written only by
+          // endSession, so abandoned walks read as 0m.
+          'runningDistance': distanceWalked,
+          'targetDistance': targetDistance,
         },
         merge: true,
       ),
@@ -92,6 +98,10 @@ abstract class MovementHooks {
           'geohash': geohash,
           'latitude': position.latitude,
           'longitude': position.longitude,
+          // Per-ping cumulative distance. Analysis that reads distance out of
+          // LocationData used to find nothing here (→ 0 for everyone).
+          'distanceWalked': distanceWalked,
+          'targetDistance': targetDistance,
           'test': false,
         },
       ),
@@ -106,6 +116,7 @@ abstract class MovementHooks {
           'sessionId': sessionId,
           'game': gameId,
           'geohash': geohash,
+          'distanceWalked': distanceWalked,
           'timestamp': OfflineFieldValue.nowTimestamp(),
         },
       ),

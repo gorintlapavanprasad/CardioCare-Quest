@@ -462,6 +462,118 @@ $(document).on(":passagestart", function (ev) {
 
 
 
+::SaltHelpers [script]
+/*
+Salt Sludge — day-scenario POOL + shuffle helper (UPDATE9).
+Convention: game logic lives here in a [script] passage's setup.*
+namespace rather than inline in passages (mirrors DASH's DashHelpers).
+
+setup.salt.pool — every possible day scenario. Each object:
+  {
+    goodFood: { emoji, name },   // the potassium / low-sodium option
+    badFood:  { emoji, name },   // the high-sodium option
+    scene,                       // neutral, day-position-independent setup
+    goodExplain, badExplain,     // shown on Food Result
+    sludgeDown,                  // sludge removed when good chosen
+    sludgeUp,                    // sludge added when bad chosen
+    scoreUp                      // nutrient points when good chosen
+  }
+The first five scenarios reuse the emoji / name / scene / explain /
+number content from the old hardcoded Food Day 1..5. The Day 5 scene
+was rewritten neutral (it used to say "Last day … four days of choices"
+which only made sense in fixed position — meaningless once the order is
+shuffled). Two extra scenarios were added so a 5-of-N shuffle actually
+varies the pairs between play-throughs.
+*/
+setup.salt = setup.salt || {};
+
+setup.salt.pool = [
+  {
+    goodFood: { emoji: "🍌", name: "A banana" },
+    badFood: { emoji: "🥫", name: "A bowl of canned soup" },
+    scene: "You are home. It is late afternoon. You are hungry and need something quick.",
+    goodExplain: "That banana just delivered a flood of potassium to your kidneys. They got to work immediately, flushing out excess sodium. Your artery wall relaxed.",
+    badExplain: "That canned soup had nearly 900 milligrams of sodium in a single serving. Almost half your daily limit in one bowl. Your artery walls tightened. Sludge started forming.",
+    sludgeDown: 15,
+    sludgeUp: 25,
+    scoreUp: 10
+  },
+  {
+    goodFood: { emoji: "🥬", name: "A plate of spinach" },
+    badFood: { emoji: "🍜", name: "A packet of instant noodles" },
+    scene: "Lunchtime. You have ten minutes and two options on the counter.",
+    goodExplain: "Spinach is one of the most potassium-dense foods around. Your artery walls eased up. Blood is moving more freely right now.",
+    badExplain: "Instant noodles pack around 1500 milligrams of sodium per packet. Your artery is working harder now than it was five minutes ago.",
+    sludgeDown: 20,
+    sludgeUp: 30,
+    scoreUp: 10
+  },
+  {
+    goodFood: { emoji: "🍲", name: "A bowl of beans" },
+    badFood: { emoji: "🍟", name: "A bag of potato chips" },
+    scene: "Afternoon snack time. You open the cupboard. Two things catch your eye.",
+    goodExplain: "Beans are loaded with potassium and fiber. The sludge thinned out noticeably. Your vessel just got a proper clean.",
+    badExplain: "Potato chips are one of the sneakiest sodium sources around. A single serving can contain 200 milligrams or more. Your artery walls just got a little thicker.",
+    sludgeDown: 20,
+    sludgeUp: 25,
+    scoreUp: 10
+  },
+  {
+    goodFood: { emoji: "🍠", name: "A sweet potato" },
+    badFood: { emoji: "🥓", name: "Bacon" },
+    scene: "Dinner. You are tired. You want something good. Two options in front of you.",
+    goodExplain: "Sweet potato is the quiet champion of blood pressure foods. High potassium. Low sodium. Your artery is grateful.",
+    badExplain: "Bacon is cured in salt. That sodium hit your bloodstream fast. The sludge built up quickly.",
+    sludgeDown: 20,
+    sludgeUp: 30,
+    scoreUp: 10
+  },
+  {
+    goodFood: { emoji: "🥛", name: "Yogurt" },
+    badFood: { emoji: "🌭", name: "A hot dog" },
+    scene: "Evening. The fridge is open. Two things you could reach for.",
+    goodExplain: "Yogurt brings calcium and potassium together. Both help keep blood pressure down. Good call.",
+    badExplain: "A single hot dog contains nearly 600 milligrams of sodium. Your artery noticed immediately.",
+    sludgeDown: 20,
+    sludgeUp: 25,
+    scoreUp: 10
+  },
+  {
+    goodFood: { emoji: "🥑", name: "Half an avocado" },
+    badFood: { emoji: "🥨", name: "A handful of salted pretzels" },
+    scene: "Mid-morning. You want something to nibble on. Two choices sit on the shelf.",
+    goodExplain: "Avocado is rich in potassium and healthy fats. Your arteries relaxed and the sludge thinned a little.",
+    badExplain: "Salted pretzels are mostly refined carbs and salt. The sodium crept in and the sludge thickened.",
+    sludgeDown: 15,
+    sludgeUp: 25,
+    scoreUp: 10
+  },
+  {
+    goodFood: { emoji: "🥣", name: "A bowl of oatmeal" },
+    badFood: { emoji: "🍔", name: "A fast-food burger" },
+    scene: "You need a real meal. Two very different options are in front of you.",
+    goodExplain: "Oatmeal is high in fiber and low in sodium. It helps steady blood pressure over time. A calm choice for your artery.",
+    badExplain: "A fast-food burger can carry over a thousand milligrams of sodium plus saturated fat. Your artery tightened almost at once.",
+    sludgeDown: 15,
+    sludgeUp: 35,
+    scoreUp: 10
+  }
+];
+
+/* Return a fresh Fisher–Yates shuffle of the pool, truncated to n days.
+   Operates on a COPY so setup.salt.pool keeps its authoring order. */
+setup.salt.pickDays = function (n) {
+  var copy = setup.salt.pool.slice();
+  for (var i = copy.length - 1; i > 0; i--) {
+    var j = Math.floor(Math.random() * (i + 1));
+    var tmp = copy[i];
+    copy[i] = copy[j];
+    copy[j] = tmp;
+  }
+  return copy.slice(0, n);
+};
+
+
 ::Story innit [Important/Needed]
 /*
 SYSTEM CODE: runs once at the very start.
@@ -481,6 +593,10 @@ You do not need to edit this.
 <<set $score to 0>>
 <<set $day to 1>>
 <<set $foodChoice to "">>
+/* UPDATE9: shuffle the scenario pool and take 5 days for this
+   play-through. Reset here so PLAY AGAIN reshuffles into a new order
+   with (potentially) different food pairs. */
+<<set $dayOrder to setup.salt.pickDays(5)>>
 /* Re-played-this-session guard for the Final Result submitResponse
    call. Reset on every Story innit run so a participant who finishes
    then taps PLAY AGAIN gets a fresh shot at submitting (one submit
@@ -574,21 +690,40 @@ and a daily health tip. Sends player to the food choice for that day.
 
 <div class="spacer"></div>
 
-<<if $day is 1>><a class="btn-primary" data-passage="Food Day 1">SHOW ME TODAY'S FOOD</a><<elseif $day is 2>><a class="btn-primary" data-passage="Food Day 2">SHOW ME TODAY'S FOOD</a><<elseif $day is 3>><a class="btn-primary" data-passage="Food Day 3">SHOW ME TODAY'S FOOD</a><<elseif $day is 4>><a class="btn-primary" data-passage="Food Day 4">SHOW ME TODAY'S FOOD</a><<else>><a class="btn-primary" data-passage="Food Day 5">SHOW ME TODAY'S FOOD</a><</if>>
+<!-- UPDATE9: every day now routes to the single generic `Food Day`
+     passage, which renders $dayOrder[$day - 1].
+     UPDATE10: vary the pace. Instead of the reveal button appearing
+     instantly (constant cadence), gate it behind a randomized 0.4–2.0s
+     <<timed>> delay so choices don't arrive on a metronome. The button
+     still always appears, so the screen stays fully accessible. -->
+<<set _pace to 0.4 + Math.random() * 1.6>>
+<span id="reveal-slot"></span>
+<<timed _pace + "s">><<replace "#reveal-slot">><a class="btn-primary" data-passage="Food Day">SHOW ME TODAY'S FOOD</a><</replace>><</timed>>
 
 </div>
 </div>
 
 
-::Food Day 1 [Important/Needed nobr]
+::Food Day [Important/Needed nobr]
 /*
-DAY 1 FOOD CHOICE: Banana vs Canned Soup.
-Banana clears sludge and earns points.
-Canned Soup adds sludge.
+GENERIC DAY FOOD CHOICE (UPDATE9).
+Renders $dayOrder[$day - 1] — the shuffled scenario for today. The good
+option clears sludge + earns nutrient points; the bad option adds
+sludge. $foodChoice records only "good" / "bad"; Food Result reads the
+same scenario object to show the right emoji + explanation. Replaces the
+five hardcoded Food Day 1..5 passages.
 */
 
+<<set _s to $dayOrder[$day - 1]>>
+/* Build the two link labels up front. SugarCube's macro-argument
+   parser would split a bare `'...' + _s.x + '...'` expression into
+   several arguments, so we assemble each HTML label string into a temp
+   var and pass that single var to <<link>> (which still wikifies it,
+   rendering the span/div just like the old literal labels did). */
+<<set _goodLabel to '<span class="food-emoji">' + _s.goodFood.emoji + '</span><div class="food-name">' + _s.goodFood.name + '</div>'>>
+<<set _badLabel to '<span class="food-emoji">' + _s.badFood.emoji + '</span><div class="food-name">' + _s.badFood.name + '</div>'>>
 <div class="phone">
-<div class="header"><span>Salt Sludge</span><span class="day-label">Day 1 of 5</span></div>
+<div class="header"><span>Salt Sludge</span><span class="day-label">Day $day of 5</span></div>
 
 <div class="meters-wrap">
 <div class="meter-row"><div class="meter-label">Sludge</div><div class="meter-bar"><div class="meter-bar-fill sludge" @style="'width: ' + $sludge + '%'"></div></div></div>
@@ -596,24 +731,24 @@ Canned Soup adds sludge.
 </div>
 
 <div class="content">
-<p class="scene">You are home. It is late afternoon. You are hungry and need something quick.</p>
+<p class="scene"><<print _s.scene>></p>
 
 <div class="spacer"></div>
 
 <div class="food-row">
 
-<<link '<span class="food-emoji">🍌</span><div class="food-name">A banana</div>'>>
-<<set $sludge to Math.max(0, $sludge - 15)>>
-<<set $score to $score + 10>>
-<<set $foodChoice to "banana">>
+<<link _goodLabel>>
+<<set $sludge to Math.max(0, $sludge - $dayOrder[$day - 1].sludgeDown)>>
+<<set $score to $score + $dayOrder[$day - 1].scoreUp>>
+<<set $foodChoice to "good">>
 <<goto "Food Result">>
 <</link>>
 
 <div class="or-divider">or</div>
 
-<<link '<span class="food-emoji">🥫</span><div class="food-name">A bowl of canned soup</div>'>>
-<<set $sludge to Math.min(100, $sludge + 25)>>
-<<set $foodChoice to "soup">>
+<<link _badLabel>>
+<<set $sludge to Math.min(100, $sludge + $dayOrder[$day - 1].sludgeUp)>>
+<<set $foodChoice to "bad">>
 <<goto "Food Result">>
 <</link>>
 
@@ -627,211 +762,6 @@ Canned Soup adds sludge.
 <<script>>
 /* Wrap each <<link>>'s generated <a> in food-card class so it gets the white card styling.
    This runs after the passage renders. */
-setTimeout(function () {
-  document.querySelectorAll('.food-row a.macro-link, .food-row a.link-internal').forEach(function (a) {
-    a.classList.add('food-card');
-  });
-}, 0);
-<</script>>
-
-
-::Food Day 2 [Important/Needed nobr]
-/*
-DAY 2 FOOD CHOICE: Spinach vs Instant Noodles.
-*/
-
-<div class="phone">
-<div class="header"><span>Salt Sludge</span><span class="day-label">Day 2 of 5</span></div>
-
-<div class="meters-wrap">
-<div class="meter-row"><div class="meter-label">Sludge</div><div class="meter-bar"><div class="meter-bar-fill sludge" @style="'width: ' + $sludge + '%'"></div></div></div>
-<div class="meter-row"><div class="meter-label">Nutrients</div><div class="meter-bar"><div class="meter-bar-fill nutrient" @style="'width: ' + Math.min(100, $score * 2) + '%'"></div></div></div>
-</div>
-
-<div class="content">
-<p class="scene">Lunchtime. You have ten minutes and two options on the counter.</p>
-
-<div class="spacer"></div>
-
-<div class="food-row">
-
-<<link '<span class="food-emoji">🥬</span><div class="food-name">A plate of spinach</div>'>>
-<<set $sludge to Math.max(0, $sludge - 20)>>
-<<set $score to $score + 10>>
-<<set $foodChoice to "spinach">>
-<<goto "Food Result">>
-<</link>>
-
-<div class="or-divider">or</div>
-
-<<link '<span class="food-emoji">🍜</span><div class="food-name">A packet of instant noodles</div>'>>
-<<set $sludge to Math.min(100, $sludge + 30)>>
-<<set $foodChoice to "noodles">>
-<<goto "Food Result">>
-<</link>>
-
-</div>
-
-<div class="spacer"></div>
-
-</div>
-</div>
-
-<<script>>
-setTimeout(function () {
-  document.querySelectorAll('.food-row a.macro-link, .food-row a.link-internal').forEach(function (a) {
-    a.classList.add('food-card');
-  });
-}, 0);
-<</script>>
-
-
-::Food Day 3 [Important/Needed nobr]
-/*
-DAY 3 FOOD CHOICE: Beans vs Potato Chips.
-*/
-
-<div class="phone">
-<div class="header"><span>Salt Sludge</span><span class="day-label">Day 3 of 5</span></div>
-
-<div class="meters-wrap">
-<div class="meter-row"><div class="meter-label">Sludge</div><div class="meter-bar"><div class="meter-bar-fill sludge" @style="'width: ' + $sludge + '%'"></div></div></div>
-<div class="meter-row"><div class="meter-label">Nutrients</div><div class="meter-bar"><div class="meter-bar-fill nutrient" @style="'width: ' + Math.min(100, $score * 2) + '%'"></div></div></div>
-</div>
-
-<div class="content">
-<p class="scene">Afternoon snack time. You open the cupboard. Two things catch your eye.</p>
-
-<div class="spacer"></div>
-
-<div class="food-row">
-
-<<link '<span class="food-emoji">🍲</span><div class="food-name">A bowl of beans</div>'>>
-<<set $sludge to Math.max(0, $sludge - 20)>>
-<<set $score to $score + 10>>
-<<set $foodChoice to "beans">>
-<<goto "Food Result">>
-<</link>>
-
-<div class="or-divider">or</div>
-
-<<link '<span class="food-emoji">🍟</span><div class="food-name">A bag of potato chips</div>'>>
-<<set $sludge to Math.min(100, $sludge + 25)>>
-<<set $foodChoice to "chips">>
-<<goto "Food Result">>
-<</link>>
-
-</div>
-
-<div class="spacer"></div>
-
-</div>
-</div>
-
-<<script>>
-setTimeout(function () {
-  document.querySelectorAll('.food-row a.macro-link, .food-row a.link-internal').forEach(function (a) {
-    a.classList.add('food-card');
-  });
-}, 0);
-<</script>>
-
-
-::Food Day 4 [Important/Needed nobr]
-/*
-DAY 4 FOOD CHOICE: Sweet Potato vs Bacon.
-*/
-
-<div class="phone">
-<div class="header"><span>Salt Sludge</span><span class="day-label">Day 4 of 5</span></div>
-
-<div class="meters-wrap">
-<div class="meter-row"><div class="meter-label">Sludge</div><div class="meter-bar"><div class="meter-bar-fill sludge" @style="'width: ' + $sludge + '%'"></div></div></div>
-<div class="meter-row"><div class="meter-label">Nutrients</div><div class="meter-bar"><div class="meter-bar-fill nutrient" @style="'width: ' + Math.min(100, $score * 2) + '%'"></div></div></div>
-</div>
-
-<div class="content">
-<p class="scene">Dinner. You are tired. You want something good. Two options in front of you.</p>
-
-<div class="spacer"></div>
-
-<div class="food-row">
-
-<<link '<span class="food-emoji">🍠</span><div class="food-name">A sweet potato</div>'>>
-<<set $sludge to Math.max(0, $sludge - 20)>>
-<<set $score to $score + 10>>
-<<set $foodChoice to "sweetpotato">>
-<<goto "Food Result">>
-<</link>>
-
-<div class="or-divider">or</div>
-
-<<link '<span class="food-emoji">🥓</span><div class="food-name">Bacon</div>'>>
-<<set $sludge to Math.min(100, $sludge + 30)>>
-<<set $foodChoice to "bacon">>
-<<goto "Food Result">>
-<</link>>
-
-</div>
-
-<div class="spacer"></div>
-
-</div>
-</div>
-
-<<script>>
-setTimeout(function () {
-  document.querySelectorAll('.food-row a.macro-link, .food-row a.link-internal').forEach(function (a) {
-    a.classList.add('food-card');
-  });
-}, 0);
-<</script>>
-
-
-::Food Day 5 [Important/Needed nobr]
-/*
-DAY 5 FOOD CHOICE: Yogurt vs Hot Dog.
-Final choice of the game.
-*/
-
-<div class="phone">
-<div class="header"><span>Salt Sludge</span><span class="day-label">Day 5 of 5</span></div>
-
-<div class="meters-wrap">
-<div class="meter-row"><div class="meter-label">Sludge</div><div class="meter-bar"><div class="meter-bar-fill sludge" @style="'width: ' + $sludge + '%'"></div></div></div>
-<div class="meter-row"><div class="meter-label">Nutrients</div><div class="meter-bar"><div class="meter-bar-fill nutrient" @style="'width: ' + Math.min(100, $score * 2) + '%'"></div></div></div>
-</div>
-
-<div class="content">
-<p class="scene">Last day, $playerName. Last meal. Your artery has been through four days of choices with you. One more.</p>
-
-<div class="spacer"></div>
-
-<div class="food-row">
-
-<<link '<span class="food-emoji">🥛</span><div class="food-name">Yogurt</div>'>>
-<<set $sludge to Math.max(0, $sludge - 20)>>
-<<set $score to $score + 10>>
-<<set $foodChoice to "yogurt">>
-<<goto "Food Result">>
-<</link>>
-
-<div class="or-divider">or</div>
-
-<<link '<span class="food-emoji">🌭</span><div class="food-name">A hot dog</div>'>>
-<<set $sludge to Math.min(100, $sludge + 25)>>
-<<set $foodChoice to "hotdog">>
-<<goto "Food Result">>
-<</link>>
-
-</div>
-
-<div class="spacer"></div>
-
-</div>
-</div>
-
-<<script>>
 setTimeout(function () {
   document.querySelectorAll('.food-row a.macro-link, .food-row a.link-internal').forEach(function (a) {
     a.classList.add('food-card');
@@ -857,21 +787,22 @@ Then moves to next day or final result after Day 5.
 
 <div class="content">
 
-<<if $foodChoice is "banana" or $foodChoice is "spinach" or $foodChoice is "beans" or $foodChoice is "sweetpotato" or $foodChoice is "yogurt">>
+<<set _s to $dayOrder[$day - 1]>>
+<<if $foodChoice is "good">>
 
 <div class="result-card">
-<<if $foodChoice is "banana">><span class="result-emoji">🍌</span><<elseif $foodChoice is "spinach">><span class="result-emoji">🥬</span><<elseif $foodChoice is "beans">><span class="result-emoji">🍲</span><<elseif $foodChoice is "sweetpotato">><span class="result-emoji">🍠</span><<else>><span class="result-emoji">🥛</span><</if>>
+<span class="result-emoji"><<print _s.goodFood.emoji>></span>
 <div class="result-verdict good">Good choice</div>
-<p class="result-explain"><<if $foodChoice is "banana">>That banana just delivered a flood of potassium to your kidneys. They got to work immediately, flushing out excess sodium. Your artery wall relaxed.<<elseif $foodChoice is "spinach">>Spinach is one of the most potassium-dense foods around. Your artery walls eased up. Blood is moving more freely right now.<<elseif $foodChoice is "beans">>Beans are loaded with potassium and fiber. The sludge thinned out noticeably. Your vessel just got a proper clean.<<elseif $foodChoice is "sweetpotato">>Sweet potato is the quiet champion of blood pressure foods. High potassium. Low sodium. Your artery is grateful.<<else>>Yogurt brings calcium and potassium together. Both help keep blood pressure down. Good call.<</if>></p>
+<p class="result-explain"><<print _s.goodExplain>></p>
 <div class="result-meter-after">Sludge cleared</div>
 </div>
 
 <<else>>
 
 <div class="result-card">
-<<if $foodChoice is "soup">><span class="result-emoji">🥫</span><<elseif $foodChoice is "noodles">><span class="result-emoji">🍜</span><<elseif $foodChoice is "chips">><span class="result-emoji">🍟</span><<elseif $foodChoice is "bacon">><span class="result-emoji">🥓</span><<else>><span class="result-emoji">🌭</span><</if>>
+<span class="result-emoji"><<print _s.badFood.emoji>></span>
 <div class="result-verdict bad">Your artery felt that</div>
-<p class="result-explain"><<if $foodChoice is "soup">>That canned soup had nearly 900 milligrams of sodium in a single serving. Almost half your daily limit in one bowl. Your artery walls tightened. Sludge started forming.<<elseif $foodChoice is "noodles">>Instant noodles pack around 1500 milligrams of sodium per packet. Your artery is working harder now than it was five minutes ago.<<elseif $foodChoice is "chips">>Potato chips are one of the sneakiest sodium sources around. A single serving can contain 200 milligrams or more. Your artery walls just got a little thicker.<<elseif $foodChoice is "bacon">>Bacon is cured in salt. That sodium hit your bloodstream fast. The sludge built up quickly.<<else>>A single hot dog contains nearly 600 milligrams of sodium. Your artery noticed immediately.<</if>></p>
+<p class="result-explain"><<print _s.badExplain>></p>
 <div class="result-meter-after">Sludge increased. Tomorrow is a chance to clear it.</div>
 </div>
 
@@ -928,6 +859,10 @@ session flag so PLAY AGAIN doesn't double-credit.
     }
   } catch (e) { /* swallow */ }
 >>
+<!-- UPDATE12: chain the control Daily Check-In off the END of this game.
+     Inside the same submit-once guard so it launches exactly once per
+     play-through (PLAY AGAIN resets $submittedThisSession in Story innit). -->
+<<run try { if (window.CCQ && window.CCQ.launchGame) window.CCQ.launchGame("control_daily_checkin"); } catch (e) {} >>
 <</if>>
 
 <div class="phone">

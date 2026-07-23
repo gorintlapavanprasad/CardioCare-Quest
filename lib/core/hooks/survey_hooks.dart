@@ -3,6 +3,7 @@ import 'package:uuid/uuid.dart';
 
 import 'package:cardio_care_quest/core/constants/firestore_paths.dart';
 import 'package:cardio_care_quest/core/services/offline_queue.dart';
+import 'package:cardio_care_quest/core/services/session_manager.dart';
 
 /// Hook helpers for survey / questionnaire response storage.
 ///
@@ -35,16 +36,23 @@ abstract class SurveyHooks {
   /// counts as one completion. The host (`TwineQuestionnaireHost.
   /// _performExit`) owns the once-per-session counter bump in that
   /// pattern.
+  /// [respondent] records WHO entered the answers — the participant by
+  /// default, or a caregiver on a shared device when the Twine page supplies
+  /// one (UPDATE1). If a paired session is active its `pairedSessionId` is
+  /// stamped automatically so the submission joins the co-play record.
   static Future<void> submitResponse({
     required String uid,
     required String surveyId,
     required Map<String, dynamic> answers,
     int pointsEarned = 0,
     bool countAsCompletion = true,
+    String? respondent,
   }) {
     if (uid.isEmpty) return Future.value();
     final eventId = _uuid.v4();
     final responseId = _uuid.v4();
+    final effectiveRespondent = respondent ?? uid;
+    final pairedSessionId = SessionManager.pairedSessionId;
 
     final userUpdates = <String, dynamic>{};
     if (pointsEarned > 0) {
@@ -64,6 +72,8 @@ abstract class SurveyHooks {
         {
           'id': responseId,
           'userId': uid,
+          'respondent': effectiveRespondent,
+          if (pairedSessionId != null) 'pairedSessionId': pairedSessionId,
           'surveyId': surveyId,
           'answers': answers,
           'pointsEarned': pointsEarned,
@@ -86,6 +96,8 @@ abstract class SurveyHooks {
       {
         'id': eventId,
         'userId': uid,
+        'respondent': effectiveRespondent,
+        if (pairedSessionId != null) 'pairedSessionId': pairedSessionId,
         'event': 'survey_response_submitted',
         'surveyId': surveyId,
         'responseId': responseId,

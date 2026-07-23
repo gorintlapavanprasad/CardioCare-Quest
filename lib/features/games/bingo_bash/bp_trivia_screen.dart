@@ -19,6 +19,21 @@ class _BPTriviaScreenState extends State<BPTriviaScreen> {
   int? _selectedAnswerIndex;
   bool _answered = false;
 
+  /// Per-question correctness, submitted with the score so research analysis
+  /// can see which items were right — not just the aggregate.
+  final List<Map<String, dynamic>> _answerLog = [];
+
+  /// The 2s "advance to next question" timer. Held so it can be cancelled in
+  /// [dispose] — otherwise navigating away mid-question fires setState /
+  /// _saveScoreAndShowResults on a disposed State.
+  Timer? _advanceTimer;
+
+  @override
+  void dispose() {
+    _advanceTimer?.cancel();
+    super.dispose();
+  }
+
   final List<Map<String, dynamic>> _questions = [
     {
       'question': 'What is a normal blood pressure reading?',
@@ -48,15 +63,28 @@ class _BPTriviaScreenState extends State<BPTriviaScreen> {
   ];
 
   void _answerQuestion(int selectedIndex) {
+    final correctIndex =
+        _questions[_currentQuestionIndex]['correctAnswerIndex'] as int;
+    final isCorrect = selectedIndex == correctIndex;
+
     setState(() {
       _answered = true;
       _selectedAnswerIndex = selectedIndex;
-      if (selectedIndex == _questions[_currentQuestionIndex]['correctAnswerIndex']) {
+      if (isCorrect) {
         _score++;
       }
     });
 
-    Timer(const Duration(seconds: 2), () {
+    _answerLog.add({
+      'questionIndex': _currentQuestionIndex,
+      'selectedIndex': selectedIndex,
+      'correctIndex': correctIndex,
+      'isCorrect': isCorrect,
+    });
+
+    _advanceTimer?.cancel();
+    _advanceTimer = Timer(const Duration(seconds: 2), () {
+      if (!mounted) return;
       if (_currentQuestionIndex < _questions.length - 1) {
         setState(() {
           _currentQuestionIndex++;
@@ -73,12 +101,16 @@ class _BPTriviaScreenState extends State<BPTriviaScreen> {
     final uid = Provider.of<UserDataProvider>(context, listen: false).uid;
     if (uid.isNotEmpty) {
       try {
-        final pointsEarned = (_questions.length - _score) * 10;
+        // Points scale with CORRECT answers. (Previously this was
+        // (total - score) * 10, which rewarded wrong answers — a perfect
+        // score earned 0 points and a zero score earned the maximum.)
+        final pointsEarned = _score * 10;
         await DailyLogHooks.logTrivia(
           uid: uid,
           score: _score,
           totalQuestions: _questions.length,
           pointsEarned: pointsEarned,
+          answers: List<Map<String, dynamic>>.from(_answerLog),
         );
         if (mounted) {
           // Optimistic local update — dashboard reflects new points instantly.
@@ -178,7 +210,7 @@ class _BPTriviaScreenState extends State<BPTriviaScreen> {
             }),
             const Spacer(),
             Text(
-              'Points Reward: ${(_questions.length - _score) * 10}',
+              'Points Reward: ${_score * 10}',
               style: const TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
