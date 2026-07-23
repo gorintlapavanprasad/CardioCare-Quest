@@ -522,12 +522,18 @@ class _TwineQuestionnaireHostState extends State<TwineQuestionnaireHost> {
           final enrichedAnswers = Map<String, dynamic>.from(answers);
           enrichedAnswers['_sessionId'] = _sessionId;
 
+          // Optional respondent (UPDATE1) — a Twine page can name who
+          // physically entered the answers (participant vs caregiver on a
+          // shared device). Falls back to the logged-in participant.
+          final respondent = data['respondent'] as String?;
+
           await SurveyHooks.submitResponse(
             uid: _uid,
             surveyId: (data['surveyId'] as String?) ?? widget.surveyId,
             answers: enrichedAnswers,
             pointsEarned: pointsEarned,
             countAsCompletion: countAsCompletion,
+            respondent: respondent,
           );
 
           if (mounted && pointsEarned > 0) {

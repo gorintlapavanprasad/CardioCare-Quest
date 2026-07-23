@@ -6,6 +6,10 @@ import 'package:get_it/get_it.dart'; // ─── ADDED: Required for Netgauge L
 
 import 'firebase_options.dart';
 import 'core/theme/app_theme.dart';
+import 'core/hooks/pair_hooks.dart';
+import 'core/services/session_manager.dart';
+import 'core/services/session_settings_service.dart';
+import 'core/services/pair_resume_service.dart';
 import 'features/splash/splash_screen.dart';
 
 // ─── CARDIO CARE IMPORTS ───
@@ -60,8 +64,42 @@ void main() async {
   );
 }
 
-class CardioCareQuest extends StatelessWidget {
+class CardioCareQuest extends StatefulWidget {
   const CardioCareQuest({super.key});
+
+  @override
+  State<CardioCareQuest> createState() => _CardioCareQuestState();
+}
+
+class _CardioCareQuestState extends State<CardioCareQuest>
+    with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    // Reattach an in-progress paired session left over from a previous run.
+    PairResumeService.instance.tryRestore();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Keep a paired session's heartbeat / status current as the app moves
+    // between foreground and background, so it survives leaving the device and
+    // returning. No-ops when no session is active.
+    if (!SessionManager.isPaired) return;
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive) {
+      PairHooks.pause();
+    } else if (state == AppLifecycleState.resumed) {
+      PairHooks.resume();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -69,6 +107,22 @@ class CardioCareQuest extends StatelessWidget {
       title: 'Cardio Care Quest',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
+      // Apply the joint-setup text size globally. Because all typography is
+      // themed, a textScaler multiplies every Text uniformly — no per-widget
+      // changes. Defaults to 1.0 (unchanged) until a paired session picks a
+      // larger size, so solo use is unaffected.
+      builder: (context, child) {
+        return ValueListenableBuilder<SessionSettings>(
+          valueListenable: SessionSettingsService.instance.settings,
+          builder: (context, s, _) {
+            final mq = MediaQuery.of(context);
+            return MediaQuery(
+              data: mq.copyWith(textScaler: TextScaler.linear(s.textScale)),
+              child: child ?? const SizedBox.shrink(),
+            );
+          },
+        );
+      },
       home: const SplashScreen(),
     );
   }

@@ -923,8 +923,9 @@ body {
 <a class="btn-primary" data-passage="Hub">CONTINUE TO VILLAGE</a>
 <p class="help-text">Latest reading: $lastSys / $lastDia mmHg</p>
 <<else>>
-<a class="btn-primary" data-passage="No Reading">START</a>
-<p class="help-text">First settle with Quiet Landscape and log your blood pressure.</p>
+<a class="btn-primary" data-passage="Hub">START A QUEST — LOG BP LATER</a>
+<a class="btn-secondary" data-passage="Launch Quiet Minute">SETTLE WITH QUIET LANDSCAPE FIRST</a>
+<p class="help-text">Dive into a quest now, or settle first with Quiet Landscape and log your blood pressure.</p>
 <</if>>
 
 </div>

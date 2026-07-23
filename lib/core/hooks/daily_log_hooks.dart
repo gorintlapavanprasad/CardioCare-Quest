@@ -266,11 +266,18 @@ abstract class DailyLogHooks {
   }
 
   /// Log a trivia / mini-game completion. Awards arbitrary points.
+  ///
+  /// [answers] optionally carries per-question correctness — one entry per
+  /// question, e.g. `{questionIndex, selectedIndex, correctIndex, isCorrect}`
+  /// — so research analysis can see which items the participant got right,
+  /// not just the aggregate score (UPDATE3: record correctness wherever a
+  /// game already knows the answer).
   static Future<void> logTrivia({
     required String uid,
     required int score,
     required int totalQuestions,
     required int pointsEarned,
+    List<Map<String, dynamic>>? answers,
   }) {
     if (uid.isEmpty) return Future.value();
     final eventId = _uuid.v4();
@@ -288,6 +295,7 @@ abstract class DailyLogHooks {
           'score': score,
           'totalQuestions': totalQuestions,
           'pointsEarned': pointsEarned,
+          if (answers != null) 'answers': answers,
           'timestamp': OfflineFieldValue.nowTimestamp(),
           'syncedAt': OfflineFieldValue.nowTimestamp(),
         },

@@ -11,24 +11,34 @@ class LocationData {
   LocationData({required this.position, this.heading});
 }
 
-// class that makes a single location stream available for subscription by multiple functions
+// class that makes a location stream available for subscription
 class LocationDispatcher {
-  static final Stream<Position> _positionStream = 
-    Geolocator.getPositionStream(
-      locationSettings: Platform.isAndroid
-        ? AndroidSettings(
+  static LocationSettings get _settings => Platform.isAndroid
+      ? AndroidSettings(
           accuracy: LocationAccuracy.bestForNavigation,
           distanceFilter: 2,
           intervalDuration: const Duration(milliseconds: 1000),
           forceLocationManager: true,
         )
-        : const LocationSettings(
+      : const LocationSettings(
           accuracy: LocationAccuracy.bestForNavigation,
           distanceFilter: 2,
-        ), // iOS does not allow fine-grained Location Provider control
-    ).asBroadcastStream();
+        ); // iOS does not allow fine-grained Location Provider control
 
-  static Stream<Position> get stream => _positionStream;
+  /// A FRESH position stream per subscription.
+  ///
+  /// This used to be one process-lifetime `asBroadcastStream()`. The problem:
+  /// a default broadcast wrapper over a single-subscription source cancels
+  /// that source once its last listener unsubscribes. Every game cancels its
+  /// subscription in `_endGame`/`dispose`, so the *second* walk in the same
+  /// app run (a resume, "do another quest", or a second participant logging
+  /// in without a cold restart) re-listened to an already-torn-down stream,
+  /// got a StateError that was swallowed, and received no GPS fixes at all —
+  /// which is why distance logged as ZERO for essentially every account after
+  /// the first walk. Handing back a new `getPositionStream` per call gives
+  /// every walk its own live source. Each caller subscribes exactly once.
+  static Stream<Position> get stream =>
+      Geolocator.getPositionStream(locationSettings: _settings);
 }
 
 // used to acquire the most recent coordinate position of the device

@@ -1,6 +1,7 @@
 import 'package:get_it/get_it.dart';
 
 import 'package:cardio_care_quest/core/services/activity_logs.dart';
+import 'package:cardio_care_quest/core/services/session_manager.dart';
 
 /// Thin façade over [LoggingService] for non-blocking, offline-safe analytics.
 ///
@@ -23,15 +24,28 @@ abstract class TelemetryHooks {
   static LoggingService get _logger => GetIt.instance<LoggingService>();
 
   /// Queue an event for sync. Returns immediately; does NOT block on Firestore.
+  ///
+  /// If a paired session is active, its `pairedSessionId` is stamped onto the
+  /// event automatically (unless the caller already supplied one) so every
+  /// event emitted during co-play joins back to the session record — no call
+  /// site needs to know about pairing.
   static Future<void> logEvent(
     String name, {
     Map<String, dynamic>? parameters,
     String? phone,
     String? userId,
   }) {
+    final pairedSessionId = SessionManager.pairedSessionId;
+    final enriched = (pairedSessionId == null)
+        ? parameters
+        : {
+            ...?parameters,
+            if (!(parameters?.containsKey('pairedSessionId') ?? false))
+              'pairedSessionId': pairedSessionId,
+          };
     return _logger.logEvent(
       name,
-      parameters: parameters,
+      parameters: enriched,
       phone: phone,
       userId: userId,
     );

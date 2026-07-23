@@ -20,6 +20,9 @@ import '../../games/game_stories.dart';
 import '../../games/quiet_minute.dart';
 import '../../survey/post_play_survey.dart';
 import '../../../core/services/favorites_service.dart';
+import '../../../core/services/session_manager.dart';
+import '../../pairing/joint_setup_screen.dart';
+import '../../caregiver/caregiver_screen.dart';
 
 class HomeTab extends StatefulWidget {
   const HomeTab({super.key});
@@ -261,6 +264,9 @@ class _HomeTabState extends State<HomeTab> {
                       _buildSectionTitle("Watch & Health"),
                       _buildHealthStatsCard(context),
                       const SizedBox(height: 32),
+                      _buildSectionTitle("Caregiver"),
+                      _buildCaregiverCard(context),
+                      const SizedBox(height: 32),
                       _buildSectionTitle("Feedback"),
                       _buildPostPlaySurveyCard(context),
                       const SizedBox(height: 24),
@@ -283,6 +289,84 @@ class _HomeTabState extends State<HomeTab> {
   /// at the dashboard level we don't query Firestore (would slow
   /// the home render), so we just promise "live readings" and let
   /// the screen itself surface the empty state when relevant.
+  /// Entry-point for caregiver co-play. If no paired session is active it
+  /// opens the joint-setup flow (caregiver label, text size, pace); once a
+  /// session is running it opens the caregiver view directly.
+  Widget _buildCaregiverCard(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () async {
+          if (SessionManager.isPaired) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const CaregiverScreen()),
+            );
+            return;
+          }
+          final started = await Navigator.push<bool>(
+            context,
+            MaterialPageRoute(builder: (_) => const JointSetupScreen()),
+          );
+          if (started == true && context.mounted) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const CaregiverScreen()),
+            );
+          }
+        },
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.cardBorder),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.accent.withValues(alpha: 0.08),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: const Row(
+            children: [
+              Icon(Icons.groups_outlined, color: AppColors.primary, size: 32),
+              SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Play with a caregiver',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.title,
+                      ),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      'Set text size and pace together, then track help and '
+                      'notes during play.',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: AppColors.subtitle,
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right, color: AppColors.subtitle),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildHealthStatsCard(BuildContext context) {
     return Material(
       color: Colors.white,
