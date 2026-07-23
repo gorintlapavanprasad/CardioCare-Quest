@@ -1,11 +1,10 @@
-// GameDetailDialog — modal preview shown when a game is tapped in the
-// catalog. Mirrors the netguage popup pattern: title, large iconography,
-// narrative blurb, then a heart (favourite toggle), Play, and Close.
+// The popup you see when you tap a game - a quick preview before playing.
+// Shows the title, a big icon, a short blurb, and three buttons: a heart
+// (mark as favourite), Play, and Close.
 //
-// Accepts EITHER a catalog GameStory OR a participant-authored
-// CustomGame. Both follow the same dialog shape; the Play button
-// dispatches to the right launcher (catalog → launchGameStory; custom
-// → CustomGamePlayer).
+// It works for BOTH kinds of game: the built-in catalog games AND the
+// ones the user made themselves. Play just sends each kind to the right
+// launcher.
 
 import 'package:flutter/material.dart';
 
@@ -16,10 +15,8 @@ import '../../games/custom_games/custom_game_player.dart';
 import '../../games/game_launcher.dart';
 import '../../games/game_stories.dart';
 
-/// Show the [GameDetailDialog] for a catalog game. Returns when the
-/// user dismisses the modal (Close, back gesture, or barrier tap).
-/// Play is fire-and-forget — it pushes a new route and the dialog
-/// closes itself first so the gameplay screen replaces it cleanly.
+// Open the preview popup for a built-in catalog game. Finishes when the
+// user closes it (Close, back, or tapping outside).
 Future<void> showGameDetailDialog(BuildContext context, GameStory game) {
   return showDialog<void>(
     context: context,
@@ -28,8 +25,8 @@ Future<void> showGameDetailDialog(BuildContext context, GameStory game) {
   );
 }
 
-/// Show the same dialog for a participant-authored custom game. Same
-/// layout, different launcher.
+// Same popup, but for a game the user made themselves. Same look, it
+// just launches the custom-game player instead.
 Future<void> showCustomGameDetailDialog(
     BuildContext context, CustomGame game) {
   return showDialog<void>(
@@ -39,6 +36,8 @@ Future<void> showCustomGameDetailDialog(
   );
 }
 
+// The popup widget itself. Holds ONE of the two game types (catalog or
+// custom); the getters below just read from whichever one is set.
 class GameDetailDialog extends StatelessWidget {
   final GameStory? game;
   final CustomGame? customGame;
@@ -57,6 +56,7 @@ class GameDetailDialog extends StatelessWidget {
       _isCustom ? customGame!.iconData : game!.iconData;
   String get _favoriteId => _isCustom ? customGame!.id : game!.id;
 
+  // Lay out the popup: title, big icon, short blurb, then the buttons.
   @override
   Widget build(BuildContext context) {
     return Dialog(
@@ -82,8 +82,7 @@ class GameDetailDialog extends StatelessWidget {
               ),
               const SizedBox(height: 16),
 
-              // Large iconography. Centered, sized like the netguage
-              // silhouettes so the dialog reads at a glance.
+              // Big centered icon so you can tell the game at a glance.
               Center(
                 child: Container(
                   width: 110,
@@ -98,13 +97,10 @@ class GameDetailDialog extends StatelessWidget {
               ),
               const SizedBox(height: 16),
 
-              // Single short tagline — matches netguage's popup
-              // pattern (one paragraph of body text, no separate
-              // long narrative). The longer per-game narrative still
-              // lives in `game_stories.dart` for any future "Learn
-              // more" surface; it just isn't rendered here, since
-              // older participants found the wall-of-text dialog
-              // hard to read before deciding to play.
+              // Just one short line about the game. We keep it short on
+              // purpose - a wall of text here was hard for older users to
+              // read before deciding to play. (The longer story text still
+              // lives in game_stories.dart for later if we want it.)
               if (_shortDescription.isNotEmpty) ...[
                 Text(
                   _shortDescription,
@@ -118,8 +114,7 @@ class GameDetailDialog extends StatelessWidget {
                 const SizedBox(height: 20),
               ],
 
-              // Bottom action row — heart on the left, Play + Close on
-              // the right. Layout matches the netguage reference.
+              // Bottom buttons - heart on the left, Play + Close on the right.
               Row(
                 children: [
                   _FavoriteHeartButton(gameId: _favoriteId),
@@ -127,7 +122,7 @@ class GameDetailDialog extends StatelessWidget {
                   TextButton(
                     onPressed: () {
                       // Close the dialog FIRST so the new route doesn't
-                      // sit underneath a translucent barrier — feels
+                      // sit underneath a translucent barrier - feels
                       // snappier and avoids a frame of dimmed content.
                       Navigator.of(context).pop();
                       if (_isCustom) {
@@ -178,10 +173,9 @@ class GameDetailDialog extends StatelessWidget {
   }
 }
 
-/// Heart icon that toggles the game's favourite state. Filled red when
-/// favourited, outlined grey otherwise. Listens to
-/// [FavoritesService.favorites] so it reflects the change instantly
-/// without needing the parent dialog to rebuild.
+// The heart button that stars/unstars a game. Red-filled when it's a
+// favourite, grey outline when not. It listens for changes so it flips
+// the moment you tap it.
 class _FavoriteHeartButton extends StatelessWidget {
   final String gameId;
 

@@ -1,10 +1,14 @@
+// custom_option_button.dart - a tappable answer choice (like a radio button).
+// Used in the sign-up form; it highlights itself when picked.
+
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
 
+// One selectable option row: a circle dot on the left, the answer text right.
 class CustomOptionButton extends StatelessWidget {
-  final String label;
-  final bool isSelected;
-  final VoidCallback onTap;
+  final String label; // the answer text to show
+  final bool isSelected; // is this the chosen option?
+  final VoidCallback onTap; // what to run when tapped
 
   const CustomOptionButton({
     super.key,
@@ -13,6 +17,7 @@ class CustomOptionButton extends StatelessWidget {
     required this.onTap,
   });
 
+  // Draws the option. Colour and border animate when selected/deselected.
   @override
   Widget build(BuildContext context) {
     return GestureDetector(

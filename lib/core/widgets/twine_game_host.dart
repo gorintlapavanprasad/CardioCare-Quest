@@ -16,6 +16,16 @@ import 'package:cardio_care_quest/core/services/location_service.dart';
 import 'package:cardio_care_quest/core/services/offline_queue.dart';
 import 'package:cardio_care_quest/core/services/session_manager.dart';
 
+// TwineGameHost - runs a "walk somewhere" HTML game inside the app.
+//
+// The game is a web page (Twine) shown in a WebView. This file is the glue:
+// it tracks your GPS walk, tells the game how far you've gone, and saves the
+// result. The web page and Dart talk to each other by passing little text
+// messages (the "bridge"). One reusable host so every walking game shares the
+// same GPS, save, and finish logic instead of copy-pasting it.
+
+// Shape of an optional "let a specific game handle this message itself" hook.
+// Return true = "I dealt with it, stop here"; false = "not mine, carry on".
 /// Signature for game-specific bridge message handlers. Return `true` if the
 /// message was handled (no further processing); `false` to fall through to
 /// the host's default switch (or be silently ignored).
@@ -24,11 +34,13 @@ typedef OnTwineBridgeMessage = Future<bool> Function(
   TwineGameHostController controller,
 );
 
+// How many points a finished walk is worth. Longer target = more points.
 /// Calculates how many points to award on completion. Default: 30 / 60 / 100
 /// for ≤500m / ≤1000m / >1000m targets. Override per game if you want
 /// different scoring.
 typedef PointsCalculator = int Function(double targetDistance);
 
+// The default scoring rule if a game doesn't supply its own.
 int _defaultPointsCalculator(double target) =>
     target <= 500 ? 30 : (target <= 1000 ? 60 : 100);
 
@@ -67,6 +79,8 @@ int _defaultPointsCalculator(double target) =>
 ///
 /// Game-specific behavior (custom bridge messages, custom completion JS,
 /// custom AppBar styling) is exposed via constructor parameters.
+// The widget you drop into a screen. Just holds the settings for one game
+// (its id, title, HTML file, walk distance). The real work lives in the State.
 class TwineGameHost extends StatefulWidget {
   /// Stable identifier for this game (e.g. `'dog_quest'`). Used as the
   /// `game` field on Firestore session docs and as the doc ID for the
@@ -119,8 +133,12 @@ class TwineGameHost extends StatefulWidget {
   State<TwineGameHost> createState() => _TwineGameHostState();
 }
 
+// ---- CONTROLLER ----
+
 /// Lightweight controller exposed to [OnTwineBridgeMessage] callbacks so
 /// game-specific handlers can call into the host's WebView and lifecycle.
+// A small "remote control" we hand to custom message handlers so they can
+// poke the web page, end the game, or go home - without seeing the whole host.
 class TwineGameHostController {
   final WebViewController webView;
   final Future<void> Function() endGame;
@@ -133,30 +151,40 @@ class TwineGameHostController {
   });
 }
 
+// The brain of the host. Holds all the live state for one play and does the
+// GPS tracking, saving, resuming, and finishing.
 class _TwineGameHostState extends State<TwineGameHost> {
-  late final WebViewController _controller;
-  late TwineGameHostController _externalController;
+  // ---- STATE (the live values for this one play) ----
+  late final WebViewController _controller; // drives the WebView (the game page)
+  late TwineGameHostController _externalController; // remote control for handlers
 
-  bool _isPlaying = false;
-  double _distanceWalked = 0.0;
-  Position? _lastPosition;
-  StreamSubscription<Position>? _positionStream;
-  final List<GeoPoint> _pathCoordinates = [];
-  late double _targetDistance;
-  int _writeCount = 0;
-  String? _sessionId;
-  String _currentBuddyName = 'Buddy';
+  bool _isPlaying = false; // is a walk currently running?
+  double _distanceWalked = 0.0; // metres walked so far this walk
+  Position? _lastPosition; // last GPS fix, to measure the step to the next one
+  StreamSubscription<Position>? _positionStream; // our live GPS feed
+  final List<GeoPoint> _pathCoordinates = []; // the trail of points we walked
+  late double _targetDistance; // metres you need to walk to finish
+  int _writeCount = 0; // counts GPS fixes so we save only every 5th one
+  String? _sessionId; // id for this one walk (null when not walking)
+  String _currentBuddyName = 'Buddy'; // the pet/companion name shown in-game
 
+  // Watchdog = a repeating timer that double-checks "have we hit the target
+  // yet?" even when GPS goes quiet, so the walk can still finish.
   // Periodic re-check of the completion threshold so the quest still
   // completes when the position stream goes quiet (emulator route ended,
   // accuracy-filtered fix, GPS lost lock, etc.).
   Timer? _completionWatchdog;
 
+  // "We're finishing now" flag. Two things (the watchdog and a GPS update) can
+  // both try to end the game at once - this makes sure end runs only once.
   // Re-entry guard: a watchdog tick + a position-stream callback can race
   // each other, and an in-flight position event can also fire after
   // _endGame() started. This flag short-circuits all of them.
   bool _endingGame = false;
 
+  // Remembers "this walk already finished" so we never accidentally resume it.
+  // Tombstone = a marker that says "done, don't bring it back". Kept per game
+  // and outside the State so it survives leaving and re-opening the screen.
   /// Per-gameId record of the most recently completed sessionId, kept at
   /// class level so it survives navigation within an app session (the
   /// State is destroyed on pop). Pairs with the Firestore-side
@@ -165,6 +193,8 @@ class _TwineGameHostState extends State<TwineGameHost> {
   /// delete batch in OfflineQueue replay, leaving stale `ongoing*` fields.
   static final Map<String, String> _justCompletedSessionByGame = {};
 
+  // Id for this whole visit to the screen (one "open"), tagged on every event
+  // so researchers can group them. Different from _sessionId (one walk).
   /// Stamped onto every telemetry event coming out of this host instance
   /// (open, quest_started, quest_completed, closed, webview_error). One
   /// "host session" = one open of the Dog Walking screen, regardless of
@@ -172,27 +202,37 @@ class _TwineGameHostState extends State<TwineGameHost> {
   /// the movement [_sessionId] (per-walk, lives in MovementHooks writes).
   late final String _hostSessionId;
 
-  /// Wall-clock start of this host session — pairs with `_hostSessionId`
+  // When this visit started, so we can record how long they played.
+  /// Wall-clock start of this host session - pairs with `_hostSessionId`
   /// to compute the per-play duration written into the gameSessions
   /// summary doc on exit.
   late final DateTime _hostStartedAt;
 
+  // Make sure the "one summary row per visit" write happens only once, even
+  // if the player both finishes a walk and then backs out.
   /// One-shot guard so the gameSessions summary is written exactly
   /// once per host instance regardless of how many exit paths fire
   /// (completion → _endGame, then user backs out → _exitWithOptionalBpPrompt).
   bool _sessionSummaryWritten = false;
 
+  // Snapshot = a one-time grab of watch vitals (heart rate, etc.). This flag
+  // stops us grabbing it twice if the player finishes AND then backs out.
   /// True once a HealthKit snapshot has been logged for this host
   /// session (either via [_endGame] on quest completion or via the
   /// fallback in [_exitWithOptionalBpPrompt] on early exit). Prevents a
   /// double snapshot when a player completes a walk AND then backs out.
   bool _snapshotLogged = false;
 
+  // Quick shortcuts to the logged-in user's phone + id from shared app state.
   String get _phone =>
       Provider.of<UserDataProvider>(context, listen: false).phone;
   String get _uid =>
       Provider.of<UserDataProvider>(context, listen: false).uid;
 
+  // ---- SETUP / LIFECYCLE ----
+
+  // Runs once when the screen opens: set up ids, tell the app a game started,
+  // log the "opened" event, and build the WebView.
   @override
   void initState() {
     super.initState();
@@ -213,6 +253,8 @@ class _TwineGameHostState extends State<TwineGameHost> {
     _initWebView();
   }
 
+  // Builds the WebView that shows the game, and wires up the two-way message
+  // bridge so the web page and Dart can talk. Also loads the game's HTML file.
   void _initWebView() {
     // Tag the user agent with the current participant id so the
     // inlined bridge JS can wipe stale per-user localStorage when
@@ -248,6 +290,8 @@ class _TwineGameHostState extends State<TwineGameHost> {
           },
         ),
       )
+      // ---- JS BRIDGE MESSAGES ----
+      // The web page sends little JSON messages here; we act on each "type".
       ..addJavaScriptChannel(
         'FlutterBridge',
         onMessageReceived: (message) async {
@@ -262,12 +306,15 @@ class _TwineGameHostState extends State<TwineGameHost> {
             }
 
             switch (data['type']) {
+              // Player renamed their walking buddy/pet - save the new name.
               case 'SET_DOG_NAME':
                 await _updateBuddyName(data['name'] as String);
                 break;
+              // Player wants to leave - run the shared exit path.
               case 'GO_HOME':
                 await _exitWithOptionalBpPrompt();
                 break;
+              // Game handed us its saved progress blob - store it for resume.
               case 'SAVE_STATE':
                 await MovementHooks.saveGameStateJson(
                   uid: _uid,
@@ -275,12 +322,16 @@ class _TwineGameHostState extends State<TwineGameHost> {
                   stateJson: data['state'] as String,
                 );
                 break;
+              // Player tapped "I'm done" in the game - finish the walk now.
               case 'FINISH_QUEST_DATA':
                 await _endGame();
                 break;
+              // Player picked a distance and started walking. Set the target,
+              // ask for GPS permission, then begin (or resume) tracking.
               case 'START_TRACKING':
                 final incoming = (data['distance'] ?? widget.targetDistance)
                     .toDouble() as double;
+                // Same target and some progress already? Treat as a resume.
                 final shouldResume =
                     incoming == _targetDistance && _distanceWalked > 0;
                 if (!shouldResume) _targetDistance = incoming;
@@ -305,12 +356,17 @@ class _TwineGameHostState extends State<TwineGameHost> {
     );
   }
 
+  // Save the buddy's new name and update the screen to show it.
   Future<void> _updateBuddyName(String newName) async {
     if (_uid.isEmpty) return;
     setState(() => _currentBuddyName = newName);
     await ProfileHooks.updateBuddyName(_uid, newName);
   }
 
+  // ---- RESUME LOGIC ----
+
+  // Runs when the game page finishes loading. Restores the buddy name, this
+  // week's stats, and - if a valid unfinished walk was saved - picks it back up.
   Future<void> _loadGameState() async {
     final uid = _uid;
 
@@ -342,8 +398,9 @@ class _TwineGameHostState extends State<TwineGameHost> {
             );
           }
         }
-      } catch (_) {/* ignore — profile read is best-effort */}
+      } catch (_) {/* ignore - profile read is best-effort */}
 
+      // Look up any saved "walk in progress" for this game.
       final gameDoc = await MovementHooks.fetchOngoingState(
         uid: uid,
         gameId: widget.gameId,
@@ -372,15 +429,15 @@ class _TwineGameHostState extends State<TwineGameHost> {
         final justCompletedInMemory =
             _justCompletedSessionByGame[widget.gameId];
 
-        // The doc looks like it has an in-progress session, but if either
-        // the Firestore tombstone OR the in-memory just-completed cache
-        // says this session was already finished, the `ongoing*` fields
-        // are leftover residue from a periodic write that landed AFTER
-        // the end-game delete batch. Skip the resume.
+        // WHY: the saved walk might actually be a finished one that left
+        // stale leftovers behind (a late GPS save landed after the delete).
+        // If either "already done" marker matches, don't resume it.
         final sessionAlreadyCompleted = rawSessionId != null &&
             (rawSessionId == lastCompletedSessionId ||
                 rawSessionId == justCompletedInMemory);
 
+        // Only resume if the saved numbers look real (positive, not garbage)
+        // and the walk wasn't already finished.
         final isValidResume = rawDistance is num &&
             rawTarget is num &&
             rawDistance > 0 &&
@@ -390,12 +447,13 @@ class _TwineGameHostState extends State<TwineGameHost> {
             !sessionAlreadyCompleted;
 
         if (isValidResume) {
+          // Restore where we left off.
           _distanceWalked = rawDistance.toDouble();
           _targetDistance = rawTarget.toDouble();
           _sessionId = rawSessionId;
 
-          // Path can be GeoPoint OR encoded {__type, lat, lng} markers (from
-          // a previous queue replay). Decode defensively.
+          // Rebuild the walked trail. Saved points may be in two formats, so
+          // read both shapes carefully and skip anything odd.
           _pathCoordinates.clear();
           final rawPath = gData['ongoingPath'];
           if (rawPath is List) {
@@ -413,6 +471,7 @@ class _TwineGameHostState extends State<TwineGameHost> {
             }
           }
 
+          // Tell the game to show the resumed progress, then re-start tracking.
           hasOngoingWalk = _sessionId != null;
           if (hasOngoingWalk) {
             _controller.runJavaScript(
@@ -427,7 +486,7 @@ class _TwineGameHostState extends State<TwineGameHost> {
       // That line was a leftover from when games were legacy single-
       // page HTMLs with display:none scene toggles. Now that every
       // game is Twine, SugarCube auto-renders the configured start
-      // passage on load — calling showPage('scene1') after that just
+      // passage on load - calling showPage('scene1') after that just
       // forced a second render of the same passage, which Dog Quest's
       // welcome scene flashed visibly because it was its first paint.
       // Resume case still uses resumeWalk above; no other game has
@@ -437,12 +496,17 @@ class _TwineGameHostState extends State<TwineGameHost> {
     }
   }
 
+  // Tell the game page how many quests were finished this week (for stats).
   void _pushWeeklyQuestCount(int count) {
     _controller.runJavaScript(
       "if(typeof setWeeklyQuestCount === 'function') { setWeeklyQuestCount($count); }",
     );
   }
 
+  // ---- GPS / LOCATION PERMISSION ----
+
+  // Make sure location is on and we're allowed to use it. Nudges the player
+  // with dialogs if not. Returns true only when we can actually track.
   Future<bool> _ensureLocationPermission() async {
     try {
       if (!await Geolocator.isLocationServiceEnabled()) {
@@ -480,8 +544,9 @@ class _TwineGameHostState extends State<TwineGameHost> {
     }
   }
 
+  // Simple pop-up with a title, a message, and an OK button.
   Future<void> _showDialog(String title, String body) async {
-    if (!mounted) return;
+    if (!mounted) return; // don't touch UI if the screen is gone
     await showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
@@ -497,8 +562,9 @@ class _TwineGameHostState extends State<TwineGameHost> {
     );
   }
 
+  // "Location needed - try again?" pop-up. Returns true if they tap Try again.
   Future<bool> _showRetryDialog() async {
-    if (!mounted) return false;
+    if (!mounted) return false; // screen gone, nothing to ask
     final result = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -522,6 +588,10 @@ class _TwineGameHostState extends State<TwineGameHost> {
     return result == true;
   }
 
+  // ---- GPS TRACKING ----
+
+  // Starts (or resumes) a walk: opens the GPS feed, adds up distance as you
+  // move, saves progress now and then, and finishes when you hit the target.
   Future<void> _startGame({bool resume = false}) async {
     final uid = _uid;
     if (uid.isEmpty) return;
@@ -546,6 +616,7 @@ class _TwineGameHostState extends State<TwineGameHost> {
         return;
       }
 
+      // Fresh walk (not a resume): make a new walk id and zero everything out.
       if (!resume || _sessionId == null) {
         _sessionId = MovementHooks.generateSessionId(widget.gameId);
         _distanceWalked = 0.0;
@@ -553,7 +624,7 @@ class _TwineGameHostState extends State<TwineGameHost> {
         _pathCoordinates.clear();
       }
 
-      _endingGame = false;
+      _endingGame = false; // clear the "finishing" flag for this new walk
 
       setState(() {
         _isPlaying = true;
@@ -566,12 +637,14 @@ class _TwineGameHostState extends State<TwineGameHost> {
         );
       }
 
+      // Listen to the live GPS feed. Each new fix = one step to measure.
       _positionStream = LocationDispatcher.stream.listen((position) async {
-        // Race-safety: bail on any in-flight event after _endGame started.
+        // If we're finishing or stopped, ignore late GPS updates.
         if (_endingGame || !_isPlaying) return;
-        if (position.accuracy > 35.0) return;
+        if (position.accuracy > 35.0) return; // too fuzzy to trust - skip it
 
         if (_lastPosition != null) {
+          // How far since the last point.
           final distance = Geolocator.distanceBetween(
             _lastPosition!.latitude,
             _lastPosition!.longitude,
@@ -580,7 +653,7 @@ class _TwineGameHostState extends State<TwineGameHost> {
           );
 
           // Reject implausible jumps. Fixes arrive ~1s apart; >50m in that
-          // window is ~180km/h — a GPS glitch, not a walk. Without this cap a
+          // window is ~180km/h - a GPS glitch, not a walk. Without this cap a
           // single spurious fix could add hundreds of metres and complete the
           // quest on its own. Re-baseline to this position but don't credit
           // the jump. (custom_walk_game applies the same guard.)
@@ -589,6 +662,7 @@ class _TwineGameHostState extends State<TwineGameHost> {
             return;
           }
 
+          // Save to the cloud only every 5th fix to avoid spamming writes.
           _writeCount++;
           if (_writeCount % 5 == 0 &&
               _sessionId != null &&
@@ -604,10 +678,11 @@ class _TwineGameHostState extends State<TwineGameHost> {
             );
           }
 
-          // Final guard before any state mutation / JS injection — _endGame
+          // Final guard before any state mutation / JS injection - _endGame
           // may have flipped _endingGame while we were on an await.
           if (_endingGame || !_isPlaying) return;
 
+          // Add the step to the total and remember this point on the trail.
           setState(() {
             _distanceWalked += distance;
             _pathCoordinates.add(
@@ -615,19 +690,23 @@ class _TwineGameHostState extends State<TwineGameHost> {
             );
           });
 
+          // Show the new progress in the game.
           _controller.runJavaScript(
             "if(typeof updateGameProgress === 'function') { updateGameProgress($_distanceWalked, $_targetDistance); }",
           );
 
+          // Reached the goal? Finish the walk.
           if (_distanceWalked >= _targetDistance &&
               _isPlaying &&
               !_endingGame) {
             await _endGame();
           }
         }
-        _lastPosition = position;
+        _lastPosition = position; // this fix becomes the baseline for the next
       });
 
+      // Watchdog: every 1.5s, double-check if we've hit the goal, in case GPS
+      // updates stopped coming in. Cancels itself once the walk ends.
       _completionWatchdog?.cancel();
       _completionWatchdog = Timer.periodic(
         const Duration(milliseconds: 1500),
@@ -647,9 +726,15 @@ class _TwineGameHostState extends State<TwineGameHost> {
     }
   }
 
+  // ---- END OF GAME (race-safe) ----
+
+  // Wraps up a walk: stops tracking, works out points, saves the result, grabs
+  // vitals, updates the score, and plays the celebration. Guarded so it runs
+  // once even if the GPS update and the watchdog both call it together.
   Future<void> _endGame() async {
-    if (_endingGame) return;
+    if (_endingGame) return; // already finishing - don't run twice
     _endingGame = true;
+    // Stop the timer and GPS feed so nothing keeps adding distance.
     _completionWatchdog?.cancel();
     _completionWatchdog = null;
     _positionStream?.cancel();
@@ -664,6 +749,8 @@ class _TwineGameHostState extends State<TwineGameHost> {
     // _distanceWalked >= _targetDistance, so the ratio clamps to 1.0 and full
     // walks are unaffected. Floored so truncation can never round a partial
     // walk up to full. Mirrors custom_walk_game's model.
+    // Points = full reward scaled by how far you actually got (max 1.0), so
+    // ending early pays fairly and a finished walk still pays full.
     final fullPoints = widget.pointsCalculator(_targetDistance);
     final ratio = _targetDistance > 0
         ? (_distanceWalked / _targetDistance).clamp(0.0, 1.0)
@@ -690,12 +777,12 @@ class _TwineGameHostState extends State<TwineGameHost> {
 
     try {
       if (sessionId != null) {
-        // Mark the just-completed session in the in-memory cache BEFORE
-        // queueing the end-game writes. If the user navigates away and
-        // back before sync fully drains, _loadGameState's resume check
-        // will see this match and skip resuming on stale residue.
+        // WHY: mark this walk "done" in memory BEFORE saving the end writes,
+        // so if the player leaves and comes back fast, resume won't pick up
+        // stale leftovers from a save that lands late.
         _justCompletedSessionByGame[widget.gameId] = sessionId;
 
+        // Save the finished walk (distance, points, path, etc.).
         await MovementHooks.endSession(
           uid: uid,
           sessionId: sessionId,
@@ -709,19 +796,15 @@ class _TwineGameHostState extends State<TwineGameHost> {
         );
       }
 
-      // Fire-and-forget HealthKit snapshot — runs while the celebration
-      // scene plays. Independent of the BP prompt's once-per-day gate;
-      // researchers get vitals data after every game end.
+      // Grab watch vitals in the background while the celebration plays.
       unawaited(HealthHooks.logSnapshot(
         uid: uid,
         gameId: widget.gameId,
         sessionId: sessionId,
       ));
-      _snapshotLogged = true;
+      _snapshotLogged = true; // remember we did it, so exit won't repeat it
 
-      // gameSessions summary doc — one row per host session in
-      // userData/{uid}/gameSessions. Same shape TwineQuestionnaireHost
-      // writes so a single query pulls every play across both hosts.
+      // Write the one-row "this play happened" summary for researchers.
       unawaited(_writeSessionSummary(
         exitReason: 'completed',
         distanceWalked: _distanceWalked.toInt(),
@@ -731,6 +814,7 @@ class _TwineGameHostState extends State<TwineGameHost> {
 
       final completedDistance = _distanceWalked.toInt();
 
+      // Reset the live walk values now that it's saved.
       setState(() {
         _distanceWalked = 0.0;
         _sessionId = null;
@@ -738,7 +822,9 @@ class _TwineGameHostState extends State<TwineGameHost> {
         _writeCount = 0;
       });
 
+      // mounted = screen still on-screen. Only touch UI/score if so.
       if (mounted) {
+        // Add points and stats to the player's totals.
         PointsHooks.applyIncrements(context, {
           'points': pointsGained,
           'totalDistance': completedDistance,
@@ -747,28 +833,33 @@ class _TwineGameHostState extends State<TwineGameHost> {
           'measurementsTaken': 1,
         });
 
-        // Run the in-game celebration scene. No external BP prompt —
+        // Run the in-game celebration scene. No external BP prompt -
         // BP is collected only in the Quiet Minute game now (relaxed
         // state per the research protocol). HealthKit snapshot still
         // fires after every game (see HealthHooks.logSnapshot above).
         _controller.runJavaScript('onQuestFinished($pointsGained)');
 
+        // Refresh this week's count shown in the game.
         final weeklyCount = await MovementHooks.fetchWeeklyQuestCount(
           uid: uid,
           gameId: widget.gameId,
         );
-        if (mounted) _pushWeeklyQuestCount(weeklyCount);
+        if (mounted) _pushWeeklyQuestCount(weeklyCount); // re-check: awaited above
       }
     } catch (e) {
       debugPrint('❌ ${widget.gameId} sync error in _endGame: $e');
     }
   }
 
-  /// Write a gameSessions summary doc for this host session — netguage
+  // ---- EXIT & SUMMARY ----
+
+  // Save one summary row for this visit (when, how long, why it ended, points).
+  // Guarded so it's written only once per visit.
+  /// Write a gameSessions summary doc for this host session - netguage
   /// CheckData-equivalent. One row per play of one game by one user.
   /// Joins to telemetry events, MovementHooks LocationData/CheckData,
   /// and any HealthKit snapshots by `sessionId` (well, `_hostSessionId`
-  /// — the per-walk movement sessionId is recorded as a separate
+  /// - the per-walk movement sessionId is recorded as a separate
   /// `movementSessionId` field for movement games that completed).
   /// Mirrors `TwineQuestionnaireHost._writeSessionSummary` so a single
   /// query against `userData/{uid}/gameSessions` enumerates every play
@@ -779,7 +870,7 @@ class _TwineGameHostState extends State<TwineGameHost> {
     int pointsEarned = 0,
     String? movementSessionId,
   }) async {
-    if (_uid.isEmpty || _sessionSummaryWritten) return;
+    if (_uid.isEmpty || _sessionSummaryWritten) return; // write it only once
     _sessionSummaryWritten = true;
     final endedAt = DateTime.now();
     final durationMs = endedAt.difference(_hostStartedAt).inMilliseconds;
@@ -813,8 +904,11 @@ class _TwineGameHostState extends State<TwineGameHost> {
   /// here so researchers don't lose wearable data when participants
   /// abandon mid-walk. Guarded by [_snapshotLogged] to prevent a double
   /// snapshot when a completion + back-out happen in sequence.
+  // The one way out (home button, back arrow, back gesture). If they leave
+  // before finishing, still grab vitals + write the summary, then pop back.
   Future<void> _exitWithOptionalBpPrompt() async {
-    if (!mounted) return;
+    if (!mounted) return; // screen already gone
+    // Only grab vitals if a finished walk didn't already do it.
     if (!_snapshotLogged) {
       unawaited(HealthHooks.logSnapshot(
         uid: _uid,
@@ -833,14 +927,18 @@ class _TwineGameHostState extends State<TwineGameHost> {
     if (mounted) Navigator.of(context).pop();
   }
 
+  // Should we ask "save and exit?" before leaving? Only if a real walk is in
+  // progress; otherwise just let them go.
   Future<bool> _confirmExit() async {
     if (!_isPlaying || _distanceWalked <= 0 || _sessionId == null) {
-      return true;
+      return true; // nothing in progress - leaving is fine
     }
     if (!mounted) return true;
     return _showExitDialog();
   }
 
+  // Show the "leave the walk?" pop-up. If they choose to exit, save the walk
+  // so it can be resumed later. Returns true when they want to leave.
   /// Wrapped in its own method so the BuildContext is fresh on entry. The
   /// `mounted` check in [_confirmExit] guards the only async-gap path.
   Future<bool> _showExitDialog() async {
@@ -870,6 +968,7 @@ class _TwineGameHostState extends State<TwineGameHost> {
             ),
           );
 
+    // Leaving mid-walk: save progress so we can pick it up next time.
     if (shouldLeave == true && _uid.isNotEmpty && _sessionId != null) {
       await MovementHooks.saveOngoingState(
         uid: _uid,
@@ -884,6 +983,8 @@ class _TwineGameHostState extends State<TwineGameHost> {
     return shouldLeave == true;
   }
 
+  // Runs when the screen is torn down: stop the timer and GPS feed, tell the
+  // app the game ended, and log a "closed" event. Always clean up here.
   @override
   void dispose() {
     _completionWatchdog?.cancel();
@@ -906,9 +1007,11 @@ class _TwineGameHostState extends State<TwineGameHost> {
     super.dispose();
   }
 
+  // Builds the screen: basically just the full-screen WebView (the game). The
+  // PopScope catches the back gesture so we can ask before leaving mid-walk.
   @override
   Widget build(BuildContext context) {
-    // No Flutter AppBar — the Twine HTMLs render their own header
+    // No Flutter AppBar - the Twine HTMLs render their own header
     // inside the WebView (`<div class="header">`), and the burger menu
     // auto-injected by `ccq_bridge.js` provides "Go to dashboard".
     // Stacking the native AppBar on top produced a redundant double-
@@ -934,7 +1037,7 @@ class _TwineGameHostState extends State<TwineGameHost> {
         // status bar ABOVE the activity's content area (opaque), so
         // content starts below the bar with no inset needed.
         // Earlier the WebView was wrapped in SafeArea(top:true) which
-        // added EXTRA padding on top of that — visually a stranded
+        // added EXTRA padding on top of that - visually a stranded
         // band of Scaffold bg between the OS status bar and the
         // game's own header. Without SafeArea, the WebView fills all
         // the way up so the game header sits directly under the

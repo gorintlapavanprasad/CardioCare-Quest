@@ -1,13 +1,14 @@
-/// Game Stories & Narrative Content
-/// This is the central hub for all game narratives and stories
-/// Used to display rich narrative content without needing videos
+// Game catalog data - the list of all games plus the words shown for each
+// (title, story blurb, benefits, colour, icon, etc.). No gameplay here, just
+// the info the catalog and detail screens display.
 library;
 
 import 'package:flutter/material.dart';
 
-/// Behaviour-change pillar a game targets. Used by the Game Catalog
-/// screen to group games into sections that mirror the research team's
-/// hypertension framework. Drives section headers + ordering.
+// ---- CATEGORIES ----
+
+// The five health topics a game can belong to. The catalog uses these to
+// group games into sections (Exercise, Diet, and so on).
 enum GameCategory {
   exercise,
   diet,
@@ -16,7 +17,9 @@ enum GameCategory {
   education,
 }
 
+// Helpers that give each category a display name and an icon.
 extension GameCategoryX on GameCategory {
+  // The text shown for this category (e.g. "Exercise").
   String get label {
     switch (this) {
       case GameCategory.exercise:
@@ -32,6 +35,7 @@ extension GameCategoryX on GameCategory {
     }
   }
 
+  // The little icon shown next to this category.
   IconData get icon {
     switch (this) {
       case GameCategory.exercise:
@@ -48,6 +52,10 @@ extension GameCategoryX on GameCategory {
   }
 }
 
+// ---- ONE GAME'S INFO ----
+
+// All the info about a single game - its id, the words shown to the user,
+// its colours/icon, and where it belongs in the catalog. Just data.
 class GameStory {
   final String id;
   final String title;
@@ -82,6 +90,10 @@ class GameStory {
   });
 }
 
+// ---- THE CATALOG (all games) ----
+
+// The master list of every game, looked up by id. Below this are helper
+// methods to filter the list (active games, catalog-visible games, etc.).
 class GameCatalog {
   static final Map<String, GameStory> games = {
     // ─── ACTIVE GAME ───
@@ -185,7 +197,7 @@ Five days. Five meals. One artery.
     ),
 
     // Control condition for the comparison arm of the study (work-plan
-    // goal #8). Intentionally minimal Twine page — boring by design.
+    // goal #8). Intentionally minimal Twine page - boring by design.
     'control_daily_checkin': GameStory(
       id: 'control_daily_checkin',
       title: 'Daily Check-In',
@@ -237,7 +249,7 @@ Make choices about diet, exercise, and stress management to help your village th
     // The relaxed-state BP capture game. Per the research protocol BP
     // is only collected after a calming activity, so this is the *only*
     // participant-facing path to log a reading. It is intentionally
-    // hidden from the Game Catalog — the dashboard's "latest reading"
+    // hidden from the Game Catalog - the dashboard's "latest reading"
     // card has a play button that launches it directly. Surfacing it
     // alongside the regular games invites casual play of the BP entry
     // flow, which corrupts the measurement protocol.
@@ -269,7 +281,7 @@ Your reading is most accurate when you are calm.
     // Medication-pillar games. Pill Path is the daily-adherence
     // tracker; Quiet Landscape is a guided-breathing experience that
     // happens to also capture a calm-state BP reading. Both author
-    // their state to localStorage today — wire them through the
+    // their state to localStorage today - wire them through the
     // SurveyHooks / DailyLogHooks bridge in a future iteration to
     // get the records into Firestore.
     'pill_path': GameStory(
@@ -279,10 +291,10 @@ Your reading is most accurate when you are calm.
       narrative: '''
 Each day you take your medicine, you tap a pill on your path. After seven days the path is complete and a gentle celebration plays. You can also mark a pill as caregiver-assisted on days when someone helped.
 
-The path builds even on days you missed — those days simply stay empty. The point is honest tracking, not a perfect streak.
+The path builds even on days you missed - those days simply stay empty. The point is honest tracking, not a perfect streak.
       ''',
       medicalContext:
-          'Daily adherence to blood-pressure medication is the single largest controllable factor in long-term hypertension outcomes. Tracking adherence — including caregiver assistance — gives the care team a realistic view of how the regimen is working in real life rather than in clinic.',
+          'Daily adherence to blood-pressure medication is the single largest controllable factor in long-term hypertension outcomes. Tracking adherence - including caregiver assistance - gives the care team a realistic view of how the regimen is working in real life rather than in clinic.',
       benefits: [
         'Build a daily medication habit',
         'Track honest adherence',
@@ -296,7 +308,7 @@ The path builds even on days you missed — those days simply stay empty. The po
       category: GameCategory.medication,
     ),
 
-    // Quiet Landscape is NOT a standalone catalog entry — it's the
+    // Quiet Landscape is NOT a standalone catalog entry - it's the
     // BP-capture trampoline that Vascular Village launches when the
     // village needs today's reading. Quiet Minute remains the
     // dashboard's BG log card; Quiet Landscape is the in-village
@@ -310,7 +322,7 @@ The path builds even on days you missed — those days simply stay empty. The po
       title: 'Quiet Landscape',
       shortDescription: 'Breathing scene + BP capture (in-village)',
       narrative: '''
-Sixteen slow breaths over a calm landscape. The scene shifts as you breathe — clouds drift, light moves. When the sequence ends you record your cuff reading.
+Sixteen slow breaths over a calm landscape. The scene shifts as you breathe - clouds drift, light moves. When the sequence ends you record your cuff reading.
       ''',
       medicalContext:
           'Slow paced breathing engages the parasympathetic nervous system, lowering heart rate and softening vessel tone. Practicing this before a measurement returns the reading closer to your true resting baseline rather than capturing a stressed spike.',
@@ -328,35 +340,34 @@ Sixteen slow breaths over a calm landscape. The scene shifts as you breathe — 
     ),
   };
 
-  // Get all active games
+  // ---- LOOKUP HELPERS ----
+
+  // All games that are playable right now.
   static List<GameStory> getActiveGames() {
     return games.values.where((g) => g.status == 'active').toList();
   }
 
-  // Get all coming soon games
+  // All games still marked "coming soon".
   static List<GameStory> getComingSoonGames() {
     return games.values.where((g) => g.status == 'coming_soon').toList();
   }
 
-  // Get game by ID
+  // Find one game by its id (or null if there's no match).
   static GameStory? getGame(String id) {
     return games[id];
   }
 
-  /// Catalog-facing list — drops games marked `showInCatalog: false`
-  /// (currently just the BP-capture flow). The Game Catalog screen
-  /// uses this; the BP card on the dashboard launches the hidden game
-  /// directly via [getGame].
+  // Games to show in the catalog grid - same as active games, but hides any
+  // marked showInCatalog: false (like the BP log, reached from the dashboard).
   static List<GameStory> getCatalogGames() {
     return games.values
         .where((g) => g.status == 'active' && g.showInCatalog)
         .toList();
   }
 
-  /// Catalog-facing games grouped by [GameCategory], in the canonical
-  /// order Exercise → Diet → Medication → Measurements → Education.
-  /// Empty categories are kept out of the map so the catalog screen
-  /// can simply iterate without tracking which sections to skip.
+  // Same catalog games, but bucketed by category in a fixed order
+  // (Exercise → Diet → Medication → Measurements → Education). Empty
+  // categories are left out so the catalog screen can just loop over what's here.
   static Map<GameCategory, List<GameStory>> getCatalogGamesByCategory() {
     final all = getCatalogGames();
     final byCat = <GameCategory, List<GameStory>>{};

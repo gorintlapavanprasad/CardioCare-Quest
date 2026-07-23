@@ -6,6 +6,11 @@ import 'package:cardio_care_quest/core/hooks/hooks.dart';
 
 import 'package:cardio_care_quest/core/theme/app_colors.dart';
 
+// BP Trivia - a short multiple-choice quiz about blood pressure. Pick an
+// answer, see if it's right, and after the last question your score is
+// saved and you earn points. This is a real Flutter screen (not an HTML game).
+
+// The quiz screen. It keeps changing (question to question), so it's stateful.
 class BPTriviaScreen extends StatefulWidget {
   const BPTriviaScreen({super.key});
 
@@ -13,6 +18,10 @@ class BPTriviaScreen extends StatefulWidget {
   State<BPTriviaScreen> createState() => _BPTriviaScreenState();
 }
 
+// ---- STATE ----
+
+// Holds the live quiz state: which question we're on, the score, and what
+// the player tapped.
 class _BPTriviaScreenState extends State<BPTriviaScreen> {
   int _currentQuestionIndex = 0;
   int _score = 0;
@@ -20,20 +29,25 @@ class _BPTriviaScreenState extends State<BPTriviaScreen> {
   bool _answered = false;
 
   /// Per-question correctness, submitted with the score so research analysis
-  /// can see which items were right — not just the aggregate.
+  /// can see which items were right - not just the aggregate.
   final List<Map<String, dynamic>> _answerLog = [];
 
   /// The 2s "advance to next question" timer. Held so it can be cancelled in
-  /// [dispose] — otherwise navigating away mid-question fires setState /
+  /// [dispose] - otherwise navigating away mid-question fires setState /
   /// _saveScoreAndShowResults on a disposed State.
   Timer? _advanceTimer;
 
+  // Runs when the screen closes. Cancel the timer so it doesn't fire after
+  // we're gone and crash.
   @override
   void dispose() {
     _advanceTimer?.cancel();
     super.dispose();
   }
 
+  // ---- QUESTIONS ----
+
+  // The quiz questions. Each has the answer choices and which one is correct.
   final List<Map<String, dynamic>> _questions = [
     {
       'question': 'What is a normal blood pressure reading?',
@@ -62,6 +76,10 @@ class _BPTriviaScreenState extends State<BPTriviaScreen> {
     },
   ];
 
+  // ---- ANSWERING ----
+
+  // Runs when the player taps an answer. Marks it right/wrong, records it,
+  // then waits 2 seconds before moving to the next question (or the results).
   void _answerQuestion(int selectedIndex) {
     final correctIndex =
         _questions[_currentQuestionIndex]['correctAnswerIndex'] as int;
@@ -75,6 +93,7 @@ class _BPTriviaScreenState extends State<BPTriviaScreen> {
       }
     });
 
+    // Remember what they picked on this question (for the research data).
     _answerLog.add({
       'questionIndex': _currentQuestionIndex,
       'selectedIndex': selectedIndex,
@@ -82,6 +101,7 @@ class _BPTriviaScreenState extends State<BPTriviaScreen> {
       'isCorrect': isCorrect,
     });
 
+    // After a short pause, go to the next question or finish up.
     _advanceTimer?.cancel();
     _advanceTimer = Timer(const Duration(seconds: 2), () {
       if (!mounted) return;
@@ -97,13 +117,15 @@ class _BPTriviaScreenState extends State<BPTriviaScreen> {
     });
   }
 
+  // ---- SAVING & RESULTS ----
+
+  // Saves the final score and points to the cloud, then shows the results popup.
   Future<void> _saveScoreAndShowResults() async {
     final uid = Provider.of<UserDataProvider>(context, listen: false).uid;
     if (uid.isNotEmpty) {
       try {
-        // Points scale with CORRECT answers. (Previously this was
-        // (total - score) * 10, which rewarded wrong answers — a perfect
-        // score earned 0 points and a zero score earned the maximum.)
+        // 10 points per correct answer. (An old bug did this backwards and
+        // paid out for WRONG answers, so watch that this stays _score * 10.)
         final pointsEarned = _score * 10;
         await DailyLogHooks.logTrivia(
           uid: uid,
@@ -113,7 +135,8 @@ class _BPTriviaScreenState extends State<BPTriviaScreen> {
           answers: List<Map<String, dynamic>>.from(_answerLog),
         );
         if (mounted) {
-          // Optimistic local update — dashboard reflects new points instantly.
+          // Bump the on-screen points right away so it feels instant, without
+          // waiting for the cloud save to come back.
           PointsHooks.applyIncrements(context, {'points': pointsEarned});
         }
       } catch (e) {
@@ -123,6 +146,8 @@ class _BPTriviaScreenState extends State<BPTriviaScreen> {
     _showResults();
   }
 
+  // Pops up "Quiz Complete!" with the final score. "Play Again" closes both
+  // the popup and the quiz screen.
   void _showResults() {
     showDialog(
       context: context,
@@ -142,6 +167,10 @@ class _BPTriviaScreenState extends State<BPTriviaScreen> {
     );
   }
 
+  // ---- UI ----
+
+  // Draws the whole quiz screen: progress bar, the question card, the
+  // answer buttons, and the running points total.
   @override
   Widget build(BuildContext context) {
     final question = _questions[_currentQuestionIndex];
@@ -223,6 +252,8 @@ class _BPTriviaScreenState extends State<BPTriviaScreen> {
     );
   }
 
+  // Builds one answer button. After the player answers, it turns the picked
+  // button green (right) or red (wrong), and highlights the correct one.
   Widget _buildAnswerButton(int index) {
     final question = _questions[_currentQuestionIndex];
     final isSelected = _selectedAnswerIndex == index;

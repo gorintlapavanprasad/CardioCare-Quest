@@ -1,3 +1,9 @@
+// health_service.dart - reads health numbers (heart rate, steps, blood oxygen,
+// etc.) from the phone's health app (Apple Health on iPhone, Health Connect on
+// Android). The rest of the app just asks this for a "snapshot" and gets back
+// plain numbers, without caring how they were fetched. Everything is best-effort:
+// if permission is denied or there's no data, you just get nulls, never a crash.
+
 import 'package:flutter/foundation.dart';
 import 'package:health/health.dart';
 
@@ -5,9 +11,9 @@ import 'package:health/health.dart';
 /// types and doesn't have to know about HealthKit / Health Connect specifics.
 ///
 /// Lifecycle:
-///   1. [HealthService.instance.requestPermissions()] — call once early
+///   1. [HealthService.instance.requestPermissions()] - call once early
 ///      (HomeTab.initState) to surface the OS permission dialog.
-///   2. [HealthService.instance.captureSnapshot()] — call at meaningful
+///   2. [HealthService.instance.captureSnapshot()] - call at meaningful
 ///      events (e.g. BP prompt save) to grab a vitals snapshot.
 ///
 /// Both methods are best-effort: if permissions are denied or no data
@@ -18,7 +24,7 @@ class HealthService {
   static final HealthService instance = HealthService._();
 
   /// Data types we read. Same set on iOS HealthKit and Android Health
-  /// Connect — the plugin maps these to the right native types per
+  /// Connect - the plugin maps these to the right native types per
   /// platform. Apple Watch contributes most of these on iOS; Wear OS
   /// devices via Health Connect contribute on Android.
   static const List<HealthDataType> _readTypes = [
@@ -31,6 +37,7 @@ class HealthService {
     HealthDataType.BLOOD_OXYGEN,
   ];
 
+  // We only want to READ these types, never write. This says "read" for each one.
   static List<HealthDataAccess> get _readPermissions =>
       List.filled(_readTypes.length, HealthDataAccess.READ);
 
@@ -38,6 +45,9 @@ class HealthService {
   bool _permissionsGranted = false;
   bool get permissionsGranted => _permissionsGranted;
 
+  // ---- PERMISSIONS ----
+
+  // One-time setup of the health plugin before we use it.
   Future<void> _ensureConfigured() async {
     if (_configured) return;
     await Health().configure();
@@ -45,7 +55,7 @@ class HealthService {
   }
 
   /// Trigger the OS permission flow. Returns true if the user granted
-  /// access to at least one read type. Safe to call multiple times —
+  /// access to at least one read type. Safe to call multiple times -
   /// subsequent calls are no-ops if already granted.
   Future<bool> requestPermissions() async {
     try {
@@ -77,21 +87,25 @@ class HealthService {
   /// Read a recent snapshot of Apple-Watch-friendly vitals.
   ///
   /// Time windows:
-  ///  * heart rate — most recent reading in the last 30 min
-  ///  * resting HR — most recent reading in the last 24 h
-  ///  * HRV — most recent reading in the last 24 h
-  ///  * steps / active energy / exercise minutes — totals for today
+  ///  * heart rate - most recent reading in the last 30 min
+  ///  * resting HR - most recent reading in the last 24 h
+  ///  * HRV - most recent reading in the last 24 h
+  ///  * steps / active energy / exercise minutes - totals for today
   ///    (device-local midnight to now)
-  ///  * blood oxygen — most recent reading in the last 6 h
+  ///  * blood oxygen - most recent reading in the last 6 h
   ///
   /// Returns an empty snapshot if permissions aren't granted or the
   /// plugin throws; never throws to the caller.
+  ///
+  // ---- SNAPSHOT ----
+  // Grab one set of health numbers "right now". Each number uses its own time
+  // window (see the doc above). Returns empties instead of crashing on any error.
   Future<HealthSnapshot> captureSnapshot() async {
     final now = DateTime.now();
     final empty = HealthSnapshot(collectedAt: now);
 
     if (!_permissionsGranted) {
-      // Try once — the user may have granted permission in Settings.
+      // Try once - the user may have granted permission in Settings.
       final ok = await requestPermissions();
       if (!ok) return empty;
     }
@@ -99,6 +113,7 @@ class HealthService {
     try {
       await _ensureConfigured();
 
+      // Work out the time windows we'll ask about.
       final startOfToday = DateTime(now.year, now.month, now.day);
       final last24h = now.subtract(const Duration(hours: 24));
       final last6h = now.subtract(const Duration(hours: 6));
@@ -112,7 +127,7 @@ class HealthService {
       int? exerciseMinutes;
       double? bloodOxygen;
 
-      // Most-recent helpers — pick the latest non-null reading in window.
+      // Most-recent helpers - pick the latest non-null reading in window.
       final heartRatePoints = await _safeRead(
         type: HealthDataType.HEART_RATE,
         start: last30m,
@@ -141,7 +156,7 @@ class HealthService {
       );
       bloodOxygen = _latestNumeric(bloodOxygenPoints);
 
-      // Daily totals — use the plugin's aggregator helper.
+      // Daily totals - add up everything from midnight until now.
       try {
         steps = await Health().getTotalStepsInInterval(startOfToday, now);
       } catch (e) {
@@ -179,6 +194,10 @@ class HealthService {
     }
   }
 
+  // ---- HELPERS ----
+
+  // Read one health type between two times. Returns an empty list on any error
+  // (so one failing type doesn't blow up the whole snapshot). Drops duplicates.
   Future<List<HealthDataPoint>> _safeRead({
     required HealthDataType type,
     required DateTime start,
@@ -197,9 +216,11 @@ class HealthService {
     }
   }
 
+  // Pick the newest reading's number out of a list (e.g. the latest heart rate).
   double? _latestNumeric(List<HealthDataPoint> points) {
     if (points.isEmpty) return null;
-    points.sort((a, b) => b.dateTo.compareTo(a.dateTo));
+    points.sort((a, b) => b.dateTo.compareTo(a.dateTo)); // newest first
+
     final value = points.first.value;
     if (value is NumericHealthValue) {
       return value.numericValue.toDouble();
@@ -207,6 +228,7 @@ class HealthService {
     return null;
   }
 
+  // Add up all the numbers in a list (e.g. total calories burned today).
   double? _sumNumeric(List<HealthDataPoint> points) {
     if (points.isEmpty) return null;
     var sum = 0.0;
@@ -222,11 +244,14 @@ class HealthService {
   }
 }
 
+// ---- SNAPSHOT DATA ----
+
 /// Plain-Dart snapshot of Apple-Watch-style vitals at a moment in time.
 ///
-/// All numeric fields are nullable — null means "no data available" (no
+/// All numeric fields are nullable - null means "no data available" (no
 /// permission, no paired device, no reading in the time window). Treat
 /// every field as optional when consuming.
+// A simple bag of health numbers captured at one moment. Any field can be null.
 class HealthSnapshot {
   final double? heartRate; // bpm
   final double? restingHeartRate; // bpm
@@ -248,6 +273,7 @@ class HealthSnapshot {
     required this.collectedAt,
   });
 
+  // True if we got at least one real reading (used to decide whether to save it).
   bool get hasAnyData =>
       heartRate != null ||
       restingHeartRate != null ||

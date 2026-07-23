@@ -1,6 +1,11 @@
+// The "well done!" popup shown after finishing something. A spinning
+// sparkle badge, a message, and a pill showing points earned. It pops in
+// with a little bounce + fade to feel rewarding.
+
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
 
+// Show the celebration popup. Pass the message and how many points earned.
 void showCelebrationModal(BuildContext context, {required String message, required int pointsGained}) {
   showGeneralDialog(
     context: context,
@@ -26,6 +31,8 @@ void showCelebrationModal(BuildContext context, {required String message, requir
   );
 }
 
+// The actual card inside the popup. It's stateful only so the sparkle
+// badge can keep spinning on its own.
 class _CelebrationModalContent extends StatefulWidget {
   final String message;
   final int pointsGained;
@@ -38,18 +45,21 @@ class _CelebrationModalContent extends StatefulWidget {
 class _CelebrationModalContentState extends State<_CelebrationModalContent> with SingleTickerProviderStateMixin {
   late AnimationController _spinController;
 
+  // Start the badge spinning (loops forever) when the popup appears.
   @override
   void initState() {
     super.initState();
     _spinController = AnimationController(vsync: this, duration: const Duration(seconds: 4))..repeat();
   }
 
+  // Stop the spinner when the popup goes away, so it doesn't leak.
   @override
   void dispose() {
     _spinController.dispose();
     super.dispose();
   }
 
+  // Lay out the card: spinning badge, message, and the points pill.
   @override
   Widget build(BuildContext context) {
     return Container(

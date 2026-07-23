@@ -1,23 +1,26 @@
-// NfcService — wraps `nfc_manager` for the project's specific needs:
+// nfc_service.dart - lets a participant log in by tapping their NFC card to the
+// phone. The card holds their Unique ID (like "P-001"); this reads it off the tag.
+//
+// NfcService - wraps `nfc_manager` for the project's specific needs:
 // reading a participant's Unique ID off an NFC tag at login time.
 //
 // Tags are flashed by the research team as a single NDEF Text record
 // containing the Unique ID (e.g. "P-001"). This service exposes:
-//   • [isAvailable] — does the device hardware + OS support reading?
-//   • [startScan]   — begin a session, resolve with the parsed ID
+//   • [isAvailable] - does the device hardware + OS support reading?
+//   • [startScan]   - begin a session, resolve with the parsed ID
 //                     on the first read (or null if cancelled /
 //                     unparseable).
-//   • [stopScan]    — cancel an in-flight scan when leaving the
+//   • [stopScan]    - cancel an in-flight scan when leaving the
 //                     login screen.
 //
 // Platform behaviour:
-//   • Android — scan can run silently while the screen is foregrounded;
+//   • Android - scan can run silently while the screen is foregrounded;
 //     no system UI required (the OS plays the standard tap chime).
-//   • iOS    — Apple's Core NFC requires an explicit user action to
+//   • iOS    - Apple's Core NFC requires an explicit user action to
 //     start scanning; the system "Ready to Scan" sheet appears
 //     immediately. Hence the login screen exposes a button for both
 //     platforms (one tap → start scan).
-//   • iPads / NFC-less Androids — `isAvailable()` returns false, the
+//   • iPads / NFC-less Androids - `isAvailable()` returns false, the
 //     login screen hides the NFC affordance and only manual ID entry
 //     is shown.
 
@@ -27,8 +30,12 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:nfc_manager/nfc_manager.dart';
 
+// Reads NFC login cards. Handles hardware checks, scanning, and pulling the ID
+// out of the tag's data.
 class NfcService {
   bool _scanning = false;
+
+  // ---- SCANNING ----
 
   /// True when the device has NFC hardware enabled. Returns false on
   /// iPads, on Androids without an NFC chip, and when NFC is switched
@@ -38,7 +45,7 @@ class NfcService {
     try {
       return await NfcManager.instance.isAvailable();
     } catch (e) {
-      debugPrint('NfcService: isAvailable() failed — $e');
+      debugPrint('NfcService: isAvailable() failed - $e');
       return false;
     }
   }
@@ -50,7 +57,7 @@ class NfcService {
   /// the tag couldn't be parsed.
   ///
   /// On iOS this triggers the system "Ready to Scan" modal. On Android
-  /// the scan runs silently — the OS plays the standard tap chime when
+  /// the scan runs silently - the OS plays the standard tap chime when
   /// a tag is detected. [alertMessage] is the iOS-only modal copy.
   Future<String?> startScan({
     String alertMessage = 'Hold your NFC card to the back of the phone.',
@@ -71,34 +78,32 @@ class NfcService {
         onDiscovered: (NfcTag tag) async {
           // Android's `cachedMessage` is often null/empty on re-scan or
           // for certain tag techs, so `_extractParticipantId` now does a
-          // live `ndef.read()` fallback — hence it is async and awaited.
+          // live `ndef.read()` fallback - hence it is async and awaited.
           final id = await _extractParticipantId(tag);
           try {
             await NfcManager.instance.stopSession(
               alertMessage: id != null ? 'Logged in.' : null,
               errorMessage: id == null ? 'Tag not recognised.' : null,
             );
-          } catch (_) {/* swallow — session may already be torn down */}
+          } catch (_) {/* swallow - session may already be torn down */}
           _scanning = false;
           if (!completer.isCompleted) completer.complete(id);
         },
       );
     } catch (e) {
-      debugPrint('NfcService: startSession() threw — $e');
+      debugPrint('NfcService: startSession() threw - $e');
       _scanning = false;
       if (!completer.isCompleted) completer.complete(null);
     }
 
-    // Honour the contract in this method's doc: resolve with `null` if no
-    // tag is presented within a reasonable window instead of hanging the
-    // login screen forever (the old code had no timeout, so a mis-tap
-    // that never fired `onDiscovered` left the future pending).
+    // Give up after 20 seconds if no card is tapped, so the login screen
+    // doesn't wait forever (the old code had no timeout and could hang).
     return completer.future.timeout(
       const Duration(seconds: 20),
       onTimeout: () async {
         await stopScan();
         lastDiagnostic =
-            'Scan timed out — no tag detected. Hold the card flat against '
+            'Scan timed out - no tag detected. Hold the card flat against '
             'the back of the phone and try again.';
         debugPrint('NfcService: $lastDiagnostic');
         _scanning = false;
@@ -123,7 +128,7 @@ class NfcService {
   // just the Unique ID (e.g. "P-001"). We tolerate two extra layouts
   // in case a tag is re-flashed differently:
   //   1. NDEF URI record like "ccq://login/P-001" or "ccq:P-001".
-  //   2. Anything else — fall back to UTF-8 decoding the raw payload.
+  //   2. Anything else - fall back to UTF-8 decoding the raw payload.
   //
   // Recovered text gets `_normaliseId`'d (trimmed, whitespace stripped).
   // ────────────────────────────────────────────────────────────────────
@@ -135,12 +140,14 @@ class NfcService {
   /// Read-only from outside; cleared by the next `startScan` call.
   String? lastDiagnostic;
 
+  // The heart of parsing: dig the Unique ID out of a scanned tag. Tries the
+  // normal Text format first, then a URL format, then raw text as a last resort.
   Future<String?> _extractParticipantId(NfcTag tag) async {
     lastDiagnostic = null;
     try {
       final ndef = Ndef.from(tag);
       if (ndef == null) {
-        lastDiagnostic = 'Tag had no NDEF data — likely a blank tag or '
+        lastDiagnostic = 'Tag had no NDEF data - likely a blank tag or '
             'a non-NDEF format (Mifare Classic etc.). Re-flash with '
             'a Text record.';
         debugPrint('NfcService: $lastDiagnostic');
@@ -186,7 +193,7 @@ class NfcService {
               debugPrint('NfcService: $lastDiagnostic');
               return id;
             }
-            perRecord.add('T record (${payloadLen}B) — empty after decode');
+            perRecord.add('T record (${payloadLen}B) - empty after decode');
           } else if (typeStr == 'U') {
             final uri = _decodeUriPayload(record.payload);
             if (uri != null && uri.isNotEmpty) {
@@ -198,12 +205,12 @@ class NfcService {
                 return id;
               }
             }
-            perRecord.add('U record (${payloadLen}B) — could not extract id');
+            perRecord.add('U record (${payloadLen}B) - could not extract id');
           } else {
-            perRecord.add('Well-known type "$typeStr" — not handled');
+            perRecord.add('Well-known type "$typeStr" - not handled');
           }
         } else {
-          // Last-resort raw UTF-8 — covers tags written outside the
+          // Last-resort raw UTF-8 - covers tags written outside the
           // canonical Text / URI formats. Surrounds the decode in a
           // try/catch in case the bytes aren't valid UTF-8 at all.
           try {
@@ -219,11 +226,11 @@ class NfcService {
               }
             }
             perRecord.add(
-              'TNF=${tnf.name} type="$typeStr" — UTF-8 decode produced empty',
+              'TNF=${tnf.name} type="$typeStr" - UTF-8 decode produced empty',
             );
           } catch (_) {
             perRecord.add(
-              'TNF=${tnf.name} type="$typeStr" — UTF-8 decode failed',
+              'TNF=${tnf.name} type="$typeStr" - UTF-8 decode failed',
             );
           }
         }
@@ -241,7 +248,7 @@ class NfcService {
   }
 
   /// NDEF Text record payload layout:
-  ///   byte 0       : status — top bit = 0 (UTF-8) / 1 (UTF-16),
+  ///   byte 0       : status - top bit = 0 (UTF-8) / 1 (UTF-16),
   ///                  low 6 bits = language-code length
   ///   bytes 1..1+L : language code (e.g. "en")
   ///   bytes 1+L..  : the actual text
@@ -262,6 +269,7 @@ class NfcService {
     }
   }
 
+  // Turn pairs of bytes into characters (for UTF-16 text on a tag).
   Iterable<int> _utf16BeDecode(List<int> bytes) sync* {
     for (var i = 0; i + 1 < bytes.length; i += 2) {
       yield (bytes[i] << 8) | bytes[i + 1];
@@ -269,7 +277,7 @@ class NfcService {
   }
 
   /// NDEF URI record payload layout:
-  ///   byte 0    : URI prefix shorthand code (NFC Forum spec — table 7)
+  ///   byte 0    : URI prefix shorthand code (NFC Forum spec - table 7)
   ///   bytes 1.. : the rest of the URI
   String? _decodeUriPayload(List<int> payload) {
     if (payload.isEmpty) return null;
@@ -306,6 +314,7 @@ class NfcService {
     return uri;
   }
 
+  // Tidy up a raw ID: remove surrounding and inner spaces (e.g. "P- 001" → "P-001").
   String _normaliseId(String raw) =>
       raw.trim().replaceAll(RegExp(r'\s+'), '');
 }

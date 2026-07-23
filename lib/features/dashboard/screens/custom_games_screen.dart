@@ -1,9 +1,7 @@
-// Inner page for the participant's custom games ("Your Goals"). Same
-// shape as [CategoryGamesScreen] but pulls from the live Firestore
-// stream so newly-authored goals appear immediately. The empty state
-// is reachable in theory (the catalog tile is hidden when empty) but
-// guarded here in case the participant deletes their last custom game
-// while this screen is open.
+// The participant's own games ("Your Goals") - the games they built
+// themselves. Looks like the category page, but reads live from the
+// cloud (Firestore) so a game you just made shows up right away.
+// If you delete your last one while here, an empty-state message shows.
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -14,9 +12,11 @@ import '../../games/custom_games/custom_game.dart';
 import '../../games/custom_games/custom_games_repository.dart';
 import '../widgets/game_detail_dialog.dart';
 
+// The screen that lists this person's home-made games.
 class CustomGamesScreen extends StatelessWidget {
   const CustomGamesScreen({super.key});
 
+  // Watch this user's custom games live; show them in a 2-across grid.
   @override
   Widget build(BuildContext context) {
     final uid = context.select<UserDataProvider, String>((p) => p.uid);
@@ -38,6 +38,7 @@ class CustomGamesScreen extends StatelessWidget {
             : CustomGamesRepository.instance.watch(uid),
         builder: (context, snap) {
           final games = snap.data ?? const <CustomGame>[];
+          // No games left? Show a gentle "you haven't made any yet" note.
           if (games.isEmpty) {
             return const Center(
               child: Padding(
@@ -76,6 +77,7 @@ class CustomGamesScreen extends StatelessWidget {
   }
 }
 
+// One square tile for a single home-made game - icon + title, tap to open.
 class _CustomGameSquareCard extends StatelessWidget {
   final CustomGame game;
   final VoidCallback onTap;

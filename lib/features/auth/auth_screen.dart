@@ -1,3 +1,9 @@
+// auth_screen.dart - the new-user sign-up questionnaire ("Join the Circle").
+//
+// A 14-page wizard: basic info, demographics, habits, a big set of survey
+// sliders, and finally consent + signature. Hitting Finish saves everything
+// and drops you into the app. The AuthProvider "brain" holds the answers.
+
 import 'package:cardio_care_quest/features/dashboard/screens/main_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -9,6 +15,7 @@ import 'widgets/signature_pad.dart';
 import 'package:cardio_care_quest/core/providers/user_data_manager.dart'; // ─── ADD THIS
 
 
+// The sign-up screen widget.
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
 
@@ -22,10 +29,11 @@ class AuthScreen extends StatefulWidget {
 const bool isDemoMode = true;
 
 class _AuthScreenState extends State<AuthScreen> {
-  final PageController _pageController = PageController();
+  final PageController _pageController = PageController(); // controls which page shows
   // ─── ADD THIS VARIABLE ───
-  bool _isSubmitting = false;
-  
+  bool _isSubmitting = false; // true while the final save is running
+
+  // The 35 survey statements, numbered. The sliders later look these up by number.
   // ─── THE 35 RESEARCH PROTOCOL QUESTIONS ───
   final Map<int, String> _surveyQuestions = {
     1: "I decided to start using Cardio Care Quest because other people want me to use it.",
@@ -65,6 +73,7 @@ class _AuthScreenState extends State<AuthScreen> {
     35: "Using Cardio Care Quest to remember my medication would help me feel part of a larger community."
   };
 
+  // Holds the finger-drawn consent signature on the last page.
   // ─── ADD THIS CONTROLLER ───
   final SignatureController _sigController = SignatureController(
     penStrokeWidth: 3,
@@ -78,6 +87,8 @@ class _AuthScreenState extends State<AuthScreen> {
     super.dispose();
   }
 
+  // The screen: progress bar on top, the current page in the middle card,
+  // and Back / Next (or Finish) buttons at the bottom.
   @override
   Widget build(BuildContext context) {
     final authProvider = context.watch<AuthProvider>();
@@ -158,6 +169,7 @@ class _AuthScreenState extends State<AuthScreen> {
 
   // ─── WIDGET BUILDERS ───
 
+  // Top progress area: "STEP x OF y", a percent, and the segmented bar.
   Widget _buildProgressHeader(int current, int total) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(32, 24, 32, 8),
@@ -206,6 +218,7 @@ class _AuthScreenState extends State<AuthScreen> {
     );
   }
 
+  // Builds the right content for a given page number (1-14).
   // ─── DYNAMIC STEP RENDERER ───
   // Notice we now pass the 'step' directly from the PageView generator!
   Widget _buildStepContent(AuthProvider provider, int step) {
@@ -313,8 +326,11 @@ class _AuthScreenState extends State<AuthScreen> {
     }
   }
 
+// Builds one survey page: which of the 35 questions belong on this step, each
+// shown with a 1-7 agree/disagree scale.
 // ─── SLIDER GROUP RENDERER ───
   Widget _buildSliderGroup(AuthProvider provider, int step) {
+    // Which question numbers go on each step page.
     final Map<int, List<int>> stepMap = {
       5: [1, 2, 3, 4, 5],
       6: [6, 7, 8, 9, 10],
@@ -350,8 +366,10 @@ class _AuthScreenState extends State<AuthScreen> {
     
     ...questionNumbers.map((qNum) {
       String fullQuestionText = _surveyQuestions[qNum] ?? "Question $qNum";
-      String dbKey = fullQuestionText.endsWith('.') 
-          ? fullQuestionText.substring(0, fullQuestionText.length - 1) 
+      // The key we save the answer under. Drop a trailing "." so the saved
+      // name stays tidy and consistent.
+      String dbKey = fullQuestionText.endsWith('.')
+          ? fullQuestionText.substring(0, fullQuestionText.length - 1)
           : fullQuestionText;
 
       return Padding(
@@ -376,6 +394,7 @@ class _AuthScreenState extends State<AuthScreen> {
     
 }
 
+// Shared page frame: a big title with the given widgets stacked, scrollable.
 Widget _buildStepWrapper(String title, List<Widget> children) {
     return Scrollbar(
       thumbVisibility: true, // Forces the scrollbar to stay visible while scrolling
@@ -399,6 +418,8 @@ Widget _buildStepWrapper(String title, List<Widget> children) {
   }
 
   // ─── INPUT RENDERERS ───
+
+ // A labelled text box; saves what you type into the form under [key].
  Widget _buildTextField(AuthProvider provider, String key, String label, String hint, {bool isNumber = false, int maxLines = 1}) {
     return TextField(
       onChanged: (val) => provider.updateField(key, val),
@@ -422,6 +443,7 @@ Widget _buildStepWrapper(String title, List<Widget> children) {
     );
   }
 
+  // A pick-one list of options; saves the chosen one under [key].
   Widget _buildRadioField(AuthProvider provider, String key, List<String> options) {
     return Column(
       children: options.map<Widget>((opt) => CustomOptionButton(
@@ -432,9 +454,11 @@ Widget _buildStepWrapper(String title, List<Widget> children) {
     );
   }
 
+// The bottom Back / Next buttons. On the last page, Next reads "FINISH" and
+// runs the save. In demo mode it then jumps straight to the dashboard.
 Widget _buildNavButtons(AuthProvider provider) {
   // ─── OPTIONAL: Toggle this boolean to true for the demo ───
-  final bool isDemoMode = true; 
+  final bool isDemoMode = true;
 
   return Padding(
     padding: const EdgeInsets.fromLTRB(32, 0, 32, 32),
@@ -513,14 +537,15 @@ Widget _buildNavButtons(AuthProvider provider) {
     ),
   );
 }
+// The 1-7 agree/disagree row for one survey question. Tapping a number saves it.
 Widget _buildLikertScale(AuthProvider provider, String key) {
     return Column(
       children: [
         Row(
           children: List.generate(7, (index) {
             int value = index + 1;
-            // Use current value or default to 1 for the radio group logic
-            int currentValue = provider.formData[key] ?? 0; 
+            // The saved answer so far (0 = nothing picked yet).
+            int currentValue = provider.formData[key] ?? 0;
             
             return Expanded(
               child: InkWell( // Making the whole column tappable is better UX

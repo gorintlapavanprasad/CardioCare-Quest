@@ -1,3 +1,7 @@
+// FirestorePaths - the names of our cloud database folders (collections).
+//
+// Firestore stores data in named "collections". We keep every name here as a
+// constant so we spell them the same way everywhere and can't make typos.
 class FirestorePaths {
   static const events = 'events';
   static const dataPoints = 'data_points';
@@ -32,7 +36,7 @@ class FirestorePaths {
   /// Sub-collection on `userData/{uid}/` holding per-action game
   /// activity logs from hub-and-spoke games (Vascular Village's
   /// per-quest credits, etc.). Distinct from `surveys/` which is
-  /// reserved for actual questionnaire submissions — putting game
+  /// reserved for actual questionnaire submissions - putting game
   /// data under surveys conflates two research artefacts. Each doc:
   /// `{gameId, questId, pointsEarned, sessionId?, data?, createdAt}`.
   static const gameLogs = 'gameLogs';
@@ -53,8 +57,8 @@ class FirestorePaths {
   static const pairedSessions = 'pairedSessions';
 
   /// Sub-collections of `pairedSessions/{id}` for the caregiver view:
-  /// `helpMarkers` — one doc each time the caregiver marks that help was
-  /// given (with the game/step context); `notes` — free-text caregiver
+  /// `helpMarkers` - one doc each time the caregiver marks that help was
+  /// given (with the game/step context); `notes` - free-text caregiver
   /// observations, one doc per entry (never overwritten).
   static const helpMarkers = 'helpMarkers';
   static const notes = 'notes';

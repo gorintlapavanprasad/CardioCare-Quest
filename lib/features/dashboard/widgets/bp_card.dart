@@ -1,6 +1,11 @@
+// A card that shows one blood-pressure reading (the top / bottom numbers).
+// It colours itself and shows a label (Normal, Elevated, Stage 1/2) based
+// on how high the reading is, plus a little trend arrow and a timestamp.
+
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
 
+// The blood-pressure card. Give it the two numbers, a trend, and a time.
 class BPCard extends StatelessWidget {
   final int systolic;
   final int diastolic;
@@ -15,6 +20,7 @@ class BPCard extends StatelessWidget {
     required this.timestamp,
   });
 
+  // Decide the label + colours from the numbers (the standard BP ranges).
   Map<String, dynamic> _getBPStatus() {
     if (systolic < 120 && diastolic < 80) {
       return {'label': 'Normal', 'accent': const Color(0xFF5ec962), 'bg': const Color(0xFF5ec962).withValues(alpha: 0.10)};
@@ -28,12 +34,14 @@ class BPCard extends StatelessWidget {
     return {'label': 'Stage 2', 'accent': const Color(0xFF440154), 'bg': const Color(0xFF440154).withValues(alpha: 0.10)};
   }
 
+  // Draw the card: header row with label, the big numbers, and the trend.
   @override
   Widget build(BuildContext context) {
     final status = _getBPStatus();
     final Color accent = status['accent'];
     final Color bg = status['bg'];
-    
+
+    // Pick the arrow: up, down, or a flat dash for "stable".
     IconData trendIcon = trend == 'up' ? Icons.trending_up : trend == 'down' ? Icons.trending_down : Icons.remove;
 
     return Container(

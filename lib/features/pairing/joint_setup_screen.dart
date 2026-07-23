@@ -1,3 +1,7 @@
+// joint_setup_screen.dart - the quick "set up together" wizard a caregiver
+// runs before handing the phone to the participant. Three steps (who's
+// helping, text size, pace), then it starts the shared session.
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -8,7 +12,7 @@ import 'package:cardio_care_quest/core/theme/app_colors.dart';
 
 /// Joint setup for a caregiver + participant co-play session.
 ///
-/// Three quick steps — who's helping, text size, pace — then a "hand to the
+/// Three quick steps - who's helping, text size, pace - then a "hand to the
 /// participant" confirmation that starts the paired session (via [PairHooks])
 /// and applies the chosen settings globally (via [SessionSettingsService]).
 ///
@@ -22,12 +26,13 @@ class JointSetupScreen extends StatefulWidget {
 }
 
 class _JointSetupScreenState extends State<JointSetupScreen> {
-  int _step = 0;
-  final TextEditingController _caregiverController = TextEditingController();
-  double _textScale = 1.0;
-  SessionPace _pace = SessionPace.standard;
-  bool _starting = false;
+  int _step = 0; // which of the 3 setup steps we're on
+  final TextEditingController _caregiverController = TextEditingController(); // caregiver name box
+  double _textScale = 1.0; // chosen text size (1.0 = normal)
+  SessionPace _pace = SessionPace.standard; // chosen game speed
+  bool _starting = false; // true while the session is being created
 
+  // The text-size choices and their friendly labels (must line up 1-to-1).
   static const _textScaleOptions = <double>[1.0, 1.3, 1.6, 2.0];
   static const _textScaleLabels = <String>['Default', 'Large', 'Larger', 'Largest'];
 
@@ -37,6 +42,8 @@ class _JointSetupScreenState extends State<JointSetupScreen> {
     super.dispose();
   }
 
+  // Last step: apply the chosen settings app-wide and start the paired
+  // session, then close this screen (returning true = "we started").
   Future<void> _finish() async {
     if (_starting) return;
     setState(() => _starting = true);
@@ -59,6 +66,7 @@ class _JointSetupScreenState extends State<JointSetupScreen> {
     Navigator.of(context).pop(true);
   }
 
+  // The screen shell: progress dots on top, the current step, nav buttons below.
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -86,6 +94,7 @@ class _JointSetupScreenState extends State<JointSetupScreen> {
     );
   }
 
+  // Picks which step's content to show based on _step.
   Widget _buildStep() {
     switch (_step) {
       case 0:
@@ -97,6 +106,7 @@ class _JointSetupScreenState extends State<JointSetupScreen> {
     }
   }
 
+  // Step 1: optional caregiver label (e.g. "Daughter", "Nurse").
   Widget _caregiverStep() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -106,7 +116,7 @@ class _JointSetupScreenState extends State<JointSetupScreen> {
                 fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.title)),
         const SizedBox(height: 8),
         const Text(
-          'Optional — a label for the caregiver so their notes and help '
+          'Optional - a label for the caregiver so their notes and help '
           'markers are recorded. e.g. "Daughter", "Nurse".',
           style: TextStyle(fontSize: 16, color: AppColors.subtitle),
         ),
@@ -126,6 +136,7 @@ class _JointSetupScreenState extends State<JointSetupScreen> {
     );
   }
 
+  // Step 2: pick a comfortable text size (the tiles preview it live).
   Widget _textSizeStep() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -143,6 +154,7 @@ class _JointSetupScreenState extends State<JointSetupScreen> {
     );
   }
 
+  // One text-size choice row. Its own text is shown at that size as a preview.
   Widget _sizeTile(double scale, String label) {
     final selected = _textScale == scale;
     return Padding(
@@ -161,7 +173,7 @@ class _JointSetupScreenState extends State<JointSetupScreen> {
           child: Row(
             children: [
               Expanded(
-                child: Text('$label — Aa',
+                child: Text('$label - Aa',
                     style: TextStyle(
                         fontSize: 18 * scale,
                         fontWeight: FontWeight.w600,
@@ -176,6 +188,7 @@ class _JointSetupScreenState extends State<JointSetupScreen> {
     );
   }
 
+  // Step 3: pick the game pace (how much time to allow on each step).
   Widget _paceStep() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -194,6 +207,7 @@ class _JointSetupScreenState extends State<JointSetupScreen> {
     );
   }
 
+  // One pace choice row (title + short description).
   Widget _paceTile(SessionPace pace, String title, String subtitle) {
     final selected = _pace == pace;
     return Padding(
@@ -235,6 +249,7 @@ class _JointSetupScreenState extends State<JointSetupScreen> {
     );
   }
 
+  // The bottom Back / Next row. On the last step "Next" becomes the finish button.
   Widget _buildNav() {
     final isLast = _step == 2;
     return Row(
@@ -275,6 +290,7 @@ class _JointSetupScreenState extends State<JointSetupScreen> {
   }
 }
 
+// The little progress bars at the top: filled up to the current step.
 class _StepDots extends StatelessWidget {
   final int current;
   final int total;

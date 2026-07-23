@@ -8,6 +8,11 @@ import 'package:cardio_care_quest/core/hooks/hooks.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 
+// BP Log screen - where the user types today's blood pressure and mood.
+// It saves the reading, gives points, and shows a little 7-day chart so
+// they can see how their numbers are moving.
+
+// The screen widget itself. State lives in the class below.
 class BPLogScreen extends StatefulWidget {
   const BPLogScreen({super.key});
 
@@ -15,13 +20,17 @@ class BPLogScreen extends StatefulWidget {
   State<BPLogScreen> createState() => _BPLogScreenState();
 }
 
+// Holds the screen's live state: the two number boxes, the save flag,
+// and which mood face is picked.
 class _BPLogScreenState extends State<BPLogScreen> {
+  // The top (systolic) and bottom (diastolic) number boxes.
   final TextEditingController _systolicController = TextEditingController();
   final TextEditingController _diastolicController = TextEditingController();
-  
-  bool _isSaving = false;
-  int _selectedMood = 2; // 0-4 scale, 2 is neutral
 
+  bool _isSaving = false;
+  int _selectedMood = 2; // 0-4 scale, 2 is the neutral face
+
+  // Clean up the text boxes when the screen closes, so we don't leak memory.
   @override
   void dispose() {
     _systolicController.dispose();
@@ -29,6 +38,8 @@ class _BPLogScreenState extends State<BPLogScreen> {
     super.dispose();
   }
 
+  // Save today's reading. Reads the two boxes, stores it, then gives points
+  // and closes the screen. Ignores empty boxes.
   Future<void> _saveBPReading() async {
     final userDataProvider = Provider.of<UserDataProvider>(context, listen: false);
     final uid = userDataProvider.uid;
@@ -41,7 +52,7 @@ class _BPLogScreenState extends State<BPLogScreen> {
       final int dia = int.parse(_diastolicController.text);
       final String today = DateTime.now().toIso8601String().split('T')[0];
 
-      // Durable write through the hooks library — same Firestore shape as
+      // Durable write through the hooks library - same Firestore shape as
       // before, but the per-reading sub-doc, daily-log summary, lifetime
       // counters and immutable event row are all batched inside the hook.
       await DailyLogHooks.logBP(
@@ -74,9 +85,8 @@ class _BPLogScreenState extends State<BPLogScreen> {
     }
   }
 
-  // 7-day trend reads the daily-log SUMMARY docs (one point per day, the most
-  // recent reading of that day). Individual readings live in the bpReadings
-  // sub-collection if a deeper drill-down is ever needed.
+  // Live feed of the last 7 daily summaries (one point per day) for the chart.
+  // Full per-reading detail lives elsewhere if we ever need to dig deeper.
   Stream<QuerySnapshot> _getRecentReadingsStream() {
     final uid = Provider.of<UserDataProvider>(context, listen: false).uid;
     if (uid.isEmpty) return const Stream.empty();
@@ -90,6 +100,7 @@ class _BPLogScreenState extends State<BPLogScreen> {
         .snapshots();
   }
 
+  // Lay out the page: number boxes, mood row, save button, then the chart.
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -116,6 +127,7 @@ class _BPLogScreenState extends State<BPLogScreen> {
     );
   }
 
+  // The two big number boxes with a "/" between them (like 120/80).
   Widget _buildInputSection() {
     return Row(
       children: [
@@ -136,6 +148,7 @@ class _BPLogScreenState extends State<BPLogScreen> {
     );
   }
 
+  // One number-only box with a label (used for both systolic and diastolic).
   Widget _buildNumericField(TextEditingController controller, String label) {
     return TextField(
       controller: controller,
@@ -150,6 +163,7 @@ class _BPLogScreenState extends State<BPLogScreen> {
     );
   }
 
+  // A row of 5 emoji faces. Tap one to record how you feel today.
   Widget _buildMoodTracker() {
     final List<String> moods = ['😞', '😕', '😐', '🙂', '😄'];
     return Column(
@@ -187,6 +201,7 @@ class _BPLogScreenState extends State<BPLogScreen> {
     );
   }
 
+  // The Save button. Shows a spinner while saving so people don't tap twice.
   Widget _buildSaveButton() {
     return SizedBox(
       width: double.infinity,
@@ -203,6 +218,7 @@ class _BPLogScreenState extends State<BPLogScreen> {
     );
   }
 
+  // The 7-day line chart: two lines, one for systolic, one for diastolic.
   Widget _buildChartSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -244,6 +260,8 @@ class _BPLogScreenState extends State<BPLogScreen> {
                 return const Center(child: Text('No readings yet.'));
               }
 
+              // Turn each day's reading into a dot on the chart (x = day
+              // position, y = the number).
               final spotsSys = <FlSpot>[];
               final spotsDia = <FlSpot>[];
 
@@ -255,6 +273,8 @@ class _BPLogScreenState extends State<BPLogScreen> {
                     i.toDouble(), (reading['lastDiastolic'] as num).toDouble()));
               }
 
+              // Make a short date label (like "5 Mar") for the bottom axis.
+              // Falls back to today if the stored date is missing/odd.
               String formatReadingDate(int index) {
                 final reading = readings[index].data() as Map<String, dynamic>;
                 final timestampValue = reading['lastBPTimestamp'];
@@ -310,6 +330,7 @@ class _BPLogScreenState extends State<BPLogScreen> {
     );
   }
 
+  // Style for one line on the chart: curved, colored, with a soft fill below.
   LineChartBarData _lineChartBarData(List<FlSpot> spots, Color color) {
     return LineChartBarData(
       spots: spots,

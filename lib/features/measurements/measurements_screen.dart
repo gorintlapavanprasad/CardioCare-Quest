@@ -8,19 +8,18 @@ import 'package:cardio_care_quest/core/providers/user_data_manager.dart';
 import 'package:cardio_care_quest/core/theme/app_colors.dart';
 import 'package:cardio_care_quest/features/games/game_stories.dart';
 
-/// Reachable from the "Measurements" Health Pillar tile on the dashboard.
-///
-/// Streams the user's `healthSnapshots` sub-collection — one doc per
-/// game-end, written by [HealthHooks.logSnapshot]. Each doc carries a
-/// HealthKit / Health Connect vitals snapshot (or just metadata if the
-/// participant has no paired wearable).
-///
-/// The BP-prompt-once-per-day gate doesn't suppress writes here —
-/// researchers get a row for every game completion regardless of
-/// whether the user logged BP. See `project_healthkit_integration.md`.
+// Measurements screen - a history list of health "snapshots".
+//
+// Every time a game ends we save a snapshot of the user's watch readings
+// (heart rate, steps, etc.). This screen just lists them newest-first.
+// If they have no watch, the snapshot is still saved, just without numbers.
+
+// The screen itself. It streams the saved snapshots and lists them.
 class MeasurementsScreen extends StatelessWidget {
   const MeasurementsScreen({super.key});
 
+  // Build the list. Shows a spinner while loading and an empty message
+  // if there are no snapshots yet.
   @override
   Widget build(BuildContext context) {
     final uid = Provider.of<UserDataProvider>(context).uid;
@@ -70,6 +69,8 @@ class MeasurementsScreen extends StatelessWidget {
   }
 }
 
+// One card in the list: shows the game name, when it happened, and either
+// the watch readings or a "no wearable data" note.
 class _MeasurementCard extends StatelessWidget {
   final Map<String, dynamic> data;
   const _MeasurementCard({required this.data});
@@ -156,6 +157,8 @@ class _MeasurementCard extends StatelessWidget {
   }
 }
 
+// The little pill-shaped readings (heart rate, steps, O2, etc.). We only
+// show a chip for a value that actually exists in this snapshot.
 class _SnapshotChips extends StatelessWidget {
   final Map<String, dynamic> data;
   const _SnapshotChips({required this.data});
@@ -214,6 +217,7 @@ class _SnapshotChips extends StatelessWidget {
     );
   }
 
+  // One reading pill: an icon plus its label (e.g. "72 bpm").
   Widget _chip(IconData icon, String label) {
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -233,6 +237,7 @@ class _SnapshotChips extends StatelessWidget {
   }
 }
 
+// Shown when there are no snapshots yet - tells the user to play a game.
 class _EmptyState extends StatelessWidget {
   const _EmptyState();
 
