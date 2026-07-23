@@ -5,41 +5,25 @@ import 'package:cardio_care_quest/core/constants/firestore_paths.dart';
 import 'package:cardio_care_quest/core/services/offline_queue.dart';
 import 'package:cardio_care_quest/core/services/session_manager.dart';
 
-/// Hook helpers for survey / questionnaire response storage.
-///
-/// Used by the control-game Twine page (`assets/game/control_game.html`)
-/// and any other questionnaire-style content (post-play survey, baseline
-/// survey, etc.). Mirrors the existing `surveys/{surveyId}/responses/{uid}`
-/// schema implied by [FirestorePaths.surveys] / [FirestorePaths.responses].
-///
-/// Storage shape:
-///   surveys/{surveyId}/responses/{auto}            — one row per submission
-///   userData/{uid}                                 — lifetime counters
-///   events/{eventUuid}                             — immutable event row
-///
-/// All writes batch atomically through OfflineQueue.
+// SurveyHooks - saves answers from surveys / questionnaires (post-play survey,
+// baseline survey, daily check-in, etc.). Everything saves through OfflineQueue
+// so it works offline.
 abstract class SurveyHooks {
   static OfflineQueue get _queue => GetIt.instance<OfflineQueue>();
   static const _uuid = Uuid();
 
-  /// Persist a single completed questionnaire submission.
-  ///
-  /// `answers` is a free-form map of `{questionId: answer}` recorded
-  /// verbatim — answer values may be int (Likert), bool, or string.
-  /// `pointsEarned` is added to `userData/{uid}.points`.
-  ///
-  /// `countAsCompletion` (default true): when true, this submit also
-  /// bumps the user-level `surveysCompleted` counter and refreshes
-  /// `lastSurveyId` / `lastSurveyAt`. Set to false for partial-
-  /// progress submits — Vascular Village's per-quest credits use
-  /// this so a single play producing 4–5 SUBMIT_RESPONSE calls only
-  /// counts as one completion. The host (`TwineQuestionnaireHost.
-  /// _performExit`) owns the once-per-session counter bump in that
-  /// pattern.
-  /// [respondent] records WHO entered the answers — the participant by
-  /// default, or a caregiver on a shared device when the Twine page supplies
-  /// one (UPDATE1). If a paired session is active its `pairedSessionId` is
-  /// stamped automatically so the submission joins the co-play record.
+  // Save one completed questionnaire.
+  //
+  // "answers" is just a map of question → answer, stored as-is.
+  // "pointsEarned" gets added to the user's points.
+  // "countAsCompletion" (default true): if true, also bump the "surveys done"
+  // counter. Set false for games that submit several times per play, so one
+  // play only counts once (the game host adds the single count at the end).
+  // "respondent": who actually answered - the participant by default, or a
+  // caregiver if they're sharing the device.
+  //
+  // If a paired (two-person) session is running, its id is added automatically
+  // so this answer links back to that session.
   static Future<void> submitResponse({
     required String uid,
     required String surveyId,
@@ -65,7 +49,7 @@ abstract class SurveyHooks {
     }
 
     final ops = <PendingOp>[
-      // 1. Per-response doc — never overwrites prior submissions.
+      // 1. The answer itself - a new doc each time, never overwrites old ones.
       PendingOp.set(
         '${FirestorePaths.surveys}/$surveyId/'
         '${FirestorePaths.responses}/$responseId',
@@ -83,14 +67,12 @@ abstract class SurveyHooks {
       ),
     ];
     if (userUpdates.isNotEmpty) {
-      // 2. Lifetime user counters — only when there's something to
-      // bump. A partial-progress submit with 0 points and
-      // `countAsCompletion: false` would otherwise enqueue an empty
-      // update.
+      // 2. The user's running totals - only if there's something to add, so we
+      // don't send an empty, pointless update.
       ops.add(PendingOp.update(
           '${FirestorePaths.userData}/$uid', userUpdates));
     }
-    // 3. Immutable event row.
+    // 3. Permanent event row (we never edit these).
     ops.add(PendingOp.set(
       '${FirestorePaths.events}/$eventId',
       {
@@ -108,12 +90,9 @@ abstract class SurveyHooks {
         'syncedAt': OfflineFieldValue.nowTimestamp(),
       },
     ));
-    // 4. Parent survey doc — without this, `surveys/{surveyId}` shows
-    // up in the Firestore console as a ghost (italic, no fields, only
-    // a subcollection of responses below). Set-with-merge so the
-    // first submit creates the doc and subsequent submits accumulate
-    // the count + refresh the timestamp without clobbering anything
-    // else written here later.
+    // 4. The survey's own doc. Without this the survey shows up "empty" in the
+    // database console (just a folder of answers, no real doc). Merge-save so
+    // the first answer creates it and each later one bumps the count + time.
     ops.add(PendingOp.set(
       '${FirestorePaths.surveys}/$surveyId',
       {

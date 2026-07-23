@@ -1,19 +1,11 @@
-// CustomGamePlayer — router for participant-authored games.
+// CustomGamePlayer - plays a game the user built themselves.
 //
-// Different game TYPES use different player implementations, each
-// firing the appropriate hooks chain for that gameplay style:
-//
-//   • walk → CustomWalkGame (LocationDispatcher + MovementHooks
-//            pushPing/endSession + HealthHooks, like Dog Quest)
-//   • quiz → _QuizPlayer below (SurveyHooks.submitResponse +
-//            PointsHooks + HealthHooks, like the Twine questionnaires)
-//
-// New types can be added by extending CustomGameType and adding a
-// case here.
+// It just looks at the game type and hands off to the right player:
+//   • walk → CustomWalkGame (a GPS walk, like Dog Quest)
+//   • quiz → _QuizPlayer below (answer questions, like the other quizzes)
 
 import 'dart:async';
 
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
 import 'package:provider/provider.dart';
@@ -27,6 +19,9 @@ import 'custom_game.dart';
 import 'custom_games_repository.dart';
 import 'custom_walk_game.dart';
 
+// ---- THE ROUTER ----
+
+// Picks the walk player or the quiz player based on the game's type.
 class CustomGamePlayer extends StatelessWidget {
   final CustomGame game;
   const CustomGamePlayer({super.key, required this.game});
@@ -42,8 +37,12 @@ class CustomGamePlayer extends StatelessWidget {
   }
 }
 
+// ---- THE QUIZ PLAYER ----
+
+// The three screens a quiz moves through, in order.
 enum _Scene { welcome, question, result }
 
+// The quiz player: welcome screen → questions → results screen.
 class _QuizPlayer extends StatefulWidget {
   final CustomGame game;
   const _QuizPlayer({required this.game});
@@ -53,38 +52,31 @@ class _QuizPlayer extends StatefulWidget {
 }
 
 class _CustomGamePlayerState extends State<_QuizPlayer> {
-  _Scene _scene = _Scene.welcome;
-  // Snapshot of the game's questions taken once at init so the
-  // sequence is stable for this play even if Firestore replaces the
-  // CustomGame doc beneath us mid-session.
+  _Scene _scene = _Scene.welcome; // which screen we're on
+  // Copy the questions once when we start, so the list can't change
+  // under us mid-play even if the cloud copy gets updated.
   late final List<QuizQuestion> _questions;
-  // Tracks which question is currently on screen.
-  int _currentQuestionIndex = 0;
-  // Parallel to `_questions` — answers[i] is the participant's
-  // response to questions[i]. Filled as the participant taps
-  // through; submitted in one structured payload at session end.
+  int _currentQuestionIndex = 0; // which question is showing
+  // The user's answers, in the same order as _questions. Filled in as
+  // they tap; all sent together at the end.
   final List<String> _answers = [];
-  late final String _sessionId;
+  late final String _sessionId; // ties all of this one play together
   late final DateTime _startedAt;
-  bool _resultHooksFired = false;
+  bool _resultHooksFired = false; // so we only award points once
 
+  // Runs once when the quiz opens: grab the questions, make an id for
+  // this play, and note that the game was opened.
   @override
   void initState() {
     super.initState();
     _startedAt = DateTime.now();
-    // `effectiveQuestions` papers over older single-question docs (a
-    // single QuizQuestion synthesized from the legacy `prompt` +
-    // `options` fields) and the new multi-question docs. We snapshot
-    // it here so the sequence is stable for the rest of this play.
+    // Get the questions to play (handles both new and old saved games).
     _questions = widget.game.effectiveQuestions;
-    // Same pattern as TwineQuestionnaireHost — sessionId joins all the
-    // per-play writes (response doc, telemetry event, gameSessions
-    // summary, HealthKit snapshot) so researchers can reconstruct one
-    // play of one game by one user.
+    // A unique id for this one play. Every record we save below carries
+    // it, so researchers can line them all up as one play later.
     _sessionId = '${_surveyId}_${_startedAt.millisecondsSinceEpoch}';
 
-    // Game-open telemetry — mirrors the *_opened event TwineGameHost
-    // fires for catalog games.
+    // Note that the game was opened (for the researchers).
     final uid = Provider.of<UserDataProvider>(context, listen: false).uid;
     // ignore: unawaited_futures
     TelemetryHooks.logEvent(
@@ -98,13 +90,12 @@ class _CustomGamePlayerState extends State<_QuizPlayer> {
     );
   }
 
+  // A name for this quiz's saved answers, e.g. "custom_ab12".
   String get _surveyId => 'custom_${widget.game.id}';
 
+  // Runs when the user taps an answer. Saves it, then either shows the
+  // next question or, on the last one, jumps to the results screen.
   Future<void> _onAnswerTapped(String answer) async {
-    // Compute branching upfront so the post-setState completion
-    // check sees the same value setState applied. Last question
-    // advances to the result scene; earlier questions just bump the
-    // index.
     final isLast = _currentQuestionIndex >= _questions.length - 1;
     setState(() {
       _answers.add(answer);
@@ -115,20 +106,20 @@ class _CustomGamePlayerState extends State<_QuizPlayer> {
       }
     });
     if (!isLast) return;
-    // Fire the hook chain on FIRST entry to result; guard so back-
-    // navigation to result (e.g. via burger restart) doesn't double-
-    // award points.
+    // Only save + give points the first time we reach the results, so
+    // going back to this screen can't hand out points twice.
     if (_resultHooksFired) return;
     _resultHooksFired = true;
     await _fireCompletionHooks();
   }
 
+  // Runs once when the quiz is finished. Saves everything and hands out
+  // points. Each numbered step below saves a different piece.
   Future<void> _fireCompletionHooks() async {
     final uid = Provider.of<UserDataProvider>(context, listen: false).uid;
     final game = widget.game;
 
-    // 1. Custom games repo — bumps completedCount + stamps
-    //    lastCompletedAt so the dashboard tile reflects it.
+    // 1. Mark this game as finished one more time (updates the card).
     if (uid.isNotEmpty) {
       // ignore: unawaited_futures
       CustomGamesRepository.instance.markCompleted(
@@ -137,11 +128,9 @@ class _CustomGamePlayerState extends State<_QuizPlayer> {
       );
     }
 
-    // 2. SurveyHooks — writes to surveys/custom_<gameId>/responses,
-    //    bumps userData.points + .surveysCompleted, fires immutable
-    //    event row. Same plumbing the Twine questionnaires use. The
-    //    `questions` array preserves prompt + options + answer per
-    //    question for downstream research queries.
+    // 2. Save the actual answers and add the points. We save each
+    //    question with its choices and the answer picked, so researchers
+    //    can see exactly what was asked and answered.
     if (uid.isNotEmpty) {
       // ignore: unawaited_futures
       SurveyHooks.submitResponse(
@@ -162,11 +151,8 @@ class _CustomGamePlayerState extends State<_QuizPlayer> {
       );
     }
 
-    // 3. PointsHooks — optimistic UI bump on the dashboard so the
-    //    user sees their new total before the Firestore write resolves.
-    //    SurveyHooks.submitResponse also bumps points server-side via
-    //    OfflineFieldValue.increment, but the local state mirror is
-    //    what the home screen reads.
+    // 3. Bump the points shown on screen right away, so the user sees
+    //    their new total instantly instead of waiting for the save.
     if (mounted) {
       PointsHooks.applyIncrements(context, {
         'points': game.pointsReward,
@@ -174,10 +160,9 @@ class _CustomGamePlayerState extends State<_QuizPlayer> {
       });
     }
 
-    // 4. TelemetryHooks — completion event with the session join key.
-    //    Counts only (not the answers themselves) so the events
-    //    collection stays PII-clean — the full per-question payload
-    //    lives in the surveys response doc above for analysis.
+    // 4. Note that the quiz was finished (for the researchers). Just
+    //    counts and timing here, no answers, to keep it free of any
+    //    personal info. The real answers were saved in step 2.
     // ignore: unawaited_futures
     TelemetryHooks.logEvent(
       'custom_game_session_completed',
@@ -194,9 +179,8 @@ class _CustomGamePlayerState extends State<_QuizPlayer> {
       userId: uid.isEmpty ? null : uid,
     );
 
-    // 5. HealthHooks — wearable snapshot at game end (matches the
-    //    Twine hosts' end-game pattern). Stamped with sessionId so
-    //    researchers can join it to the rest of the per-play writes.
+    // 5. Grab a health snapshot from the watch/wearable at the end,
+    //    tagged with this play's id so it lines up with the rest.
     if (uid.isNotEmpty) {
       // ignore: unawaited_futures
       HealthHooks.logSnapshot(
@@ -206,10 +190,9 @@ class _CustomGamePlayerState extends State<_QuizPlayer> {
       );
     }
 
-    // 6. gameSessions/{sessionId} summary doc — netguage CheckData
-    //    equivalent. Same shape TwineQuestionnaireHost writes so a
-    //    single query can pull "every play of every game" across both
-    //    Twine and custom flows.
+    // 6. Save a short summary of this play. It's the same shape the
+    //    other games save, so one search can pull up every play of
+    //    every game together.
     if (uid.isNotEmpty) {
       // ignore: unawaited_futures
       GetIt.instance<OfflineQueue>().enqueue(PendingOp.set(
@@ -220,12 +203,9 @@ class _CustomGamePlayerState extends State<_QuizPlayer> {
           'gameId': _surveyId,
           'gameTitle': game.title,
           'category': game.category.name,
-          // Same `hostType` field TwineQuestionnaireHost / TwineGameHost
-          // write so a single query against gameSessions can group plays
-          // by host. `Timestamp.fromDate` was changed to
-          // OfflineFieldValue.timestampFrom because the queued payload
-          // round-trips through Hive — Firestore Timestamps don't
-          // survive that encode/decode reliably.
+          // Which player made this record, so plays can be grouped by
+          // type. We use the queue's time markers (below), because the
+          // plain cloud ones don't survive being stored on the phone.
           'hostType': 'CustomGamePlayer.quiz',
           'startedAt': OfflineFieldValue.timestampFrom(_startedAt),
           'endedAt': OfflineFieldValue.nowTimestamp(),
@@ -241,6 +221,8 @@ class _CustomGamePlayerState extends State<_QuizPlayer> {
     }
   }
 
+  // Shows whichever screen we're on right now: welcome, a question, or
+  // the result.
   @override
   Widget build(BuildContext context) {
     return PopScope(
@@ -276,9 +258,9 @@ class _CustomGamePlayerState extends State<_QuizPlayer> {
   }
 }
 
-/// Mimics the dark gradient + flex-column layout the Twine games use.
-/// Header bar at top with title + the same `≡` glyph, scrollable
-/// content below.
+// ---- SCREEN PARTS (looks only) ----
+
+// The dark blue background all the quiz screens sit on.
 class _PhoneFrame extends StatelessWidget {
   final Color categoryColor;
   final Widget child;
@@ -300,6 +282,7 @@ class _PhoneFrame extends StatelessWidget {
   }
 }
 
+// The top bar with the game's title.
 class _GameHeader extends StatelessWidget {
   final String title;
   const _GameHeader({required this.title});
@@ -337,6 +320,7 @@ class _GameHeader extends StatelessWidget {
   }
 }
 
+// First screen: the game name, note, and a BEGIN button.
 class _WelcomeScene extends StatelessWidget {
   final CustomGame game;
   final VoidCallback onStart;
@@ -388,6 +372,8 @@ class _WelcomeScene extends StatelessWidget {
   }
 }
 
+// Middle screen: one question with its answer buttons. Shows a
+// "Question 2 of 3" counter when there's more than one.
 class _QuestionScene extends StatelessWidget {
   final CustomGame game;
   final QuizQuestion question;
@@ -427,6 +413,7 @@ class _QuestionScene extends StatelessWidget {
                   const SizedBox(height: 12),
                 ] else
                   const SizedBox(height: 12),
+                // Use a friendly default if the question text is blank.
                 Text(
                   question.prompt.isEmpty
                       ? 'How did it go?'
@@ -457,6 +444,7 @@ class _QuestionScene extends StatelessWidget {
   }
 }
 
+// Last screen: "Great job", the points earned, and a DONE button.
 class _ResultScene extends StatelessWidget {
   final CustomGame game;
   final int questionTotal;
@@ -535,6 +523,7 @@ class _ResultScene extends StatelessWidget {
   }
 }
 
+// The big white button (BEGIN / DONE).
 class _PrimaryButton extends StatelessWidget {
   final String label;
   final VoidCallback onPressed;
@@ -568,6 +557,7 @@ class _PrimaryButton extends StatelessWidget {
   }
 }
 
+// One answer-choice button on a question screen.
 class _OptionButton extends StatelessWidget {
   final String label;
   final VoidCallback onPressed;

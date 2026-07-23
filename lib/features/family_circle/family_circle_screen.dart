@@ -3,9 +3,16 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cardio_care_quest/core/theme/app_colors.dart';
 import 'package:cardio_care_quest/core/constants/firestore_paths.dart';
 
+// Family Circle screen - a shared, friendly view of everyone in the app.
+// It adds up everyone's steps for a group goal, lists each member with
+// their latest BP, and shows the total points earned together.
+
+// The screen. Reads all users and builds the family view from them.
 class FamilyCircleScreen extends StatelessWidget {
   const FamilyCircleScreen({super.key});
 
+  // Build the page: add up totals across everyone, then show the shared
+  // quest, the member list, and the encouragement board.
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -18,6 +25,7 @@ class FamilyCircleScreen extends StatelessWidget {
           if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
+          // Add up points and steps from every family member.
           final users = snapshot.data!.docs;
           int totalPoints = 0;
           int totalSteps = 0;
@@ -53,8 +61,11 @@ class FamilyCircleScreen extends StatelessWidget {
     );
   }
 
+  // The big blue card: a shared goal to walk 10,000 steps together, with
+  // a progress bar showing how close the family is.
   Widget _buildSharedQuestCard(int totalSteps) {
     const int goalSteps = 10000;
+    // Fraction toward the goal, kept between 0 and 1 so the bar never overflows.
     final double progress = (totalSteps / goalSteps).clamp(0.0, 1.0);
 
     return Container(
@@ -108,6 +119,7 @@ class FamilyCircleScreen extends StatelessWidget {
     );
   }
 
+  // One row for a family member: avatar, name, role, and their latest BP.
   Widget _buildFamilyMemberCard(String name, String role, String bp, IconData icon) {
     return Card(
       elevation: 0,
@@ -137,6 +149,7 @@ class FamilyCircleScreen extends StatelessWidget {
     );
   }
 
+  // The cheerful bottom card showing the family's total points this week.
   Widget _buildEncouragementBoard(int totalPoints) {
     return Container(
       padding: const EdgeInsets.all(24),
@@ -171,6 +184,7 @@ class FamilyCircleScreen extends StatelessWidget {
     );
   }
 
+  // One little round avatar icon for the row of family faces.
   Widget _buildAvatarPile(IconData icon) {
     return CircleAvatar(
       backgroundColor: Colors.white,

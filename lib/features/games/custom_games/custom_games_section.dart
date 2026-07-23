@@ -1,26 +1,8 @@
-// CustomGamesSection — dashboard strip for participant-built goals.
+// CustomGamesSection - the "Your Goals" row on the dashboard.
 //
-// StreamBuilder against `userData/{uid}/customGames` ordered by creation
-// time, newest first. Each card shows the category icon, title, and
-// points reward.
-//
-//   • TAP a tile        → launches CustomGamePlayer (Welcome → Question
-//                          → Result, fires the same hook chain as
-//                          catalog Twine games — see custom_game_player.dart)
-//   • LONG-PRESS a tile → action sheet with Delete confirmation
-//
-// The "Mark as done" pattern was wrong — custom games should *play*
-// like the catalog games, not just be checkbox goals. The hook chain
-// (SurveyHooks + PointsHooks + TelemetryHooks + HealthHooks +
-// gameSessions doc) all fires from the player, not from a tap on the
-// tile.
-//
-// Returns SizedBox.shrink() when:
-//   • user not logged in (uid empty)
-//   • no custom games yet
-//
-// so the section disappears entirely instead of leaving a stranded
-// header — same pattern as the Favourites strip.
+// Shows the user's own games as little cards, newest first. Tap a card
+// to play it; tap the × (or long-press) to delete it. If the user isn't
+// signed in or has no games yet, the whole row just hides itself.
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -32,22 +14,25 @@ import 'custom_game.dart';
 import 'custom_game_player.dart';
 import 'custom_games_repository.dart';
 
-// `TelemetryHooks` is the only hook still used here (delete event).
-// Points / SurveyHooks fired during play live in CustomGamePlayer.
+// The only tracking done here is the delete event. Points/answers get
+// tracked while playing, over in CustomGamePlayer.
 
+// ---- THE WHOLE ROW ----
+
+// The "Your Goals" row: header plus a side-scrolling list of game cards.
 class CustomGamesSection extends StatelessWidget {
   const CustomGamesSection({super.key});
 
   @override
   Widget build(BuildContext context) {
     final uid = context.select<UserDataProvider, String>((p) => p.uid);
-    if (uid.isEmpty) return const SizedBox.shrink();
+    if (uid.isEmpty) return const SizedBox.shrink(); // not signed in: hide
 
     return StreamBuilder<List<CustomGame>>(
       stream: CustomGamesRepository.instance.watch(uid),
       builder: (context, snapshot) {
         final games = snapshot.data ?? const <CustomGame>[];
-        if (games.isEmpty) return const SizedBox.shrink();
+        if (games.isEmpty) return const SizedBox.shrink(); // no games: hide
 
         return Padding(
           padding: const EdgeInsets.only(top: 32),
@@ -77,6 +62,7 @@ class CustomGamesSection extends StatelessWidget {
   }
 }
 
+// The "Your Goals (3)" title with a count next to it.
 class _Header extends StatelessWidget {
   final int count;
   const _Header({required this.count});
@@ -112,6 +98,9 @@ class _Header extends StatelessWidget {
   }
 }
 
+// ---- ONE GAME CARD ----
+
+// One card in the row. Tap to play, tap the × (or long-press) to delete.
 class _CustomGameTile extends StatelessWidget {
   final CustomGame game;
   final String uid;
@@ -120,13 +109,10 @@ class _CustomGameTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Stack lets us place a small × delete button on top of the tile's
-    // main InkWell so the action is discoverable without relying on
-    // the long-press gesture (which the dry-run audience won't
-    // intuitively try). Long-press is still wired up as a redundant
-    // path. Tap on the × delegates to its own button — its tap is
-    // consumed by the inner InkWell, so the outer tile InkWell's
-    // onTap (which launches the player) doesn't also fire.
+    // A Stack lets us float a little × button on top of the card. We show
+    // an obvious × because older users won't guess to long-press. The ×
+    // has its own tap area, so tapping it deletes and does NOT also open
+    // the game.
     return Stack(
       clipBehavior: Clip.none,
       children: [
@@ -134,13 +120,15 @@ class _CustomGameTile extends StatelessWidget {
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
           child: InkWell(
+            // Tap the card: open and play this game.
             onTap: () => Navigator.push(
               context,
               MaterialPageRoute(
                 builder: (_) => CustomGamePlayer(game: game),
               ),
             ),
-            onLongPress: () => _showDeleteSheet(context),
+            onLongPress: () => _showDeleteSheet(context), // long-press: delete
+
             borderRadius: BorderRadius.circular(16),
             child: Container(
           width: 150,
@@ -197,6 +185,7 @@ class _CustomGameTile extends StatelessWidget {
                   ),
                 ),
               ),
+              // Only show "Done Nx" once it's been finished at least once.
               if (game.completedCount > 0)
                 Padding(
                   padding: const EdgeInsets.only(top: 4),
@@ -214,12 +203,9 @@ class _CustomGameTile extends StatelessWidget {
         ),
           ),
         ),
-        // Discoverable delete handle — small ✕ in a circle at the
-        // top-right corner. Slightly outside the tile bounds (negative
-        // top/right) so it doesn't overlap the points pill or the
-        // title text. Wrapped in its own Material+InkWell so its tap
-        // doesn't bubble to the tile's onTap (which launches the
-        // player).
+        // The little ✕ delete button in the top-right corner. It sits
+        // just outside the card edge so it doesn't cover the text, and it
+        // has its own tap area so tapping it deletes instead of playing.
         Positioned(
           top: -6,
           right: -6,
@@ -252,11 +238,9 @@ class _CustomGameTile extends StatelessWidget {
     );
   }
 
-  /// Long-press sheet — only surface is "Delete this goal". Play is
-  /// handled by tapping the tile (which routes to CustomGamePlayer).
-  /// Keeping this sheet narrow on purpose; mark-as-done was removed
-  /// because completion now happens inside the player after the user
-  /// answers their own question.
+  // ---- DELETE FLOW ----
+
+  // The little pop-up sheet from a long-press. Only choice: delete.
   void _showDeleteSheet(BuildContext context) {
     showModalBottomSheet<void>(
       context: context,
@@ -324,6 +308,7 @@ class _CustomGameTile extends StatelessWidget {
     );
   }
 
+  // Ask "are you sure?", then delete if they say yes. Earned points stay.
   Future<void> _confirmDelete(BuildContext context) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -346,10 +331,11 @@ class _CustomGameTile extends StatelessWidget {
         ],
       ),
     );
-    if (confirmed != true) return;
+    if (confirmed != true) return; // they backed out
 
     try {
       await CustomGamesRepository.instance.delete(uid: uid, gameId: game.id);
+      // Note the delete for the researchers (no personal info).
       // ignore: unawaited_futures
       TelemetryHooks.logEvent(
         'custom_game_deleted',
@@ -370,38 +356,30 @@ class _CustomGameTile extends StatelessWidget {
   }
 }
 
+// A big row button used inside the delete sheet. Turns red for the
+// "delete" action so it clearly looks risky.
 class _SheetButton extends StatelessWidget {
   final IconData icon;
   final String label;
   final VoidCallback onTap;
-  final bool primary;
   final bool destructive;
 
   const _SheetButton({
     required this.icon,
     required this.label,
     required this.onTap,
-    this.primary = false,
     this.destructive = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    final bg = primary
-        ? AppColors.primary
-        : destructive
-            ? Colors.redAccent.withValues(alpha: 0.08)
-            : Colors.white;
-    final fg = primary
-        ? Colors.white
-        : destructive
-            ? Colors.redAccent
-            : AppColors.title;
-    final borderColor = primary
-        ? AppColors.primary
-        : destructive
-            ? Colors.redAccent.withValues(alpha: 0.4)
-            : AppColors.cardBorder;
+    final bg = destructive
+        ? Colors.redAccent.withValues(alpha: 0.08)
+        : Colors.white;
+    final fg = destructive ? Colors.redAccent : AppColors.title;
+    final borderColor = destructive
+        ? Colors.redAccent.withValues(alpha: 0.4)
+        : AppColors.cardBorder;
 
     return Material(
       color: bg,

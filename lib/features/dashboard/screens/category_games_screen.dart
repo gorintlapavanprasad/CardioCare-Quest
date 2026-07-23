@@ -1,7 +1,7 @@
-// Inner page of the Game Catalog — shown when a category tile is
-// tapped. 2-column grid of game tiles for that pillar. Tapping a tile
-// opens the [GameDetailDialog] (preview + Play) — same dialog the
-// catalog used before, so the play UX is unchanged.
+// One category's game list. You land here after tapping a category tile
+// in the Game Catalog. Shows that category's games in a 2-across grid.
+// Tapping a game opens the preview + Play popup (same one the catalog uses),
+// so playing feels the same wherever you start from.
 
 import 'package:flutter/material.dart';
 
@@ -9,11 +9,13 @@ import '../../../core/theme/app_colors.dart';
 import '../../games/game_stories.dart';
 import '../widgets/game_detail_dialog.dart';
 
+// The screen: takes one category and shows all its games.
 class CategoryGamesScreen extends StatelessWidget {
   final GameCategory category;
 
   const CategoryGamesScreen({super.key, required this.category});
 
+  // Grab this category's games and lay them out in a 2-across grid.
   @override
   Widget build(BuildContext context) {
     final games =
@@ -51,6 +53,7 @@ class CategoryGamesScreen extends StatelessWidget {
   }
 }
 
+// One square tile for a single game - icon + title, tap to open it.
 class _GameSquareCard extends StatelessWidget {
   final GameStory game;
   final VoidCallback onTap;

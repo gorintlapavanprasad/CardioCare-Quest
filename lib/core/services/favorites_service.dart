@@ -1,4 +1,4 @@
-// FavoritesService — per-participant set of favourited game IDs,
+// FavoritesService - per-participant set of favourited game IDs,
 // backed by Firestore so favourites sync across devices.
 //
 // Stored as a single doc:
@@ -10,7 +10,7 @@
 // OfflineQueue using the same set/update pattern as the rest of the
 // app, so toggling a star while offline still works.
 //
-// Was previously SharedPreferences-only — that meant stars were
+// Was previously SharedPreferences-only - that meant stars were
 // per-device. Participants opening the app on a second device with
 // the same Unique ID saw an empty list. Migrated to Firestore so
 // participants' favourites travel with them.
@@ -24,6 +24,8 @@ import 'package:get_it/get_it.dart';
 import '../constants/firestore_paths.dart';
 import 'offline_queue.dart';
 
+// Remembers which games a participant starred, and keeps that list in sync
+// across their devices via the cloud.
 class FavoritesService {
   FavoritesService._();
   static final FavoritesService instance = FavoritesService._();
@@ -31,7 +33,7 @@ class FavoritesService {
   /// Currently-loaded participant. `null` until [load] is called.
   String? _participantId;
 
-  /// Live subscription to the Firestore favorites doc — replaces the
+  /// Live subscription to the Firestore favorites doc - replaces the
   /// earlier SharedPreferences cache. Cancelled when the participant
   /// changes (relog) or [clear] is called.
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _sub;
@@ -49,7 +51,7 @@ class FavoritesService {
       '${FirestorePaths.userData}/$uid/${FirestorePaths.preferences}/${FirestorePaths.favorites}';
 
   /// Subscribe to the participant's favorites doc. Cheap to call
-  /// repeatedly — re-subscribes only when the participant changes.
+  /// repeatedly - re-subscribes only when the participant changes.
   Future<void> load(String participantId) async {
     if (participantId.isEmpty) return;
     if (_participantId == participantId && _sub != null) return;
@@ -68,20 +70,21 @@ class FavoritesService {
       }
       favorites.value = ids;
     }, onError: (e) {
-      debugPrint('FavoritesService: snapshot error — $e');
+      debugPrint('FavoritesService: snapshot error - $e');
     });
   }
 
+  // Is this game currently starred?
   bool isFavorite(String gameId) => favorites.value.contains(gameId);
 
   /// Toggle a game's favourite state. Returns the new state.
-  /// Optimistic — updates the in-memory notifier immediately so the
+  /// Optimistic - updates the in-memory notifier immediately so the
   /// UI flips state before the Firestore round-trip resolves; the
   /// snapshot listener will reconcile if the write fails.
   Future<bool> toggle(String gameId) async {
     final pid = _participantId;
     if (pid == null || pid.isEmpty) {
-      debugPrint('FavoritesService.toggle: no participant loaded — skipping');
+      debugPrint('FavoritesService.toggle: no participant loaded - skipping');
       return favorites.value.contains(gameId);
     }
     final current = Set<String>.from(favorites.value);

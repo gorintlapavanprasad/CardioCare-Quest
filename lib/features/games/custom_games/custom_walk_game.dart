@@ -1,20 +1,8 @@
-// CustomWalkGame — GPS-tracked walking quest authored by the
-// participant via "Design Your Own Game". Reuses the SAME hooks chain
-// the catalog Dog Quest game uses:
-//
-//   • LocationDispatcher.stream    — periodic GPS fixes (broadcast)
-//   • MovementHooks.pushPing       — every 5 fixes, write to Firestore
-//   • MovementHooks.endSession     — on completion: lifetime user
-//                                     stat increments + CheckData doc
-//   • PointsHooks.applyIncrements  — optimistic UI bump
-//   • TelemetryHooks.logEvent      — start + completion events
-//   • HealthHooks.logSnapshot      — wearable snapshot stamped with
-//                                     the same sessionId
-//
-// Differs from Dog Quest only in that the gameId is `custom_<uuid>`
-// (so researcher queries can split custom-vs-catalog walks) and the
-// target distance comes from the participant's authoring choice
-// instead of the in-game difficulty picker.
+// CustomWalkGame - a real walk you go on, tracked by GPS. This is the
+// walk game a user built themselves. It works just like the built-in
+// Dog Quest walk: it follows your location, saves your route as you go,
+// gives points when you reach the goal, and takes a health snapshot at
+// the end. The only difference is the user picked the goal distance.
 
 import 'dart:async';
 
@@ -29,6 +17,7 @@ import '../../../core/services/location_service.dart';
 import 'custom_game.dart';
 import 'custom_games_repository.dart';
 
+// The walk game screen.
 class CustomWalkGame extends StatefulWidget {
   final CustomGame game;
   const CustomWalkGame({super.key, required this.game});
@@ -38,21 +27,23 @@ class CustomWalkGame extends StatefulWidget {
 }
 
 class _CustomWalkGameState extends State<CustomWalkGame> {
-  StreamSubscription<Position>? _positionSub;
-  Position? _lastPosition;
-  double _distanceWalked = 0;
-  final List<GeoPoint> _path = [];
-  int _pingCount = 0;
+  StreamSubscription<Position>? _positionSub; // our GPS listener
+  Position? _lastPosition; // where we were last, to measure the step
+  double _distanceWalked = 0; // meters so far
+  final List<GeoPoint> _path = []; // the route, point by point
+  int _pingCount = 0; // how many GPS updates we've gotten
   late final DateTime _startedAt;
-  late final String _sessionId;
+  late final String _sessionId; // ties this one walk together
   String get _gameId => 'custom_${widget.game.id}';
 
-  bool _walking = false;
-  bool _completed = false;
-  String? _error;
+  bool _walking = false; // are we currently walking?
+  bool _completed = false; // is the walk finished?
+  String? _error; // message to show if something went wrong
 
+  // Only save to the cloud every 5th GPS update, to save data.
   static const _pushPingEveryNFixes = 5;
 
+  // Runs once when the screen opens: set up ids and note the game opened.
   @override
   void initState() {
     super.initState();
@@ -72,16 +63,20 @@ class _CustomWalkGameState extends State<CustomWalkGame> {
     );
   }
 
+  // Stop listening to GPS when the screen closes, so it doesn't keep
+  // running in the background.
   @override
   void dispose() {
     _positionSub?.cancel();
     super.dispose();
   }
 
+  // Runs when the user taps START. Checks location permission, then
+  // begins listening to GPS. Shows an error if location is off/blocked.
   Future<void> _startWalk() async {
     final messenger = ScaffoldMessenger.of(context);
 
-    // Permission — same flow Dog Quest uses through TwineGameHost.
+    // Make sure location is turned on and we're allowed to use it.
     if (!await Geolocator.isLocationServiceEnabled()) {
       setState(() => _error = 'Turn on Location Services to start the walk.');
       return;
@@ -104,26 +99,28 @@ class _CustomWalkGameState extends State<CustomWalkGame> {
       _pingCount = 0;
     });
 
+    // Start following the phone's location. Each new spot calls _onPosition.
     _positionSub = LocationDispatcher.stream.listen(_onPosition,
         onError: (e) {
       messenger.showSnackBar(SnackBar(content: Text('GPS error: $e')));
     });
   }
 
+  // Runs each time the phone reports a new location. Adds up the distance
+  // walked, records the route, and saves to the cloud now and then.
   void _onPosition(Position p) {
     if (_completed) return;
     final last = _lastPosition;
     if (last != null) {
-      // Geolocator uses meters for distanceBetween — same unit
-      // MovementHooks expects.
+      // How far we moved since the last spot, in meters.
       final delta = Geolocator.distanceBetween(
         last.latitude,
         last.longitude,
         p.latitude,
         p.longitude,
       );
-      // Filter big jumps (>40m in 1s ≈ 144km/h) — matches Dog Quest's
-      // accuracy filter philosophy. Also drop fixes with poor accuracy.
+      // Ignore crazy jumps and shaky readings (bad GPS), so a glitch
+      // can't fake a bunch of distance. >40m in a second is too fast.
       if (delta < 40 && (p.accuracy < 25)) {
         _distanceWalked += delta;
       }
@@ -133,7 +130,7 @@ class _CustomWalkGameState extends State<CustomWalkGame> {
     _pingCount++;
 
     final uid = Provider.of<UserDataProvider>(context, listen: false).uid;
-    // Throttled write — every Nth fix to keep Firestore bandwidth sane.
+    // Only save every 5th update, to keep data use down.
     if (_pingCount % _pushPingEveryNFixes == 0 && uid.isNotEmpty) {
       // ignore: unawaited_futures
       MovementHooks.pushPing(
@@ -149,26 +146,29 @@ class _CustomWalkGameState extends State<CustomWalkGame> {
 
     setState(() {});
 
-    // Auto-complete when target hit.
+    // Finish on its own once the goal distance is reached.
     if (_distanceWalked >= widget.game.targetDistance) {
       _finishWalk(autoCompleted: true);
     }
   }
 
+  // Ends the walk (either the goal was reached, or the user tapped
+  // "I'm done"). Works out the points, saves everything, awards points.
   Future<void> _finishWalk({required bool autoCompleted}) async {
     if (_completed) return;
     setState(() => _completed = true);
-    await _positionSub?.cancel();
+    await _positionSub?.cancel(); // stop the GPS
     _positionSub = null;
 
     final uid = Provider.of<UserDataProvider>(context, listen: false).uid;
     final game = widget.game;
-    // Award full points if target hit, else proportional. Floor instead
-    // of round so partial walks can't clear the target by truncation.
+    // Full points if you reached the goal, otherwise a share based on how
+    // far you got. Round down so a not-quite walk can't count as full.
     final ratio = (_distanceWalked / game.targetDistance).clamp(0.0, 1.0);
     final pointsEarned = (game.pointsReward * ratio).floor();
 
     if (uid.isNotEmpty) {
+      // Save the finished walk: route, distance, points, lifetime totals.
       // ignore: unawaited_futures
       MovementHooks.endSession(
         uid: uid,
@@ -181,11 +181,13 @@ class _CustomWalkGameState extends State<CustomWalkGame> {
         pathCoordinates: _path,
         completionEventName: 'custom_walk_completed',
       );
+      // Mark this game finished one more time (updates the card).
       // ignore: unawaited_futures
       CustomGamesRepository.instance.markCompleted(
         uid: uid,
         gameId: game.id,
       );
+      // Grab a health snapshot from the watch/wearable at the end.
       // ignore: unawaited_futures
       HealthHooks.logSnapshot(
         uid: uid,
@@ -194,6 +196,7 @@ class _CustomWalkGameState extends State<CustomWalkGame> {
       );
     }
 
+    // Show the new points on screen right away (only if any were earned).
     if (mounted && pointsEarned > 0) {
       PointsHooks.applyIncrements(context, {
         'points': pointsEarned,
@@ -202,6 +205,7 @@ class _CustomWalkGameState extends State<CustomWalkGame> {
       });
     }
 
+    // Note that the walk was finished (for the researchers).
     // ignore: unawaited_futures
     TelemetryHooks.logEvent(
       'custom_game_session_completed',
@@ -220,9 +224,12 @@ class _CustomWalkGameState extends State<CustomWalkGame> {
     );
   }
 
+  // Shows the right screen for where we are: welcome (before starting),
+  // the live walk, or the result once finished.
   @override
   Widget build(BuildContext context) {
     final game = widget.game;
+    // How far along we are (0 to 1) and how many meters are left.
     final progress = (_distanceWalked / game.targetDistance).clamp(0.0, 1.0);
     final remaining =
         (game.targetDistance - _distanceWalked).clamp(0, game.targetDistance);
@@ -273,16 +280,17 @@ class _CustomWalkGameState extends State<CustomWalkGame> {
   }
 }
 
+// ---- SCREEN PARTS (looks only) ----
+
+// The top bar with the game's title.
 class _Header extends StatelessWidget {
   final String title;
   const _Header({required this.title});
 
   @override
   Widget build(BuildContext context) {
-    // Add explicit top padding equal to Android's typical status-bar
-    // height since we removed SafeArea from the host. WebView games
-    // have the OS chrome paint over the gradient; this Flutter game
-    // does too, but we want the title to clear the status bar.
+    // Push the title down past the phone's status bar (clock/battery)
+    // so it isn't hidden behind it.
     final topInset = MediaQuery.of(context).padding.top;
     return Container(
       padding: EdgeInsets.fromLTRB(20, topInset + 16, 20, 16),
@@ -311,6 +319,7 @@ class _Header extends StatelessWidget {
   }
 }
 
+// Before-start screen: the goal ("Walk 500 meters...") and a START button.
 class _WelcomeView extends StatelessWidget {
   final CustomGame game;
   final String? error;
@@ -376,6 +385,8 @@ class _WelcomeView extends StatelessWidget {
   }
 }
 
+// While walking: shows meters done, a progress bar, and an "I'm done"
+// button to stop early.
 class _ActiveWalkView extends StatelessWidget {
   final CustomGame game;
   final double distanceWalked;
@@ -441,6 +452,7 @@ class _ActiveWalkView extends StatelessWidget {
   }
 }
 
+// After finishing: "Walk complete", points earned, and a DONE button.
 class _ResultView extends StatelessWidget {
   final CustomGame game;
   final double distanceWalked;
@@ -453,6 +465,7 @@ class _ResultView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Same points math as when we finished, just to show the number.
     final ratio = (distanceWalked / game.targetDistance).clamp(0.0, 1.0);
     final earned = (game.pointsReward * ratio).floor();
     return Column(
@@ -506,6 +519,7 @@ class _ResultView extends StatelessWidget {
   }
 }
 
+// The big white button (START WALK / DONE).
 class _PrimaryButton extends StatelessWidget {
   final String label;
   final VoidCallback onPressed;
@@ -539,6 +553,7 @@ class _PrimaryButton extends StatelessWidget {
   }
 }
 
+// The outlined button (the "I'm done" stop-early button).
 class _SecondaryButton extends StatelessWidget {
   final String label;
   final VoidCallback onPressed;

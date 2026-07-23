@@ -1,20 +1,13 @@
-// Game Catalog screen — flat grid of category tiles.
+// Game Catalog - a grid of category tiles (one per health topic).
+// Tap a tile to see that category's games (CategoryGamesScreen).
 //
-// Earlier this screen used collapsible accordion sections (one per
-// behaviour-change pillar) plus a custom-games accordion at the
-// bottom. The accordion model required participants to expand /
-// collapse to navigate, which the research team flagged as poor
-// accessibility for older or motor-impaired participants. We now
-// surface each category as a flat tile in a 2-column grid; tapping a
-// tile pushes a dedicated [CategoryGamesScreen] showing the games in
-// that pillar. The participant's custom games appear as an extra
-// "Your Goals" tile (only when they have any) which opens
-// [CustomGamesScreen]. Tile → list → detail dialog → play is one
-// linear path with no expand/collapse model required.
+// It used to be collapsible fold-out sections, but those were fiddly for
+// older or shaky-handed users, so now it's plain flat tiles: tile ->
+// list -> preview popup -> play. Simple straight line, no expanding.
 //
-// `quiet_minute` is intentionally hidden from this screen via
-// `showInCatalog: false` in game_stories.dart so the BP-capture flow
-// stays exclusively reachable from the dashboard's latest-BP card.
+// The person's own games show up as an extra "Your Goals" tile, but only
+// when they've made some. The BP-logging game is left out on purpose
+// (it's reached from the dashboard's blood-pressure card instead).
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -27,9 +20,13 @@ import '../../games/game_stories.dart';
 import 'category_games_screen.dart';
 import 'custom_games_screen.dart';
 
+// The catalog screen: builds the tile grid and adds "Your Goals" if needed.
 class GameCatalogScreen extends StatelessWidget {
   const GameCatalogScreen({super.key});
 
+  // Build a tile per category, plus a "Your Goals" tile once the user
+  // has any custom games. We watch custom games live so that tile pops
+  // in on its own.
   @override
   Widget build(BuildContext context) {
     final byCategory = GameCatalog.getCatalogGamesByCategory();
@@ -47,11 +44,9 @@ class GameCatalogScreen extends StatelessWidget {
         elevation: 0,
         iconTheme: const IconThemeData(color: AppColors.title),
       ),
-      // Hides the "Your Goals" tile entirely until the participant has
-      // authored at least one custom game. Empty stream when uid hasn't
-      // loaded yet so the catalog renders immediately with just the
-      // pillars and the goals tile pops in once auth + custom-games
-      // hydrate.
+      // Watch the user's custom games. No "Your Goals" tile until they've
+      // made at least one. Empty stream while the user id is still loading,
+      // so the category tiles show right away and Goals pops in after.
       body: StreamBuilder<List<CustomGame>>(
         stream: uid.isEmpty
             ? const Stream<List<CustomGame>>.empty()
@@ -76,9 +71,8 @@ class GameCatalogScreen extends StatelessWidget {
               ),
             if (customGames.isNotEmpty)
               _CatalogTile(
-                // Yellow accent + sparkle icon mirrors the old
-                // _CustomHeader so participants who already learned
-                // "yellow = my own goals" still recognise it.
+                // Yellow + sparkle icon = "my own goals", the same look
+                // used elsewhere so people recognise it.
                 icon: Icons.auto_awesome_outlined,
                 label: 'Your Goals',
                 count: customGames.length,
@@ -110,12 +104,10 @@ class GameCatalogScreen extends StatelessWidget {
   }
 }
 
-/// Square catalog tile — icon medallion + label + count. Used for both
-/// behaviour-change pillars and the participant's "Your Goals" bucket.
-/// Whole tile is one big InkWell so the catalog stays navigable for
-/// participants with limited motor control. A `Semantics` wrapper
-/// flattens the icon/label/count into a single screen-reader
-/// announcement ("Exercise, 1 game") instead of three separate ones.
+// One square tile - icon, label, and game count. Used for both the
+// category tiles and the "Your Goals" tile. The whole tile is tappable
+// (easier for shaky hands), and a screen reader reads it as one line
+// like "Exercise, 1 game" instead of three separate bits.
 class _CatalogTile extends StatelessWidget {
   final IconData icon;
   final String label;

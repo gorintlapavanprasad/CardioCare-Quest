@@ -3,38 +3,28 @@ import 'package:get_it/get_it.dart';
 import 'package:cardio_care_quest/core/services/activity_logs.dart';
 import 'package:cardio_care_quest/core/services/session_manager.dart';
 
-/// Thin façade over [LoggingService] for non-blocking, offline-safe analytics.
-///
-/// Every event:
-///  * Is queued to the Hive `event_queue` immediately (offline-safe).
-///  * Syncs to Firestore `events/*` on next connectivity event or 15 s retry.
-///  * Increments the dashboard sync badge so researchers can see queue health.
-///
-/// Use [logEvent] from anywhere — game completion, screen open, error,
-/// whatever. The name is the canonical event identifier; `parameters` is a
-/// free-form map (avoid PII).
-///
-/// JS-bridge equivalent: a Twine page can call
-///   `window.FlutterBridge.postMessage(JSON.stringify({type:'TELEMETRY',
-///                                                    name:'...', params:{}}))`
-/// when wired through `TwineGameHost`'s default handler — but in practice
-/// the host already calls [logEvent] for the standard lifecycle events
-/// (`*_opened`, `*_quest_started`, `*_quest_completed`, `*_closed`).
+// TelemetryHooks - the simple way to record "something happened" events
+// (game opened, quest finished, an error, etc.) for later analysis.
+//
+// It saves right away on the phone (works offline), sends to the cloud when
+// there's internet, and updates the dashboard's sync badge. Don't put personal
+// info in the event details.
 abstract class TelemetryHooks {
   static LoggingService get _logger => GetIt.instance<LoggingService>();
 
-  /// Queue an event for sync. Returns immediately; does NOT block on Firestore.
-  ///
-  /// If a paired session is active, its `pairedSessionId` is stamped onto the
-  /// event automatically (unless the caller already supplied one) so every
-  /// event emitted during co-play joins back to the session record — no call
-  /// site needs to know about pairing.
+  // Record an event. Returns immediately - doesn't wait on the cloud.
+  //
+  // If a paired (two-person) session is running, its id is added automatically
+  // (unless you already passed one) so every event during co-play links back to
+  // that session - the caller doesn't have to think about pairing.
   static Future<void> logEvent(
     String name, {
     Map<String, dynamic>? parameters,
     String? phone,
     String? userId,
   }) {
+    // No paired session? Send the details as-is. Otherwise add the session id
+    // (but don't overwrite one the caller already set).
     final pairedSessionId = SessionManager.pairedSessionId;
     final enriched = (pairedSessionId == null)
         ? parameters

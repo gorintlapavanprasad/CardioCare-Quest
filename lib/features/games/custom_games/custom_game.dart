@@ -1,22 +1,19 @@
-// CustomGame — model for a participant-authored personal goal/quest
-// created via the "Design Your Own Game" flow. Stored at
-// userData/{uid}/customGames/{gameId}.
+// CustomGame - the data for one game a user built themselves in the
+// "Design Your Own Game" screen. It's a walk goal or a little quiz.
+// Saved in the cloud under this user's own list of games.
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import '../game_stories.dart';
 
-/// Determines which player + which hooks chain a custom game uses.
-///
-///   • walk  — GPS-tracked movement quest. Uses LocationDispatcher +
-///             MovementHooks (pushPing / endSession), exactly like
-///             Dog Quest. The participant sets a target distance.
-///   • quiz  — Multi-question prompt with 2-4 options per question.
-///             Uses SurveyHooks.submitResponse + PointsHooks. The
-///             participant cycles through questions sequentially and
-///             one play submits one structured answers payload.
+// Which kind of game this is. This picks how it plays.
+//   • walk - go for a real walk, tracked by GPS, like Dog Quest.
+//            The user picks how far to walk.
+//   • quiz - answer some questions, 2 to 4 choices each.
 enum CustomGameType { walk, quiz }
+
+// Extra helpers on the game type: a name, a one-liner, and an icon.
 
 extension CustomGameTypeX on CustomGameType {
   String get label {
@@ -47,9 +44,8 @@ extension CustomGameTypeX on CustomGameType {
   }
 }
 
-/// One question within a quiz-type custom game. A game has 1..N of
-/// these; the player walks through them sequentially and the answers
-/// are submitted in one structured payload at the end of play.
+// One question in a quiz. A quiz has one or more of these. The player
+// shows them one at a time and sends all the answers at the end.
 class QuizQuestion {
   final String prompt;
   final List<String> options;
@@ -59,11 +55,13 @@ class QuizQuestion {
     this.options = const <String>[],
   });
 
+  // Turn this question into a plain map so it can be saved to the cloud.
   Map<String, dynamic> toMap() => {
         'prompt': prompt,
         'options': options,
       };
 
+  // Build a question back from a saved map. Falls back to safe defaults.
   static QuizQuestion fromMap(Map<dynamic, dynamic> m) {
     final raw = m['options'];
     return QuizQuestion(
@@ -75,6 +73,7 @@ class QuizQuestion {
   }
 }
 
+// The whole game and its saved stats (how many times it was finished, etc).
 class CustomGame {
   final String id;
   final String title;
@@ -83,19 +82,17 @@ class CustomGame {
   final int pointsReward;
   final CustomGameType gameType;
 
-  /// Quiz-type questions (one or more). Empty for walk-type. New
-  /// games always populate this list; older docs that pre-date the
-  /// multi-question feature only have the legacy `prompt`+`options`
-  /// scalars below — `effectiveQuestions` papers over both shapes.
+  // The quiz questions (one or more). Empty for walk games. Older saved
+  // games from before we allowed many questions use the two fields below
+  // instead - `effectiveQuestions` smooths over both cases.
   final List<QuizQuestion> questions;
 
-  /// Legacy single-question fields. Kept readable so existing
-  /// participant docs from before the multi-question feature still
-  /// load. New games leave these empty and use `questions` above.
+  // Old-style single-question fields. Kept so games saved before the
+  // multi-question feature still open. New games leave these empty.
   final String prompt;
   final List<String> options;
 
-  /// Walk-type field (meters). 0 for quiz-type.
+  // For walk games: how far to walk, in meters. 0 for a quiz.
   final int targetDistance;
 
   final DateTime? createdAt;
@@ -118,15 +115,12 @@ class CustomGame {
     this.lastCompletedAt,
   });
 
-  /// Icon derived from the category — keeps the build form simpler
-  /// (no icon picker) and matches the rest of the catalog where the
-  /// pillar icon already represents the activity type.
+  // The icon just comes from the category, so there's no icon picker.
   IconData get iconData => category.icon;
 
-  /// Single source of truth for "what does this quiz ask?". Returns
-  /// the multi-question list when present; otherwise synthesises a
-  /// 1-element list from the legacy `prompt`+`options` so older
-  /// single-question games still play. Empty for walk-type games.
+  // The real list of questions to play. Uses the new list if it has any;
+  // otherwise makes a one-item list from the old fields so old games
+  // still work. Empty for walk games.
   List<QuizQuestion> get effectiveQuestions {
     if (questions.isNotEmpty) return questions;
     if (gameType != CustomGameType.quiz) return const <QuizQuestion>[];
@@ -135,6 +129,7 @@ class CustomGame {
     ];
   }
 
+  // Pack the whole game into a map so it can be saved to the cloud.
   Map<String, dynamic> toMap() => {
         'id': id,
         'title': title,
@@ -143,9 +138,8 @@ class CustomGame {
         'pointsReward': pointsReward,
         'gameType': gameType.name,
         'questions': questions.map((q) => q.toMap()).toList(),
-        // Legacy fields — still written so older clients that haven't
-        // shipped the multi-question reader yet can still display the
-        // first question. Sourced from `questions[0]` when present.
+        // Also save the first question the old way, so an older app
+        // version can still show at least that one question.
         'prompt': questions.isNotEmpty ? questions.first.prompt : prompt,
         'options': questions.isNotEmpty
             ? questions.first.options
@@ -159,6 +153,8 @@ class CustomGame {
           'lastCompletedAt': Timestamp.fromDate(lastCompletedAt!),
       };
 
+  // Build a game back from a saved cloud record. Missing bits get safe
+  // defaults so a half-empty record still opens instead of crashing.
   static CustomGame fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data() ?? const <String, dynamic>{};
     final rawOptions = data['options'];
@@ -189,6 +185,8 @@ class CustomGame {
     );
   }
 
+  // Turn a saved category name back into the matching category.
+  // Defaults to "exercise" if the name is missing or unknown.
   static GameCategory _categoryFromName(String? name) {
     if (name == null) return GameCategory.exercise;
     for (final c in GameCategory.values) {
@@ -197,6 +195,8 @@ class CustomGame {
     return GameCategory.exercise;
   }
 
+  // Turn a saved type name ("walk"/"quiz") back into the type.
+  // Defaults to quiz if it's missing or unknown.
   static CustomGameType _gameTypeFromName(String? name) {
     if (name == null) return CustomGameType.quiz;
     for (final t in CustomGameType.values) {

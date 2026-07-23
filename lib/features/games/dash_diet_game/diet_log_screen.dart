@@ -6,6 +6,11 @@ import 'package:cardio_care_quest/core/hooks/hooks.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 
+// Log Your Meal - a real screen where you write down a meal: how it made you
+// feel, what you ate, and an optional photo. Saving it earns points and marks
+// today as logged. This is the meal DIARY (not the DASH diet game).
+
+// The meal-logging screen. It changes as you type/pick, so it's stateful.
 class DietLogScreen extends StatefulWidget {
   const DietLogScreen({super.key});
 
@@ -13,12 +18,17 @@ class DietLogScreen extends StatefulWidget {
   State<DietLogScreen> createState() => _DietLogScreenState();
 }
 
+// ---- STATE ----
+
+// Holds what the user has entered so far: the mood rating, the notes text,
+// the chosen photo, and whether a save is in progress.
 class _DietLogScreenState extends State<DietLogScreen> {
   int _mealRating = 2; // 0-4 scale
   final TextEditingController _mealNotesController = TextEditingController();
   XFile? _image;
   bool _isSaving = false;
 
+  // Opens the photo gallery and remembers the picture the user picks.
   Future<void> _pickImage() async {
     final ImagePicker picker = ImagePicker();
     final XFile? image = await picker.pickImage(source: ImageSource.gallery);
@@ -27,6 +37,10 @@ class _DietLogScreenState extends State<DietLogScreen> {
     });
   }
 
+  // ---- SAVING ----
+
+  // Saves the meal to the cloud, then awards points and closes the screen.
+  // Does nothing if there's no user, or if both notes and photo are empty.
   Future<void> _saveMeal() async {
     final uid = Provider.of<UserDataProvider>(context, listen: false).uid;
     if (uid.isEmpty) return;
@@ -35,6 +49,7 @@ class _DietLogScreenState extends State<DietLogScreen> {
     setState(() => _isSaving = true);
 
     try {
+      // Today's date as plain text like "2026-07-21".
       final String today = DateTime.now().toIso8601String().split('T')[0];
 
       await DailyLogHooks.logMeal(
@@ -45,12 +60,13 @@ class _DietLogScreenState extends State<DietLogScreen> {
       );
 
       if (mounted) {
-        // Optimistic local update — see bp_log_screen for rationale.
+        // Update points/counts on screen right away so it feels instant.
         PointsHooks.applyIncrements(context, const {
           'points': 25,
           'mealsLogged': 1,
         });
         PointsHooks.applySets(context, {'lastLogDate': today});
+        // Close this screen and hand back 25 (the points earned) to the caller.
         Navigator.of(context).pop(25);
       }
     } catch (e) {
@@ -59,6 +75,9 @@ class _DietLogScreenState extends State<DietLogScreen> {
     }
   }
 
+  // ---- UI ----
+
+  // Draws the screen: mood picker, notes box, photo box, save button, and tip.
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -85,6 +104,8 @@ class _DietLogScreenState extends State<DietLogScreen> {
     );
   }
 
+  // A row of 5 face emojis to pick how the meal made you feel. The chosen one
+  // grows and gets a highlighted circle.
   Widget _buildMealRating() {
     final List<String> ratings = ['😞', '😕', '😐', '🙂', '😄'];
     return Column(
@@ -127,6 +148,7 @@ class _DietLogScreenState extends State<DietLogScreen> {
     );
   }
 
+  // The "What did you eat?" text box.
   Widget _buildMealNotes() {
     return TextField(
       controller: _mealNotesController,
@@ -144,6 +166,8 @@ class _DietLogScreenState extends State<DietLogScreen> {
     );
   }
 
+  // The optional photo box. Tapping it opens the gallery; once picked, it
+  // shows the photo instead of the camera icon.
   Widget _buildPhotoUpload() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -177,6 +201,7 @@ class _DietLogScreenState extends State<DietLogScreen> {
     );
   }
 
+  // The "Save Meal" button. Shows a spinner and can't be tapped while saving.
   Widget _buildSaveButton() {
     return SizedBox(
       width: double.infinity,
@@ -193,6 +218,7 @@ class _DietLogScreenState extends State<DietLogScreen> {
     );
   }
 
+  // A little green tip box at the bottom with a healthy-eating suggestion.
   Widget _buildNutritionTip() {
     return Container(
       padding: const EdgeInsets.all(16),

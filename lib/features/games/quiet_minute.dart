@@ -2,30 +2,20 @@ import 'package:flutter/material.dart';
 
 import 'package:cardio_care_quest/core/widgets/twine_questionnaire_host.dart';
 
-/// Blood Pressure Log — the relaxed-state BP capture game (formerly
-/// shown to participants as "Quiet Minute"). The Dart class name and
-/// Firestore `surveyId` keep the original `quiet_minute` slug so
-/// historical telemetry / responses stay queryable; only the
-/// user-visible title was renamed.
-///
-/// Two-minute breathing exercise → BP entry form (sys/dia inputs validated
-/// 60-250 / 30-160) → Save. The Save passage calls `CCQ.logBP(...)` over
-/// the bridge, which `TwineQuestionnaireHost` routes to
-/// `DailyLogHooks.logBP` so the reading lands in
-/// `userData/{uid}/dailyLogs/{today}/bpReadings/{auto}`.
-///
-/// Per the research protocol, this is the **only** participant-facing
-/// path to log a BP reading — other games no longer prompt for BP. It's
-/// hidden from the Game Catalog (`showInCatalog: false` in
-/// game_stories.dart) and only reachable from the dashboard's latest-BP
-/// card so casual play of the entry flow doesn't corrupt the dataset.
-/// The HealthKit snapshot still fires on every game end via
-/// `HealthHooks.logSnapshot`.
+// Blood Pressure Log - the real BP-entry game (used to be called
+// "Quiet Minute"). Two minutes of breathing, then you type your cuff reading
+// and it saves to the cloud for the study.
+// The old "quiet_minute" id is kept so old data still matches up; only the
+// name shown to users changed. This is the ONLY game that logs BP, and it's
+// hidden from the catalog so people don't play it casually and mess up the data.
+
+// Shows the Blood Pressure Log game by loading its HTML in the web-view host.
 class QuietMinuteGame extends StatelessWidget {
   const QuietMinuteGame({super.key});
 
   @override
   Widget build(BuildContext context) {
+    // Give the host the game id (kept as the old slug), title, and HTML file.
     return const TwineQuestionnaireHost(
       surveyId: 'quiet_minute',
       title: 'Blood Pressure Log',

@@ -1,13 +1,18 @@
 import 'package:flutter/material.dart';
 
+// session_manager.dart - remembers "what's happening right now": which game is
+// open, and whether a participant + caregiver are playing together (a paired
+// session). Other parts of the app read this to tag their data correctly.
+
 /// SessionManager - Tracks game state across the app
 /// Mirrored from netguage for consistency
-/// 
+///
 /// Usage:
 ///   SessionManager.startGame('Walk Buddy');
 ///   // ... game runs ...
 ///   SessionManager.endGame();
 
+// Static (app-wide) holder of the current game and paired-session info.
 class SessionManager {
   static String? _sessionId;
   static String? _currentGame;
@@ -74,6 +79,7 @@ class SessionManager {
     debugPrint('[SESSION_MANAGER] Paired session restored: $_pairedSessionId');
   }
 
+  // End the paired session and clear all its info so it can't leak onto later data.
   static void endPairedSession() {
     debugPrint('[SESSION_MANAGER] Paired session ended: $_pairedSessionId');
     _pairedSessionId = null;
@@ -108,7 +114,7 @@ class SessionManager {
     _gameStartTime = null;
   }
 
-  // Get game duration in seconds
+  // How long the current game has been running, in seconds (null if none).
   static int? getGameDuration() {
     if (_gameStartTime == null) return null;
     return DateTime.now().difference(_gameStartTime!).inSeconds;

@@ -1,10 +1,8 @@
-// CustomGamesRepository — data layer for participant-created goals.
+// CustomGamesRepository - the save/load helper for user-built games.
 //
-// Reads stream live from Firestore (so the dashboard rebuilds instantly
-// when a new game is created or completed). Writes go through
-// OfflineQueue using the same set/update/delete pattern as the rest of
-// the app, so creating or completing a custom game while offline still
-// works — the queue replays once connectivity returns.
+// Reading is live: the dashboard updates on its own whenever a game is
+// added or finished. Saving goes through OfflineQueue (saved on the
+// phone first, sent to the cloud later), so it works with no internet.
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get_it/get_it.dart';
@@ -14,6 +12,7 @@ import '../../../core/constants/firestore_paths.dart';
 import '../../../core/services/offline_queue.dart';
 import 'custom_game.dart';
 
+// One shared helper for the whole app (a "singleton").
 class CustomGamesRepository {
   CustomGamesRepository._();
   static final CustomGamesRepository instance = CustomGamesRepository._();
@@ -21,14 +20,15 @@ class CustomGamesRepository {
   static const _uuid = Uuid();
   OfflineQueue get _queue => GetIt.instance<OfflineQueue>();
 
-  /// Path of the customGames sub-collection under a participant doc.
+  // Where this user's games live in the cloud.
   String _collectionPath(String uid) =>
       '${FirestorePaths.userData}/$uid/${FirestorePaths.customGames}';
 
+  // Where one single game lives.
   String _docPath(String uid, String gameId) =>
       '${_collectionPath(uid)}/$gameId';
 
-  /// Live stream of the participant's custom games, newest first.
+  // Live list of this user's games, newest first. Updates on its own.
   Stream<List<CustomGame>> watch(String uid) {
     if (uid.isEmpty) return Stream.value(const []);
     return FirebaseFirestore.instance
@@ -38,9 +38,8 @@ class CustomGamesRepository {
         .map((snap) => snap.docs.map(CustomGame.fromDoc).toList());
   }
 
-  /// Create a new custom game. Returns the generated id so the caller
-  /// can confirm + telemetry. Blocking only on the local Hive queue
-  /// write; the Firestore round-trip is fire-and-forget.
+  // Save a brand-new game. Returns its new id. Only waits for the
+  // phone-side save; the cloud sync happens on its own after.
   Future<String> create({
     required String uid,
     required CustomGame draft,
@@ -48,6 +47,7 @@ class CustomGamesRepository {
     if (uid.isEmpty) {
       throw StateError('CustomGamesRepository.create: uid is empty');
     }
+    // Use the given id, or make a fresh random one.
     final id = draft.id.isNotEmpty ? draft.id : _uuid.v4();
     final game = CustomGame(
       id: id,
@@ -55,35 +55,30 @@ class CustomGamesRepository {
       description: draft.description,
       category: draft.category,
       pointsReward: draft.pointsReward,
-      // Type-specific fields propagated from the draft. Earlier this
-      // function constructed `game` without them, which silently
-      // dropped the participant's walk/quiz selection, target
-      // distance, prompt, and answer options on every save — every
-      // game ended up looking like a question-less quiz.
+      // Copy the walk/quiz-specific fields from the draft. (A bug once
+      // dropped these on save, so every game came out as an empty quiz.)
       gameType: draft.gameType,
       questions: draft.questions,
       prompt: draft.prompt,
       options: draft.options,
       targetDistance: draft.targetDistance,
-      // server-side timestamp via OfflineFieldValue so it lands as
-      // FieldValue.serverTimestamp() when the queue replays.
+      // Leave the "created" time null here; the cloud fills in the real
+      // time when the save actually goes through.
       createdAt: null,
       completedCount: 0,
       lastCompletedAt: null,
     );
     final data = game.toMap();
-    // Replace the FieldValue.serverTimestamp() (un-serialisable across
-    // Hive) with the queue's wire format.
+    // Use the queue's own "now" marker for the created time (the plain
+    // cloud one can't be stored on the phone while offline).
     data['createdAt'] = OfflineFieldValue.nowTimestamp();
 
     await _queue.enqueue(PendingOp.set(_docPath(uid, id), data, merge: true));
     return id;
   }
 
-  /// Mark the game as completed once. Bumps the completion counter +
-  /// stamps lastCompletedAt. Caller should also award points via
-  /// PointsHooks and fire telemetry — this method only owns the
-  /// per-game doc.
+  // Mark that the game was finished one more time. Adds 1 to the "done"
+  // count and saves the time. Points are handled elsewhere, not here.
   Future<void> markCompleted({
     required String uid,
     required String gameId,
@@ -95,9 +90,7 @@ class CustomGamesRepository {
     }));
   }
 
-  /// Permanently delete a custom game. The collection's StreamBuilder
-  /// drops the card on the next snapshot so the dashboard updates with
-  /// no manual refresh.
+  // Delete a game for good. The dashboard drops its card on its own.
   Future<void> delete({
     required String uid,
     required String gameId,

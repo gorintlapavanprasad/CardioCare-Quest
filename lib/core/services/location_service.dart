@@ -1,9 +1,13 @@
+// location_service.dart - gets the phone's GPS location (and compass heading).
+// Used by the walking games to track where the player goes and how far they walk.
+
 import 'dart:async';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_compass/flutter_compass.dart';
 import 'dart:io' show Platform;
 
-// stores a single piece of location data
+// Holds one location reading: where the phone is (position) and which way it
+// points (heading, if the phone has a compass).
 class LocationData {
   final Position position;
   final double? heading;
@@ -11,8 +15,9 @@ class LocationData {
   LocationData({required this.position, this.heading});
 }
 
-// class that makes a location stream available for subscription
+// Hands out a live stream of GPS positions that games can listen to.
 class LocationDispatcher {
+  // How accurate/how often we want GPS updates. Android lets us tune it more.
   static LocationSettings get _settings => Platform.isAndroid
       ? AndroidSettings(
           accuracy: LocationAccuracy.bestForNavigation,
@@ -33,15 +38,17 @@ class LocationDispatcher {
   /// subscription in `_endGame`/`dispose`, so the *second* walk in the same
   /// app run (a resume, "do another quest", or a second participant logging
   /// in without a cold restart) re-listened to an already-torn-down stream,
-  /// got a StateError that was swallowed, and received no GPS fixes at all —
+  /// got a StateError that was swallowed, and received no GPS fixes at all -
   /// which is why distance logged as ZERO for essentially every account after
   /// the first walk. Handing back a new `getPositionStream` per call gives
   /// every walk its own live source. Each caller subscribes exactly once.
+  // Give each caller its OWN fresh GPS stream (see the long note above for why).
   static Stream<Position> get stream =>
       Geolocator.getPositionStream(locationSettings: _settings);
 }
 
-// used to acquire the most recent coordinate position of the device
+// Get the phone's location right now, one time. Asks for permission if needed,
+// and errors out with a friendly message if location is off or blocked.
 Future<LocationData> determineLocationData() async
 {
   // Check if Location Services are enabled

@@ -1,21 +1,8 @@
-// BuildGameScreen — the "Design Your Own Game" form.
+// BuildGameScreen - the "Design Your Own Game" form.
 //
-// Replaces the placeholder ComingSoonScreen the dashboard used to push
-// for the Design Your Own Game tile. Lets the participant author a
-// personal goal:
-//
-//   • Title — required
-//   • Description — optional context for the goal
-//   • Category — one of the 5 pillars (drives the icon + dashboard grouping)
-//   • Points reward — discrete steps 10 / 25 / 50 / 75 / 100
-//
-// On Create:
-//   • CustomGamesRepository.create writes the doc via OfflineQueue
-//     (offline-safe; replays when connectivity returns)
-//   • TelemetryHooks.logEvent('custom_game_created', ...) fires so
-//     researchers can see how many participants used the feature
-//   • Pop back to the dashboard, which has a StreamBuilder watching
-//     the customGames collection — the new card shows up instantly.
+// This is the screen where a user builds their own game. They pick a
+// type (walk or quiz), name it, choose a few settings, and tap CREATE.
+// The game is saved and shows up on their dashboard right away.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -28,6 +15,7 @@ import '../game_stories.dart';
 import 'custom_game.dart';
 import 'custom_games_repository.dart';
 
+// The build-your-own-game form screen.
 class BuildGameScreen extends StatefulWidget {
   const BuildGameScreen({super.key});
 
@@ -36,38 +24,30 @@ class BuildGameScreen extends StatefulWidget {
 }
 
 class _BuildGameScreenState extends State<BuildGameScreen> {
-  final _formKey = GlobalKey<FormState>();
+  final _formKey = GlobalKey<FormState>(); // checks the form is filled in
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
 
-  // Quiz questions. Starts with one. Participants can add up to
-  // [_maxQuestions] questions and remove all but the last. Each draft
-  // owns its own controllers; we dispose them when removed.
+  // The quiz questions being written. Starts with one; the user can add
+  // more (up to _maxQuestions) and remove down to one.
   final List<_QuestionDraft> _quizQuestions = [_QuestionDraft()];
 
-  // Default to walking quest — most participants want to track movement,
-  // and that's the type that demonstrates the real hook chain
-  // (LocationDispatcher + MovementHooks). Quiz is the alternative for
-  // a pure-survey style goal.
+  // The current choices on the form. Start on "walk", since most people
+  // want to track a walk.
   CustomGameType _gameType = CustomGameType.walk;
   GameCategory _category = GameCategory.exercise;
   int _pointsReward = 25;
-  // Walk-type target distance presets — same scale as Dog Quest
-  // (Easy/Medium/Hard at 500/1000/1500m).
-  int _targetDistance = 500;
-  bool _saving = false;
+  int _targetDistance = 500; // walk goal in meters
+  bool _saving = false; // true while the game is being saved
 
-  // Reward presets — keeps the choice quick (no slider fiddling) and
-  // bounded so participants can't set absurdly high rewards. Mirrors
-  // the points scale used by the catalog games (Dog Quest 30/60/100,
-  // Quiet Minute 50, etc.).
+  // The point choices offered. Set list so people can't pick silly
+  // amounts, and it's quicker than a slider.
   static const _pointOptions = <int>[10, 25, 50, 75, 100];
 
-  // Cap on quiz questions per game. Five matches the post-play
-  // survey's question count and keeps the form scrollable on small
-  // phones without becoming overwhelming for older participants.
+  // Most questions a quiz can have. Kept small so the form stays short.
   static const _maxQuestions = 5;
 
+  // Clean up all the text boxes when the screen closes.
   @override
   void dispose() {
     _titleController.dispose();
@@ -78,11 +58,15 @@ class _BuildGameScreenState extends State<BuildGameScreen> {
     super.dispose();
   }
 
+  // ---- FORM ACTIONS ----
+
+  // Add one more blank quiz question (up to the max).
   void _addQuestion() {
     if (_quizQuestions.length >= _maxQuestions) return;
     setState(() => _quizQuestions.add(_QuestionDraft()));
   }
 
+  // Remove a quiz question (but always keep at least one).
   void _removeQuestion(int index) {
     if (_quizQuestions.length <= 1) return;
     setState(() {
@@ -90,6 +74,8 @@ class _BuildGameScreenState extends State<BuildGameScreen> {
     });
   }
 
+  // Runs when the user taps CREATE. Checks the form, builds the game,
+  // saves it, then goes back to the dashboard.
   Future<void> _handleCreate() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
     setState(() => _saving = true);
@@ -107,8 +93,8 @@ class _BuildGameScreenState extends State<BuildGameScreen> {
       return;
     }
 
-    // Quiz-type validation — walk-type skips this. Each question
-    // needs both a prompt and at least two non-empty options.
+    // For a quiz, check each question has a prompt and at least two
+    // answer choices. Walk games skip all this.
     final List<QuizQuestion> questions;
     if (_gameType == CustomGameType.quiz) {
       final collected = <QuizQuestion>[];
@@ -138,6 +124,8 @@ class _BuildGameScreenState extends State<BuildGameScreen> {
       questions = const <QuizQuestion>[];
     }
 
+    // Build the game from what the user typed. (id is blank; the save
+    // step makes a real one.)
     final draft = CustomGame(
       id: '',
       title: _titleController.text.trim(),
@@ -145,13 +133,11 @@ class _BuildGameScreenState extends State<BuildGameScreen> {
       category: _category,
       pointsReward: _pointsReward,
       gameType: _gameType,
-      // Only walk-type uses targetDistance; for quiz we save 0.
+      // Walk goal only matters for walk games; quiz saves 0.
       targetDistance:
           _gameType == CustomGameType.walk ? _targetDistance : 0,
-      // Multi-question structure for quiz games. Legacy `prompt` +
-      // `options` are mirrored from the first question so older
-      // clients (or any code still reading those fields) continue
-      // to work; new players read from `questions` directly.
+      // The quiz questions. Also copy the first one into the old-style
+      // fields so an older app version can still open the game.
       questions: questions,
       prompt: questions.isNotEmpty ? questions.first.prompt : '',
       options:
@@ -159,12 +145,13 @@ class _BuildGameScreenState extends State<BuildGameScreen> {
     );
 
     try {
+      // Save the new game.
       final id = await CustomGamesRepository.instance.create(
         uid: uid,
         draft: draft,
       );
-      // Telemetry — researchers track engagement with the feature.
-      // No PII; the title is intentionally omitted to keep events PII-clean.
+      // Note that a game was created (for the researchers). No personal
+      // info; the title is left out on purpose.
       // ignore: unawaited_futures
       TelemetryHooks.logEvent(
         'custom_game_created',
@@ -179,12 +166,14 @@ class _BuildGameScreenState extends State<BuildGameScreen> {
       );
 
       if (!mounted) return;
+      // Say "Created", then go back to the dashboard.
       messenger.showSnackBar(SnackBar(
         content: Text('Created "${draft.title}"'),
         duration: const Duration(seconds: 2),
       ));
       navigator.pop(true);
     } catch (e) {
+      // Something went wrong saving - tell the user and let them retry.
       if (!mounted) return;
       messenger.showSnackBar(SnackBar(
         content: Text('Could not save your game: $e'),
@@ -193,6 +182,9 @@ class _BuildGameScreenState extends State<BuildGameScreen> {
     }
   }
 
+  // ---- THE FORM UI ----
+
+  // Lays out the whole form, top to bottom, in a scrolling list.
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -245,7 +237,7 @@ class _BuildGameScreenState extends State<BuildGameScreen> {
                 inputFormatters: [LengthLimitingTextInputFormatter(160)],
                 decoration: _inputDecoration(
                   hint:
-                      'A reminder or detail — e.g. "after lunch, twice around the block"',
+                      'A reminder or detail - e.g. "after lunch, twice around the block"',
                 ),
               ),
               const SizedBox(height: 24),
@@ -256,8 +248,7 @@ class _BuildGameScreenState extends State<BuildGameScreen> {
                 onChanged: (type) => setState(() => _gameType = type),
               ),
               const SizedBox(height: 24),
-              // Walk-type: target distance picker. Plays back as a
-              // GPS-tracked quest using LocationDispatcher + MovementHooks.
+              // Walk games: pick how far to walk. Only shown for walks.
               if (_gameType == CustomGameType.walk) ...[
                 _SectionLabel('How far do you want to walk?'),
                 const SizedBox(height: 8),
@@ -267,10 +258,7 @@ class _BuildGameScreenState extends State<BuildGameScreen> {
                 ),
                 const SizedBox(height: 24),
               ],
-              // Quiz-type: dynamic list of questions. Plays back as a
-              // multi-step survey — the participant cycles through
-              // each question in order, and SurveyHooks submits one
-              // structured payload at the end of play.
+              // Quiz games: write the questions here. Only shown for quizzes.
               if (_gameType == CustomGameType.quiz) ...[
                 for (var i = 0; i < _quizQuestions.length; i++)
                   Padding(
@@ -358,6 +346,8 @@ class _BuildGameScreenState extends State<BuildGameScreen> {
     );
   }
 
+  // The shared look for every text box on this form (rounded, white,
+  // red border when there's an error).
   InputDecoration _inputDecoration({required String hint}) {
     return InputDecoration(
       hintText: hint,
@@ -386,6 +376,9 @@ class _BuildGameScreenState extends State<BuildGameScreen> {
   }
 }
 
+// ---- SMALL FORM PIECES ----
+
+// A bold heading above each part of the form.
 class _SectionLabel extends StatelessWidget {
   final String label;
   const _SectionLabel(this.label);
@@ -404,6 +397,7 @@ class _SectionLabel extends StatelessWidget {
   }
 }
 
+// The yellow tip box at the top of the form.
 class _Hint extends StatelessWidget {
   final String text;
   const _Hint({required this.text});
@@ -440,9 +434,8 @@ class _Hint extends StatelessWidget {
   }
 }
 
-/// Card row for picking the game's TYPE — walk vs quiz. Drives which
-/// player + which hook chain plays back when the participant taps the
-/// custom game later.
+// The walk-vs-quiz chooser. Tapping one highlights it. This decides how
+// the game plays later.
 class _GameTypePicker extends StatelessWidget {
   final CustomGameType selected;
   final ValueChanged<CustomGameType> onChanged;
@@ -516,14 +509,14 @@ class _GameTypePicker extends StatelessWidget {
   }
 }
 
-/// Pill row for picking the walk target distance. Same scale Dog Quest
-/// uses (Easy/Medium/Hard at 500/1000/1500m) so participants who've
-/// played Dog Quest already understand the scale.
+// The walk distance chooser: Easy / Medium / Hard. Same distances as
+// Dog Quest, so it feels familiar.
 class _DistancePicker extends StatelessWidget {
   final int selected;
   final ValueChanged<int> onChanged;
   const _DistancePicker({required this.selected, required this.onChanged});
 
+  // The three choices: (meters, label shown).
   static const _options = <(int, String)>[
     (500, 'Easy · 500m'),
     (1000, 'Medium · 1km'),
@@ -546,6 +539,7 @@ class _DistancePicker extends StatelessWidget {
   }
 }
 
+// The category chooser (which health area this goal is about).
 class _CategoryPicker extends StatelessWidget {
   final GameCategory selected;
   final ValueChanged<GameCategory> onChanged;
@@ -570,6 +564,7 @@ class _CategoryPicker extends StatelessWidget {
   }
 }
 
+// The points chooser (how many points the goal is worth each time).
 class _PointsPicker extends StatelessWidget {
   final int selected;
   final List<int> options;
@@ -597,9 +592,8 @@ class _PointsPicker extends StatelessWidget {
   }
 }
 
-/// Reusable selectable pill used for both category and points pickers.
-/// Two-line variant when [icon] is provided (icon stacked above label),
-/// single-line otherwise.
+// One tappable pill/chip used by the pickers above. Turns blue when
+// picked. Shows an icon next to the label if one is given.
 class _PickerChip extends StatelessWidget {
   final IconData? icon;
   final String label;
@@ -664,14 +658,14 @@ class _PickerChip extends StatelessWidget {
   }
 }
 
-/// Mutable working state for a single quiz question while the
-/// participant is filling out the form. The screen owns a list of
-/// these and translates them to immutable [QuizQuestion]s on save.
+// ---- ONE QUIZ QUESTION ----
+
+// Holds the text boxes for one quiz question while it's being written.
+// Turned into a real QuizQuestion when the game is saved.
 class _QuestionDraft {
   final TextEditingController promptController;
-  // Up to 4 option text fields — first 2 default to "Yes" / "No" so
-  // a participant can create a usable question without typing any
-  // option text. Empty optional fields are dropped at submit.
+  // Up to 4 answer boxes. The first two start as "Yes"/"No" so a
+  // question works even if the user types nothing. Blank ones are dropped.
   final List<TextEditingController> optionControllers;
 
   _QuestionDraft()
@@ -683,6 +677,7 @@ class _QuestionDraft {
           TextEditingController(),
         ];
 
+  // Clean up this question's text boxes.
   void dispose() {
     promptController.dispose();
     for (final c in optionControllers) {
@@ -690,16 +685,15 @@ class _QuestionDraft {
     }
   }
 
+  // The answer choices the user typed, blanks removed.
   List<String> collectOptions() => optionControllers
       .map((c) => c.text.trim())
       .where((t) => t.isNotEmpty)
       .toList();
 }
 
-/// Card UI for one question in the build form. Shows a numbered
-/// header, the prompt input, four answer-option inputs (the first two
-/// labelled required), and an optional "remove" button when the
-/// parent has more than one question in the list.
+// The card shown on the form for one question: a number, the question
+// box, four answer boxes, and a "Remove" button (if there's more than one).
 class _QuestionCard extends StatelessWidget {
   final int index;
   final _QuestionDraft draft;

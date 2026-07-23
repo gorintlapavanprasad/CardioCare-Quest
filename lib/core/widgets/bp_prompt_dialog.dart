@@ -5,11 +5,17 @@ import 'package:cardio_care_quest/core/hooks/hooks.dart';
 import 'package:cardio_care_quest/core/providers/user_data_manager.dart';
 import 'package:cardio_care_quest/core/theme/app_colors.dart';
 
+// BpPromptDialog - a small popup that asks for a blood-pressure (BP) reading
+// right after a game finishes.
+//
+// It's the only place the participant enters BP now. Only asks once per day,
+// and they can always tap Skip.
+
 /// Modal prompt that asks for a quick BP reading after a game ends.
 ///
 /// Replaces the old manual-BP-log flow on the dashboard. Now that there's
 /// no "Log your blood pressure" daily-task card, this dialog is the only
-/// participant-facing BP entry point — fired by both [TwineGameHost] and
+/// participant-facing BP entry point - fired by both [TwineGameHost] and
 /// [TwineQuestionnaireHost] when a game ends naturally.
 ///
 /// Save → writes via [DailyLogHooks.logBP] (mood defaulted to neutral) and
@@ -31,7 +37,7 @@ class BpPromptDialog extends StatefulWidget {
   /// prompt is suppressed and `false` is returned without showing UI.
   /// `DailyLogHooks.logBP` (called on Save) updates `lastBPLogDate` to
   /// today, so subsequent game completions on the same day skip the
-  /// prompt. Skip does NOT update the gate — if the participant skips
+  /// prompt. Skip does NOT update the gate - if the participant skips
   /// the first prompt of the day, they'll still be asked after their
   /// next game (so research data isn't lost to one accidental tap).
   static Future<bool> show({
@@ -40,9 +46,11 @@ class BpPromptDialog extends StatefulWidget {
   }) async {
     if (uid.isEmpty) return false;
 
+    // Today's date as plain text like "2026-07-21".
     final today = DateTime.now().toIso8601String().split('T')[0];
     final userData =
         Provider.of<UserDataProvider>(context, listen: false).userData;
+    // Already logged BP today? Don't ask again - just quietly return false.
     if (userData?['lastBPLogDate'] == today) {
       return false;
     }
@@ -59,11 +67,14 @@ class BpPromptDialog extends StatefulWidget {
   State<BpPromptDialog> createState() => _BpPromptDialogState();
 }
 
+// Holds the live state of the popup: what's typed and whether we're saving.
 class _BpPromptDialogState extends State<BpPromptDialog> {
+  // Text boxes for the two BP numbers.
   final _systolic = TextEditingController();
   final _diastolic = TextEditingController();
-  bool _saving = false;
+  bool _saving = false; // true while the save is running (disables buttons).
 
+  // Clean up the text boxes when the popup closes, to avoid memory leaks.
   @override
   void dispose() {
     _systolic.dispose();
@@ -71,10 +82,14 @@ class _BpPromptDialogState extends State<BpPromptDialog> {
     super.dispose();
   }
 
+  // Runs when Save is tapped: check the numbers, log the BP, update the
+  // dashboard, then close the popup.
   Future<void> _save() async {
+    // Grab these now, before any awaits, since context can go stale after.
     final messenger = ScaffoldMessenger.of(context);
     final navigator = Navigator.of(context);
 
+    // Turn the typed text into numbers. Both must be valid and positive.
     final sys = int.tryParse(_systolic.text.trim());
     final dia = int.tryParse(_diastolic.text.trim());
     if (sys == null || sys <= 0 || dia == null || dia <= 0) {
@@ -86,15 +101,15 @@ class _BpPromptDialogState extends State<BpPromptDialog> {
       return;
     }
 
-    setState(() => _saving = true);
+    setState(() => _saving = true); // show the spinner, block double-taps.
     try {
-      // mood=2 (neutral) — the post-game prompt intentionally skips mood
+      // mood=2 (neutral) - the post-game prompt intentionally skips mood
       // capture to keep the interaction short. Full mood logging is
       // available elsewhere if a researcher needs it.
       //
       // HealthKit / Health Connect snapshots are NOT captured here.
       // They're written by `HealthHooks.logSnapshot` from the Twine
-      // hosts on every game end — independent of the BP prompt's
+      // hosts on every game end - independent of the BP prompt's
       // once-per-day gate so research data parity is preserved.
       await DailyLogHooks.logBP(
         uid: widget.uid,
@@ -103,7 +118,7 @@ class _BpPromptDialogState extends State<BpPromptDialog> {
         mood: 2,
       );
 
-      if (!mounted) return;
+      if (!mounted) return; // popup already closed? stop here.
       // Optimistic dashboard updates so the points pill / latest reading
       // refreshes immediately instead of waiting on the offline-queue
       // replay round-trip.
@@ -118,13 +133,15 @@ class _BpPromptDialogState extends State<BpPromptDialog> {
         'lastBPLogDate': DateTime.now().toIso8601String().split('T')[0],
       });
 
-      navigator.pop(true);
+      navigator.pop(true); // close popup, tell caller we saved.
     } catch (e) {
+      // Save failed - log it and let them try again (turn spinner off).
       debugPrint('BP prompt save error: $e');
       if (mounted) setState(() => _saving = false);
     }
   }
 
+  // Builds the popup UI: title, the two number boxes, and Skip / Save buttons.
   @override
   Widget build(BuildContext context) {
     return AlertDialog(

@@ -4,40 +4,23 @@ import 'package:uuid/uuid.dart';
 import 'package:cardio_care_quest/core/constants/firestore_paths.dart';
 import 'package:cardio_care_quest/core/services/offline_queue.dart';
 
-/// Hook helpers for per-action activity logs from hub-and-spoke games
-/// (Vascular Village's per-quest credits, future hub-style games).
-///
-/// Why this is separate from [SurveyHooks]: surveys are questionnaire
-/// submissions (post-play survey, baseline survey, daily check-in).
-/// A game's quest completion isn't a questionnaire — even if the data
-/// shape happens to fit. Routing game activity through SurveyHooks
-/// pollutes the `surveys/` collection with non-survey records and
-/// misleads any researcher querying it.
-///
-/// Storage shape:
-///   userData/{uid}/gameLogs/{auto}    — one doc per quest play
-///   userData/{uid}                    — points + completion bumps
-///   events/{auto}                     — immutable event row
-///
-/// All writes batch atomically through OfflineQueue.
+// GameLogHooks - saves "you finished a quest" records from games.
+//
+// Why not just use SurveyHooks? Surveys are questionnaires. A game quest isn't
+// one, so we keep it out of the surveys collection to avoid confusing anyone
+// looking at the data later. Everything is saved through OfflineQueue so it
+// works offline.
 abstract class GameLogHooks {
   static OfflineQueue get _queue => GetIt.instance<OfflineQueue>();
   static const _uuid = Uuid();
 
-  /// Persist a single per-quest completion record from a game.
-  ///
-  /// `data` is a free-form map of quest-specific context (e.g. the
-  /// heart-quality rating from Pump the Heart) — captured verbatim
-  /// for downstream behaviour-pattern analysis.
-  ///
-  /// `pointsEarned` is added to `userData/{uid}.points`.
-  ///
-  /// `countAsCompletion` mirrors [SurveyHooks.submitResponse]: when
-  /// false, the user-level `surveysCompleted` counter is NOT bumped
-  /// here — the host's `_performExit` does it once at session end
-  /// instead. Set false for partial-progress submits (Vascular
-  /// Village's per-quest pattern); leave default for one-shot
-  /// completions where each call IS one full play.
+  // Save one finished-quest record from a game.
+  //
+  // "data" is any extra game-specific stuff we just store as-is.
+  // "pointsEarned" gets added to the user's points.
+  // "countAsCompletion": if false, we DON'T bump the "completed" counter here -
+  // the game host counts it once at the end instead. Use false for games that
+  // save several times per play; leave the default when one call = one play.
   static Future<void> logQuestCompletion({
     required String uid,
     required String gameId,
@@ -62,7 +45,7 @@ abstract class GameLogHooks {
     }
 
     final ops = <PendingOp>[
-      // 1. Per-quest log doc — never overwrites prior records.
+      // 1. The quest record - a new doc each time, never overwrites old ones.
       PendingOp.set(
         '${FirestorePaths.userData}/$uid/'
         '${FirestorePaths.gameLogs}/$logId',
@@ -80,14 +63,12 @@ abstract class GameLogHooks {
       ),
     ];
     if (userUpdates.isNotEmpty) {
-      // 2. Lifetime user counters — only when there's something to
-      // bump. A partial submit with 0 points and
-      // `countAsCompletion: false` would otherwise enqueue an empty
-      // update.
+      // 2. The user's running totals - only if there's actually something to
+      // add, so we don't send an empty, pointless update.
       ops.add(PendingOp.update(
           '${FirestorePaths.userData}/$uid', userUpdates));
     }
-    // 3. Immutable event row.
+    // 3. Permanent event row (we never edit these).
     ops.add(PendingOp.set(
       '${FirestorePaths.events}/$eventId',
       {

@@ -6,6 +6,12 @@ import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:uuid/uuid.dart';
 
+// offline_queue.dart - a "save it later" line for cloud writes.
+//
+// Instead of writing straight to the cloud, the app drops each write in here.
+// It's stored on the phone first, then sent up when there's internet. If sending
+// fails, it stays and retries. This is what makes the whole app work offline.
+
 /// Generic Hive-backed write queue for Firestore.
 ///
 /// Every research-grade write (BP, exercise, meal, medication, quest
@@ -25,9 +31,10 @@ import 'package:uuid/uuid.dart';
 ///    research analyses get true event time even when sync is hours later.
 ///  * `increment()` is replayed as `FieldValue.increment` so it merges
 ///    correctly server-side.
+// The queue itself: holds pending writes on the phone and pushes them to the cloud.
 class OfflineQueue {
   static const String _boxName = 'offline_write_queue';
-  static const int _maxBatches = 1000;
+  static const int _maxBatches = 1000; // don't let the queue grow past 1000
 
   /// Safety-net retry interval. The primary sync trigger is the
   /// connectivity_plus stream; this timer just guarantees we don't get stuck
@@ -51,6 +58,9 @@ class OfflineQueue {
   OfflineQueue({FirebaseFirestore? firestore})
       : _firestore = firestore ?? FirebaseFirestore.instance;
 
+  // ---- SETUP ----
+
+  // Open the phone storage and start watching for internet so we can send. Call once.
   Future<void> init() async {
     await Hive.initFlutter();
     _box = await Hive.openBox(_boxName);
@@ -80,21 +90,27 @@ class OfflineQueue {
     debugPrint('OfflineQueue initialized (${_box.length} pending)');
   }
 
+  // Stop the retry timer. Call when shutting down.
   void dispose() {
     _retryTimer?.cancel();
     _retryTimer = null;
   }
 
+  // Update the "how many waiting" number for the UI badge.
   void _refreshPendingCount() {
     if (!_box.isOpen) return;
     pendingCount.value = _box.length;
   }
 
+  // ---- ADDING TO THE QUEUE ----
+
   /// Enqueue a single write spec, replayed standalone (no batch atomicity).
+  // (One write on its own.)
   Future<void> enqueue(PendingOp op) => enqueueBatch([op]);
 
   /// Enqueue an atomic batch of writes. They will be replayed as a single
   /// Firestore [WriteBatch] on the next sync.
+  // (A group of writes that must all succeed together, or none of them do.)
   Future<void> enqueueBatch(List<PendingOp> ops) async {
     if (ops.isEmpty) return;
 
@@ -121,6 +137,10 @@ class OfflineQueue {
     unawaited(syncToFirestore());
   }
 
+  // ---- SENDING TO THE CLOUD ----
+
+  // Try to send every waiting batch, oldest first. Each one that succeeds is
+  // deleted from the phone. If one fails, we stop and keep the rest for later.
   Future<void> syncToFirestore() async {
     if (_isSyncing || _box.isEmpty) return;
     _isSyncing = true;
@@ -175,6 +195,7 @@ class OfflineQueue {
     }
   }
 
+  // Throw away everything in the queue (e.g. on logout).
   Future<void> clear() async {
     if (_box.isOpen) {
       await _box.clear();
@@ -182,6 +203,9 @@ class OfflineQueue {
     }
   }
 
+  // ---- HELPERS: paths & encoding ----
+
+  // Turn a text path like "users/abc/pets/rex" into a real Firestore reference.
   DocumentReference<Map<String, dynamic>> _refFromPath(String path) {
     // Path format: "collection/doc/sub/doc/..." with even segment count.
     final segments = path.split('/').where((s) => s.isNotEmpty).toList();
@@ -211,6 +235,8 @@ class OfflineQueue {
     return out;
   }
 
+  // Convert one saved value back. Special "__type" markers become real Firestore
+  // objects (a counter bump, a delete, a map point, or a timestamp).
   dynamic _decodeValue(dynamic value) {
     if (value is Map) {
       final marker = value['__type'];
@@ -237,6 +263,7 @@ class OfflineQueue {
     return value;
   }
 
+  // True if the phone has some internet right now.
   bool _hasConnection(Object result) {
     if (result is ConnectivityResult) {
       return result != ConnectivityResult.none;
@@ -248,9 +275,13 @@ class OfflineQueue {
   }
 }
 
+// ---- DATA SHAPES ----
+
 /// One operation inside a PendingBatch.
+// The kind of write: create/overwrite (set), change fields (update), or remove (delete).
 enum PendingOpType { set, update, delete }
 
+// One write to do: what kind, which document (path), and the data.
 class PendingOp {
   final PendingOpType type;
   final String path;
@@ -267,6 +298,7 @@ class PendingOp {
         data = null,
         merge = false;
 
+  // Save this write as a plain map (so it can sit on the phone).
   Map<String, dynamic> toMap() => {
         'type': type.name,
         'path': path,
@@ -274,6 +306,7 @@ class PendingOp {
         'merge': merge,
       };
 
+  // Rebuild a write from its saved map.
   factory PendingOp.fromMap(Map<dynamic, dynamic> map) {
     final typeName = map['type'] as String;
     final type = PendingOpType.values.firstWhere((t) => t.name == typeName);
@@ -298,6 +331,7 @@ class PendingOp {
   });
 }
 
+// A group of writes that get sent together as one all-or-nothing unit.
 class PendingBatch {
   final String id;
   final List<PendingOp> ops;
@@ -309,12 +343,14 @@ class PendingBatch {
     required this.queuedAt,
   });
 
+  // Save this batch as a plain map.
   Map<String, dynamic> toMap() => {
         'id': id,
         'queuedAt': queuedAt.toIso8601String(),
         'ops': ops.map((o) => o.toMap()).toList(),
       };
 
+  // Rebuild a batch from its saved map.
   factory PendingBatch.fromMap(Map<dynamic, dynamic> map) {
     return PendingBatch(
       id: map['id'] as String,
@@ -326,6 +362,8 @@ class PendingBatch {
   }
 }
 
+// Little builders for "special" values (a counter bump, a delete, a timestamp,
+// a map point) that need extra handling. Use these when filling a write's data.
 /// Helpers used by callers to encode special values into Hive-safe markers.
 /// Use these when building a PendingOp's `data` map.
 abstract class OfflineFieldValue {

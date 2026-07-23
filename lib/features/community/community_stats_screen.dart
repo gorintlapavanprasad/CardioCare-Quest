@@ -1,22 +1,15 @@
-// Community Statistics — anonymous cohort dashboard for the
-// dry-run.
+// Community Statistics - the group dashboard.
 //
-// Reference: netguage/lib/community_statistics.dart shows the same
-// "all-time totals as plain text" pattern with one user's data. We
-// rebuilt around that idea but for a 15-participant research cohort:
-// the page now aggregates across every userData doc and the
-// collection-group game/BP logs so each card surfaces a cohort
-// signal (avg, count, range) rather than one user's number.
+// Shows how the whole group is doing as cards of totals and averages:
+// who's active, games played, average blood pressure, pills taken, and a
+// group score. The actual number-crunching happens in
+// community_stats_service.dart; this file is just the display.
 //
-// Privacy: every displayed value is an aggregate. There is no
-// per-user list or rank — at 15 participants, even a leaderboard
-// could deanonymise. If the cohort grows past ~30 we can revisit
-// adding a sorted ranking with hashed display names.
+// Privacy: every number here is a group total or average. There's no list
+// of individuals and no ranking, so no single person can be picked out.
 //
-// Rendering strategy: one foreground fetch on screen open, plus a
-// pull-to-refresh. Stats are bounded by a 7-day window for the
-// time-sensitive cards (BP, plays, pills); cohort points and active-
-// today are real-time.
+// How it loads: fetches once when opened, and again on pull-to-refresh.
+// Time-based cards cover the last 7 days.
 
 import 'package:flutter/material.dart';
 
@@ -24,6 +17,7 @@ import '../../core/theme/app_colors.dart';
 import '../games/game_stories.dart';
 import 'community_stats_service.dart';
 
+// The screen widget. Its state is in the class below.
 class CommunityStatsScreen extends StatefulWidget {
   const CommunityStatsScreen({super.key});
 
@@ -31,18 +25,20 @@ class CommunityStatsScreen extends StatefulWidget {
   State<CommunityStatsScreen> createState() => _CommunityStatsScreenState();
 }
 
+// Holds the in-progress fetch of the group stats and refreshes it.
 class _CommunityStatsScreenState extends State<CommunityStatsScreen> {
-  // Future-of-stats so the build method can drive a single
-  // FutureBuilder. Replaced (not awaited) on pull-to-refresh so the
-  // loading spinner reappears for the duration of the new fetch.
+  // The pending fetch of the numbers. The page shows a spinner until it's
+  // done. On pull-to-refresh we swap in a new one so the spinner reappears.
   Future<CommunityStats>? _statsFuture;
 
+  // Kick off the first fetch when the screen opens.
   @override
   void initState() {
     super.initState();
     _statsFuture = CommunityStatsService.instance.fetch();
   }
 
+  // Pull-to-refresh: start a fresh fetch and wait for it.
   Future<void> _refresh() async {
     setState(() {
       _statsFuture = CommunityStatsService.instance.fetch();
@@ -50,6 +46,8 @@ class _CommunityStatsScreenState extends State<CommunityStatsScreen> {
     await _statsFuture;
   }
 
+  // Build the page: spinner while loading, error/empty fallbacks, else
+  // the stats body. Wrapped in pull-to-refresh.
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -57,7 +55,7 @@ class _CommunityStatsScreenState extends State<CommunityStatsScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.title,
         foregroundColor: Colors.white,
-        // Explicit iconTheme + titleTextStyle — see the matching
+        // Explicit iconTheme + titleTextStyle - see the matching
         // note in health_stats_screen.dart. The global appBarTheme
         // configures dark icons / dark title for the dashboard's
         // white AppBar; on this dark AppBar we need to override
@@ -98,6 +96,7 @@ class _CommunityStatsScreenState extends State<CommunityStatsScreen> {
 
 // ───────────── States ─────────────
 
+// Spinner shown while the numbers are still being fetched.
 class _LoadingState extends StatelessWidget {
   const _LoadingState();
 
@@ -118,6 +117,7 @@ class _LoadingState extends StatelessWidget {
   }
 }
 
+// Shown if the fetch failed - a friendly "couldn't load" with the reason.
 class _ErrorState extends StatelessWidget {
   final String message;
   const _ErrorState({required this.message});
@@ -157,14 +157,14 @@ class _ErrorState extends StatelessWidget {
   }
 }
 
+// Shown when nobody in the group has done anything yet.
 class _EmptyState extends StatelessWidget {
   const _EmptyState();
 
   @override
   Widget build(BuildContext context) {
-    // Renders before any participant has logged in to the dry-run —
-    // shouldn't be reachable on the actual study day, but we still
-    // need a graceful fallback for first-launch testing.
+    // A graceful "nothing here yet" for first launch, before anyone
+    // has logged readings or played games.
     return ListView(
       padding: const EdgeInsets.all(24),
       children: const [
@@ -183,7 +183,7 @@ class _EmptyState extends StatelessWidget {
         SizedBox(height: 8),
         Text(
           'Once participants begin logging readings and playing games, '
-          'this page will summarise what the group is doing — without '
+          'this page will summarise what the group is doing - without '
           'sharing any individual results.',
           textAlign: TextAlign.center,
           style: TextStyle(
@@ -199,6 +199,7 @@ class _EmptyState extends StatelessWidget {
 
 // ───────────── Body ─────────────
 
+// The real page once data is in: a scrolling stack of titled cards.
 class _StatsBody extends StatelessWidget {
   final CommunityStats stats;
   const _StatsBody({required this.stats});
@@ -208,7 +209,7 @@ class _StatsBody extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
       children: [
-        // Privacy banner removed for the 2026-05-12 demo — earlier
+        // Privacy banner removed for the 2026-05-12 demo - earlier
         // it read as a defensive disclaimer ("Showing anonymous
         // totals across N participants. No individual readings or
         // names are visible here.") which felt out of place at a
@@ -244,6 +245,7 @@ class _StatsBody extends StatelessWidget {
 
 // ───────────── Section / Footer ─────────────
 
+// A bold heading above each group of cards.
 class _SectionTitle extends StatelessWidget {
   final String text;
   const _SectionTitle(this.text);
@@ -264,11 +266,13 @@ class _SectionTitle extends StatelessWidget {
   }
 }
 
+// The little grey line at the bottom: when it updated and the time window.
 class _Footer extends StatelessWidget {
   final DateTime fetchedAt;
   final int windowDays;
   const _Footer({required this.fetchedAt, required this.windowDays});
 
+  // Turn a time into a short "x min ago" style label.
   String _ago(DateTime t) {
     final diff = DateTime.now().difference(t);
     if (diff.inSeconds < 60) return 'just now';
@@ -366,7 +370,7 @@ class _StatCard extends StatelessWidget {
   }
 }
 
-/// Pulse card — two stats side by side. Active-today on the left,
+/// Pulse card - two stats side by side. Active-today on the left,
 /// total plays this week on the right. Visually higher-contrast than
 /// the rest of the cards because it's the page's "at a glance"
 /// summary.
@@ -410,6 +414,7 @@ class _CohortPulseCard extends StatelessWidget {
   }
 }
 
+// One side of the pulse card: a big number, a small tail, a label, a hint.
 class _PulseHalf extends StatelessWidget {
   final String big;
   final String small;
@@ -482,7 +487,7 @@ class _PulseHalf extends StatelessWidget {
   }
 }
 
-/// Heart-health card — cohort BP averages with a min/max range
+/// Heart-health card - cohort BP averages with a min/max range
 /// underneath. We deliberately don't show a daily trend chart here:
 /// at 15 participants × 7 days the line would have wide confidence
 /// intervals and could overweight a single outlier reading.
@@ -495,7 +500,7 @@ class _HeartHealthCard extends StatelessWidget {
     if (stats.bpReadingsThisWeek == 0 || stats.avgSystolic == null) {
       return _StatCard(
         icon: Icons.monitor_heart_outlined,
-        headline: '—',
+        headline: '-',
         label: 'AVG COHORT BP',
         sub: 'No readings logged in the last ${stats.windowDays} days yet.',
         iconColor: AppColors.primary,
@@ -589,6 +594,7 @@ class _HeartHealthCard extends StatelessWidget {
   }
 }
 
+// One "lowest to highest" line, e.g. "Systolic range  110 - 140 mmHg".
 class _RangeRow extends StatelessWidget {
   final String label;
   final int? min;
@@ -598,7 +604,7 @@ class _RangeRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final value =
-        (min == null || max == null) ? '—' : '$min – $max mmHg';
+        (min == null || max == null) ? '-' : '$min - $max mmHg';
     return Row(
       children: [
         Text(
@@ -623,7 +629,7 @@ class _RangeRow extends StatelessWidget {
   }
 }
 
-/// Medication adherence — pills logged this week + a percentage of
+/// Medication adherence - pills logged this week + a percentage of
 /// cohort that has taken medication today. We chose a percentage
 /// rather than raw count because it stays interpretable across
 /// cohort-size changes (15 today, possibly more tomorrow).
@@ -680,7 +686,7 @@ class _MedicationCard extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           // Linear progress reads as "fraction of cohort that has
-          // taken medication today". Capped at 1.0 — a defensive
+          // taken medication today". Capped at 1.0 - a defensive
           // div-by-zero already short-circuited above.
           ClipRRect(
             borderRadius: BorderRadius.circular(8),
@@ -710,7 +716,7 @@ class _MedicationCard extends StatelessWidget {
   }
 }
 
-/// Engagement — horizontal bars for plays-by-category plus the
+/// Engagement - horizontal bars for plays-by-category plus the
 /// most-played game callout on top. The bars share a visual scale
 /// (longest bar = max category) so participants can read relative
 /// engagement at a glance without exact counts being legible.
@@ -723,7 +729,7 @@ class _GameEngagementCard extends StatelessWidget {
     if (stats.playsThisWeek == 0) {
       return _StatCard(
         icon: Icons.sports_esports_outlined,
-        headline: '—',
+        headline: '-',
         label: 'PLAYS THIS WEEK',
         sub: 'No game completions logged in the last ${stats.windowDays} days yet.',
       );
@@ -781,7 +787,7 @@ class _GameEngagementCard extends StatelessWidget {
                         ),
                       ),
                       Text(
-                        'Most played — ${stats.topGamePlays} '
+                        'Most played - ${stats.topGamePlays} '
                         '${stats.topGamePlays == 1 ? 'play' : 'plays'} this week',
                         style: const TextStyle(
                           fontSize: 12,
@@ -810,6 +816,8 @@ class _GameEngagementCard extends StatelessWidget {
   }
 }
 
+// One horizontal bar for a game category. Its length is relative to the
+// busiest category, so you can compare at a glance.
 class _CategoryBar extends StatelessWidget {
   final GameCategory category;
   final int count;
@@ -882,7 +890,7 @@ class _CategoryBar extends StatelessWidget {
   }
 
   /// Map each category to a distinct viridis anchor stop. Matches
-  /// the palette the games now share — gives the bars a clear
+  /// the palette the games now share - gives the bars a clear
   /// "this is part of the CardioCare visual system" feel rather
   /// than a generic Material chart look.
   static Color _viridisStop(GameCategory cat) {
@@ -901,6 +909,7 @@ class _CategoryBar extends StatelessWidget {
   }
 }
 
+// The final card: the group's total points, plus a rough per-person average.
 class _CohortScoreCard extends StatelessWidget {
   final CommunityStats stats;
   const _CohortScoreCard({required this.stats});
@@ -920,6 +929,7 @@ class _CohortScoreCard extends StatelessWidget {
     );
   }
 
+  // Add comma separators to a big number, e.g. 12345 -> "12,345".
   static String _formatThousands(int n) {
     final s = n.toString();
     final buf = StringBuffer();
@@ -933,6 +943,7 @@ class _CohortScoreCard extends StatelessWidget {
 
 // ───────────── Decoration helper ─────────────
 
+// Shared look for every card: white, rounded, bordered, soft shadow.
 BoxDecoration _cardDecoration() => BoxDecoration(
       color: Colors.white,
       borderRadius: BorderRadius.circular(16),

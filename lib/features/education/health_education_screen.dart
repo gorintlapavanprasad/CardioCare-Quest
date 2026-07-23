@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:cardio_care_quest/core/theme/app_colors.dart';
 
+// Health Education screen - a simple menu of heart-health topics to read.
+// Right now it's just a static list of titles (the articles aren't wired up).
+
+// The screen. Shows the list of learning topics.
 class HealthEducationScreen extends StatelessWidget {
   const HealthEducationScreen({super.key});
 
+  // Build the fixed list of topic rows.
   @override
   Widget build(BuildContext context) {
     return Scaffold(

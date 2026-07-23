@@ -1,3 +1,7 @@
+// caregiver_screen.dart - the helper's dashboard during a paired session.
+// Shows what game the participant is on, lets the caregiver tap "I helped",
+// jot notes, and end the session. It reads the session live from the cloud.
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
@@ -17,8 +21,8 @@ class CaregiverScreen extends StatefulWidget {
 }
 
 class _CaregiverScreenState extends State<CaregiverScreen> {
-  final TextEditingController _noteController = TextEditingController();
-  bool _savingNote = false;
+  final TextEditingController _noteController = TextEditingController(); // the note text box
+  bool _savingNote = false; // true while a note is being saved
 
   @override
   void dispose() {
@@ -26,6 +30,7 @@ class _CaregiverScreenState extends State<CaregiverScreen> {
     super.dispose();
   }
 
+  // Record that the caregiver helped with a step, then confirm on screen.
   Future<void> _markHelp() async {
     await CaregiverHooks.markHelp(helpType: 'general');
     if (!mounted) return;
@@ -34,6 +39,7 @@ class _CaregiverScreenState extends State<CaregiverScreen> {
     );
   }
 
+  // Save the typed note. Does nothing if it's empty or already saving.
   Future<void> _saveNote() async {
     final text = _noteController.text.trim();
     if (text.isEmpty || _savingNote) return;
@@ -47,12 +53,14 @@ class _CaregiverScreenState extends State<CaregiverScreen> {
     );
   }
 
+  // End the paired session and close this screen.
   Future<void> _endSession() async {
     await PairHooks.end();
     if (!mounted) return;
     Navigator.of(context).pop();
   }
 
+  // The screen: if a session is active show the cards, otherwise a hint.
   @override
   Widget build(BuildContext context) {
     final pairedSessionId = SessionManager.pairedSessionId;
@@ -91,6 +99,8 @@ class _CaregiverScreenState extends State<CaregiverScreen> {
     );
   }
 
+  // Live "Now playing" card. It listens to the session in the cloud and
+  // updates by itself as the participant moves between games.
   Widget _liveContextCard(String pairedSessionId) {
     return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
       stream: FirebaseFirestore.instance
@@ -140,6 +150,7 @@ class _CaregiverScreenState extends State<CaregiverScreen> {
     );
   }
 
+  // Card with the big "Mark help given" button.
   Widget _markHelpCard() {
     return _card(
       child: Column(
@@ -171,6 +182,7 @@ class _CaregiverScreenState extends State<CaregiverScreen> {
     );
   }
 
+  // Card with the notes box and a Save button.
   Widget _notesCard() {
     return _card(
       child: Column(
@@ -219,6 +231,7 @@ class _CaregiverScreenState extends State<CaregiverScreen> {
     );
   }
 
+  // A small rounded label chip (e.g. "Help given: 3").
   Widget _pill(String text) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -234,6 +247,7 @@ class _CaregiverScreenState extends State<CaregiverScreen> {
     );
   }
 
+  // Shared white rounded-box wrapper used by every card above.
   Widget _card({required Widget child}) {
     return Container(
       padding: const EdgeInsets.all(20),
@@ -247,6 +261,7 @@ class _CaregiverScreenState extends State<CaregiverScreen> {
   }
 }
 
+// Shown when there's no active paired session - just a "start one" hint.
 class _NoSession extends StatelessWidget {
   const _NoSession();
 
