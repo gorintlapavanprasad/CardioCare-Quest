@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:geolocator/geolocator.dart';
 import 'package:provider/provider.dart';
 import 'package:webview_flutter/webview_flutter.dart';
@@ -15,6 +16,8 @@ import 'package:cardio_care_quest/core/providers/user_data_manager.dart';
 import 'package:cardio_care_quest/core/services/location_service.dart';
 import 'package:cardio_care_quest/core/services/offline_queue.dart';
 import 'package:cardio_care_quest/core/services/session_manager.dart';
+import 'package:cardio_care_quest/core/widgets/game_web_style.dart';
+import 'package:cardio_care_quest/features/games/game_completion_signal.dart';
 
 // TwineGameHost - runs a "walk somewhere" HTML game inside the app.
 //
@@ -229,6 +232,12 @@ class _TwineGameHostState extends State<TwineGameHost> {
   String get _uid =>
       Provider.of<UserDataProvider>(context, listen: false).uid;
 
+  // Copies of the phone + id kept for dispose(). dispose() runs after the
+  // widget is detached, when Provider.of(context) is no longer allowed, so we
+  // read them here while the widget is still live and use the copies below.
+  String _phoneForDispose = '';
+  String _uidForDispose = '';
+
   // ---- SETUP / LIFECYCLE ----
 
   // Runs once when the screen opens: set up ids, tell the app a game started,
@@ -253,6 +262,15 @@ class _TwineGameHostState extends State<TwineGameHost> {
     _initWebView();
   }
 
+  // Keep the dispose-time copies of phone + id up to date while the widget is
+  // still attached. dispose() can't call Provider.of, so it reads these.
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _phoneForDispose = _phone;
+    _uidForDispose = _uid;
+  }
+
   // Builds the WebView that shows the game, and wires up the two-way message
   // bridge so the web page and Dart can talk. Also loads the game's HTML file.
   void _initWebView() {
@@ -267,7 +285,15 @@ class _TwineGameHostState extends State<TwineGameHost> {
       ..setBackgroundColor(Colors.white)
       ..setNavigationDelegate(
         NavigationDelegate(
-          onPageFinished: (_) => _loadGameState(),
+          onPageFinished: (_) async {
+            // Inject the shared full-bleed + larger text/emoji stylesheet so
+            // movement games match every other game on every device (see
+            // game_web_style.dart), load the bridge shim so `window.CCQ`
+            // exists, then restore any saved progress.
+            await _controller.runJavaScript(kCcqGameStyleInjectionJs);
+            await _injectBridge();
+            _loadGameState();
+          },
           onWebResourceError: (error) {
             debugPrint('❌ ${widget.gameId} WebView Error: ${error.description}');
             // Report to Firestore so a failed movement-game load isn't
@@ -354,6 +380,22 @@ class _TwineGameHostState extends State<TwineGameHost> {
         if (mounted) Navigator.of(context).pop();
       },
     );
+  }
+
+  // Loads the shared `ccq_bridge.js` shim so `window.CCQ` (goHome, telemetry,
+  // the burger menu, etc.) exists in the movement game. The `if (!window.CCQ
+  // ...)` guard skips injection when a game already inlines its own bridge, so
+  // we never clobber a working one.
+  Future<void> _injectBridge() async {
+    try {
+      final js = await rootBundle.loadString('assets/game/ccq_bridge.js');
+      await _controller.runJavaScript(
+        'if (!window.CCQ || typeof window.CCQ.goHome !== "function") {\n'
+        '$js\n}',
+      );
+    } catch (e) {
+      debugPrint('${widget.gameId} bridge inject failed: $e');
+    }
   }
 
   // Save the buddy's new name and update the screen to show it.
@@ -742,6 +784,10 @@ class _TwineGameHostState extends State<TwineGameHost> {
     final uid = _uid;
     if (uid.isEmpty) return;
 
+    // The walk has ended - mark the game done so the launcher can show the
+    // short feedback popup once the player is back on the dashboard.
+    GameCompletionSignal.markCompleted(widget.gameId);
+
     // Partial-walk credit: scale the full reward by how far the participant
     // actually walked, so a walk ended early (via the bridge's
     // FINISH_QUEST_DATA "I'm done" path) is credited proportionally instead
@@ -924,7 +970,13 @@ class _TwineGameHostState extends State<TwineGameHost> {
       exitReason: 'exited_in_progress',
       distanceWalked: _distanceWalked.toInt(),
     ));
-    if (mounted) Navigator.of(context).pop();
+    // Return all the way to the dashboard (the first route), not just one
+    // level up. Games can be launched from several places (catalog, home
+    // tab, deep links), so a single pop is unpredictable; popping to the
+    // root always lands the player on the dashboard.
+    if (mounted) {
+      Navigator.of(context).popUntil((route) => route.isFirst);
+    }
   }
 
   // Should we ask "save and exit?" before leaving? Only if a real walk is in
@@ -998,8 +1050,8 @@ class _TwineGameHostState extends State<TwineGameHost> {
           'gameId': widget.gameId,
           'sessionId': _hostSessionId,
         },
-        phone: _phone,
-        userId: _uid,
+        phone: _phoneForDispose,
+        userId: _uidForDispose,
       );
     } catch (e) {
       debugPrint('Error logging dispose for ${widget.gameId}: $e');
@@ -1043,7 +1095,38 @@ class _TwineGameHostState extends State<TwineGameHost> {
         // the way up so the game header sits directly under the
         // status bar with no seam.
         backgroundColor: const Color(0xFF1a1b2e),
-        body: WebViewWidget(controller: _controller),
+        body: Stack(
+          fit: StackFit.expand,
+          children: [
+            Positioned.fill(child: WebViewWidget(controller: _controller)),
+            // Flutter-drawn Home button, matching the questionnaire host so
+            // movement games (e.g. Dog Quest) also have a always-visible way
+            // back to the dashboard, even before the in-WebView header/menu
+            // has finished loading. Confirms a mid-walk exit first.
+            SafeArea(
+              child: Align(
+                alignment: Alignment.topLeft,
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 8, top: 4),
+                  child: Material(
+                    color: Colors.black.withValues(alpha: 0.45),
+                    shape: const CircleBorder(),
+                    child: IconButton(
+                      tooltip: 'Home',
+                      icon: const Icon(Icons.home_rounded, color: Colors.white),
+                      onPressed: () async {
+                        final shouldPop = await _confirmExit();
+                        if (shouldPop && context.mounted) {
+                          await _exitWithOptionalBpPrompt();
+                        }
+                      },
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

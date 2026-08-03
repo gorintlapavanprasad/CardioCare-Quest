@@ -3,7 +3,7 @@
 // and a little arrow. The colour swap animates smoothly.
 
 import 'package:flutter/material.dart';
-import '../../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_colors.dart';
 
 // One tappable task row. Pass the text, whether it's done, and a toggle.
 class DailyTaskCard extends StatelessWidget {

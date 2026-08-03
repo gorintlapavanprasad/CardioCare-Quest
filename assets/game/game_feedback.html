@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>How was it</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #1a1b2e; color: #1c1230;
+  }
+  .phone {
+    max-width: 480px; margin: 0 auto; min-height: 100vh;
+    background: #ffffff; display: flex; flex-direction: column;
+  }
+  .header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 16px 20px; background: #4A1D6C; color: #fff;
+    font-size: 18px; font-weight: 700;
+  }
+  .progress-track { height: 8px; background: #eee; }
+  .progress-fill { height: 8px; background: #7b3ff2; transition: width .2s; }
+  .content { flex: 1; padding: 24px 20px; display: flex; flex-direction: column; }
+  .q-text { font-size: 26px; font-weight: 800; margin: 8px 0 4px; line-height: 1.3; }
+  .speak-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: #f0e9fb; color: #4A1D6C; border-radius: 999px;
+    padding: 8px 14px; font-size: 15px; font-weight: 700;
+    text-decoration: none; margin: 8px 0 16px; align-self: flex-start; cursor: pointer;
+  }
+  .tile-row { display: flex; flex-direction: column; gap: 12px; }
+  .scale-tile {
+    display: flex; align-items: center; gap: 16px;
+    padding: 16px; border-radius: 18px; text-decoration: none;
+    color: #1c1230; border: 3px solid transparent; cursor: pointer;
+  }
+  .scale-tile.selected { border-color: #4A1D6C; }
+  .scale-emoji { font-size: 40px; }
+  .scale-label { font-size: 20px; font-weight: 700; }
+  .bg-1 { background: #ffe0e0; }
+  .bg-2 { background: #ffe9d6; }
+  .bg-3 { background: #fff6cc; }
+  .bg-4 { background: #e2f4d6; }
+  .bg-5 { background: #d6f0e4; }
+  .spacer { flex: 1; min-height: 16px; }
+  .btn-primary {
+    display: block; text-align: center; background: #7b3ff2; color: #fff;
+    font-size: 20px; font-weight: 800; padding: 18px; border-radius: 16px;
+    text-decoration: none; margin-top: 16px; cursor: pointer;
+  }
+  .btn-primary.disabled { opacity: .4; pointer-events: none; }
+  .btn-secondary {
+    display: block; text-align: center; color: #4A1D6C; font-size: 17px;
+    font-weight: 700; padding: 12px; text-decoration: none; margin-top: 4px; cursor: pointer;
+  }
+  .done-wrap { text-align: center; padding-top: 48px; }
+  .done-emoji { font-size: 64px; }
+  .done-title { font-size: 26px; font-weight: 800; margin-top: 12px; }
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="header"><span>How was it?</span><span id="hdr-progress"></span></div>
+  <div class="progress-track"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
+  <div class="content" id="content"></div>
+</div>
+<script>
+(function () {
+  // The same five faces the end survey uses, mapped to a 1-5 value.
+  var faces = [
+    { v: 1, emoji: "\uD83D\uDE22", label: "No" },
+    { v: 2, emoji: "\uD83D\uDE41", label: "Not really" },
+    { v: 3, emoji: "\uD83D\uDE10", label: "Okay" },
+    { v: 4, emoji: "\uD83D\uDE42", label: "Yes" },
+    { v: 5, emoji: "\uD83D\uDE04", label: "Yes a lot" }
+  ];
+  var cfg = null;    // { title, questions: [{ key, text }] }
+  var answers = {};  // key -> 1..5
+  var idx = 0;
+
+  function post(type, extra) {
+    try {
+      var msg = { type: type };
+      if (extra) { for (var k in extra) { msg[k] = extra[k]; } }
+      if (window.FlutterBridge && window.FlutterBridge.postMessage) {
+        window.FlutterBridge.postMessage(JSON.stringify(msg));
+      }
+    } catch (e) {}
+  }
+
+  function speak(text) {
+    try {
+      if (window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+        var u = new SpeechSynthesisUtterance(text);
+        u.rate = 0.9;
+        window.speechSynthesis.speak(u);
+      }
+    } catch (e) {}
+  }
+
+  function renderQuestion() {
+    var q = cfg.questions[idx];
+    var total = cfg.questions.length;
+    document.getElementById("hdr-progress").textContent = (idx + 1) + " of " + total;
+    document.getElementById("progress-fill").style.width =
+      Math.round((idx / total) * 100) + "%";
+
+    var lastQ = (idx === total - 1);
+    var html = '<h2 class="q-text">' + q.text + '</h2>';
+    html += '<a class="speak-btn" id="speak">\uD83D\uDD0A Read aloud</a>';
+    html += '<div class="tile-row">';
+    faces.forEach(function (f) {
+      var sel = (answers[q.key] === f.v) ? " selected" : "";
+      html += '<a class="scale-tile bg-' + f.v + sel + '" data-v="' + f.v + '">' +
+        '<span class="scale-emoji">' + f.emoji + '</span>' +
+        '<span class="scale-label">' + f.label + '</span></a>';
+    });
+    html += '</div><div class="spacer"></div>';
+    var disabled = answers[q.key] ? "" : " disabled";
+    html += '<a class="btn-primary' + disabled + '" id="next">' + (lastQ ? "DONE" : "NEXT") + '</a>';
+    html += '<a class="btn-secondary" id="skip">Skip this</a>';
+
+    var c = document.getElementById("content");
+    c.innerHTML = html;
+
+    c.querySelectorAll(".scale-tile").forEach(function (t) {
+      t.addEventListener("click", function () {
+        answers[q.key] = Number(t.dataset.v);
+        renderQuestion();
+      });
+    });
+    document.getElementById("speak").addEventListener("click", function (e) {
+      e.preventDefault();
+      speak(q.text);
+    });
+    document.getElementById("next").addEventListener("click", function () {
+      if (!answers[q.key]) { return; }
+      if (lastQ) { finish(); } else { idx++; renderQuestion(); }
+    });
+    document.getElementById("skip").addEventListener("click", function (e) {
+      e.preventDefault();
+      post("CLOSE");
+    });
+  }
+
+  function finish() {
+    document.getElementById("progress-fill").style.width = "100%";
+    document.getElementById("hdr-progress").textContent = "Done";
+    document.getElementById("content").innerHTML =
+      '<div class="done-wrap"><div class="done-emoji">\uD83C\uDF89</div>' +
+      '<div class="done-title">Thank you</div></div>';
+    post("SUBMIT", { answers: answers });
+  }
+
+  // Flutter injects window.__ccqFeedback then calls this.
+  window.__renderFeedback = function () {
+    cfg = window.__ccqFeedback;
+    if (!cfg || !cfg.questions || !cfg.questions.length) { return; }
+    idx = 0;
+    answers = {};
+    renderQuestion();
+  };
+
+  // In case the config was injected before this script ran.
+  if (window.__ccqFeedback) { window.__renderFeedback(); }
+})();
+</script>
+</body>
+</html>

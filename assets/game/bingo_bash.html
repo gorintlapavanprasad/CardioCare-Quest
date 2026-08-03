@@ -725,6 +725,32 @@ $(document).on(':passagedisplay', function () {
     m[idx] = !m[idx];
     target.classList.toggle('marked');
 
+    /* Save the habits marked on the board into the shared, date-keyed
+       `ccq_shared_habits` record so other games (Pill Path) can read
+       them. We merge into today's record rather than replacing it, so
+       Pill Path's own medTaken / medHelper fields survive. `habits` is
+       the list of goal names currently marked. If "Take meds" is one of
+       them, we also set medTaken so Pill Path sees the medication as
+       done today. */
+    try {
+      var today = new Date().toISOString().slice(0, 10);
+      var goals = State.variables.goals || [];
+      var markedGoals = [];
+      for (var gi = 0; gi < goals.length; gi++) {
+        if (m[gi] && goals[gi] && goals[gi] !== "Free space") {
+          markedGoals.push(goals[gi]);
+        }
+      }
+      var sharedRaw = window.localStorage.getItem("ccq_shared_habits");
+      var sharedObj = sharedRaw ? JSON.parse(sharedRaw) : {};
+      if (!sharedObj || typeof sharedObj !== "object") sharedObj = {};
+      var todayRec = sharedObj[today] || {};
+      todayRec.habits = markedGoals;
+      if (markedGoals.indexOf("Take meds") >= 0) todayRec.medTaken = true;
+      sharedObj[today] = todayRec;
+      window.localStorage.setItem("ccq_shared_habits", JSON.stringify(sharedObj));
+    } catch (e) { /* best-effort cross-game hint */ }
+
     /* Per-tap telemetry — captures the ACTUAL board state with
        this cell's new value, so research data sees what cells
        the participant actually marked rather than just the
@@ -826,7 +852,7 @@ Variables:
    text — long custom labels still wrap, but that&#39;s the participant&#39;s
    choice. */
 &lt;&lt;set $goals to [
-  &quot;Low-sodium meal&quot;,
+  &quot;Low-salt meal&quot;,
   &quot;30 min walk&quot;,
   &quot;Meditate 5 min&quot;,
   &quot;Side of veggies&quot;,
@@ -927,9 +953,9 @@ Variables:
 &lt;br&gt;&lt;br&gt;
 &lt;strong&gt;Meditate 5 min:&lt;/strong&gt; Sit, breathe slow, count to 60 three times.
 &lt;br&gt;&lt;br&gt;
-&lt;strong&gt;Reduce sodium:&lt;/strong&gt; Taste your food before reaching for the salt.
+&lt;strong&gt;Eat less salt:&lt;/strong&gt; Taste your food before reaching for the salt.
 &lt;br&gt;&lt;br&gt;
-&lt;strong&gt;Cook at home:&lt;/strong&gt; One home cooked meal a day cuts your sodium intake in half.
+&lt;strong&gt;Cook at home:&lt;/strong&gt; One home cooked meal a day cuts your salt in half.
 &lt;/div&gt;
 
 &lt;div style=&quot;flex: 1 1 auto;&quot;&gt;&lt;/div&gt;

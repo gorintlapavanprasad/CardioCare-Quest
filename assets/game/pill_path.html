@@ -659,6 +659,27 @@ setup.pillPath = (function () {
     var today = State.variables.todayDate;
     var pathNum = State.variables.pathNum || 1;
 
+    // Cross-game auto-record: if Bingo Bash marked its "Take meds"
+    // habit today (shared, date-keyed `ccq_shared_habits` record) and
+    // Pill Path has no entry for today yet, record today's pill as
+    // taken so the two games stay in sync. This mirrors Bingo's own
+    // auto-mark of its "Take meds" cell from Pill Path's record.
+    try {
+      var sharedRaw = window.localStorage.getItem("ccq_shared_habits");
+      var sharedObj = sharedRaw ? JSON.parse(sharedRaw) : null;
+      if (sharedObj && sharedObj[today] && sharedObj[today].medTaken) {
+        var hasToday = false;
+        for (var s = 0; s < entries.length; s++) {
+          if (entries[s].date === today) { hasToday = true; break; }
+        }
+        if (!hasToday) {
+          entries.push({ date: today, taken: true, caregiver: false });
+          State.variables.entries = entries;
+          saveState();
+        }
+      }
+    } catch (e) { /* best-effort cross-game sync */ }
+
     // Find today's entry, if any.
     var todayEntry = null;
     for (var i = 0; i < entries.length; i++) {
@@ -1030,7 +1051,7 @@ empty passage with that name.
 &lt;p class=&quot;done-text&quot;&gt;Done for today.&lt;/p&gt;
 &lt;p class=&quot;done-sub&quot;&gt;&lt;&lt;if $todayHelper&gt;&gt;You took it with help. Great teamwork.&lt;&lt;else&gt;&gt;Come back tomorrow for the next stone.&lt;&lt;/if&gt;&gt;&lt;/p&gt;
 &lt;/div&gt;
-&lt;a class=&quot;btn-primary ccq-home-trigger&quot;&gt;BACK TO HOME&lt;/a&gt;
+&lt;a class=&quot;btn-primary ccq-home-trigger&quot; href=&quot;javascript:void(0)&quot;&gt;BACK TO CARDIOCARE QUEST&lt;/a&gt;
 &lt;a class=&quot;btn-secondary&quot; data-passage=&quot;Edit Today&quot;&gt;Wrong answer? Change it&lt;/a&gt;
 &lt;&lt;else&gt;&gt;
 &lt;div class=&quot;action-card&quot;&gt;
@@ -1120,8 +1141,7 @@ On next tap, increment pathNum and return to Path.
 
 &lt;div class=&quot;spacer&quot;&gt;&lt;/div&gt;
 
-&lt;a class=&quot;btn-primary&quot; data-passage=&quot;Next Path&quot;&gt;START NEXT PATH&lt;/a&gt;
-&lt;a class=&quot;btn-secondary ccq-home-trigger&quot;&gt;BACK TO HOME&lt;/a&gt;
+&lt;a class=&quot;btn-primary ccq-home-trigger&quot; href=&quot;javascript:void(0)&quot;&gt;BACK TO CARDIOCARE QUEST&lt;/a&gt;
 
 &lt;/div&gt;
 &lt;/div&gt;</tw-passagedata><tw-passagedata pid="10" name="Next Path" tags="nobr" position="1225,100" size="100,100">/*

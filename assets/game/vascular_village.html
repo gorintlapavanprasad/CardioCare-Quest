@@ -1007,7 +1007,7 @@ try {
 
 &lt;h1 class=&quot;intro-title&quot;&gt;Vascular Village&lt;/h1&gt;
 
-&lt;p class=&quot;narrative center&quot;&gt;A village lives inside your artery. Your daily care keeps it thriving.&lt;/p&gt;
+&lt;p class=&quot;narrative center&quot;&gt;A village lives inside your blood vessels. Your daily care keeps it thriving.&lt;/p&gt;
 
 &lt;div class=&quot;spacer&quot;&gt;&lt;/div&gt;
 
@@ -1015,9 +1015,9 @@ try {
 &lt;a class=&quot;btn-primary&quot; data-passage=&quot;Hub&quot;&gt;CONTINUE TO VILLAGE&lt;/a&gt;
 &lt;p class=&quot;help-text&quot;&gt;Latest reading: $lastSys / $lastDia mmHg&lt;/p&gt;
 &lt;&lt;else&gt;&gt;
-&lt;a class=&quot;btn-primary&quot; data-passage=&quot;Hub&quot;&gt;START A QUEST — LOG BP LATER&lt;/a&gt;
-&lt;a class=&quot;btn-secondary&quot; data-passage=&quot;Launch Quiet Minute&quot;&gt;SETTLE WITH QUIET LANDSCAPE FIRST&lt;/a&gt;
-&lt;p class=&quot;help-text&quot;&gt;Dive into a quest now, or settle first with Quiet Landscape and log your blood pressure.&lt;/p&gt;
+&lt;a class=&quot;btn-primary&quot; data-passage=&quot;Hub&quot;&gt;START A QUEST&lt;/a&gt;
+&lt;a class=&quot;btn-secondary&quot; data-passage=&quot;Launch Quiet Minute&quot;&gt;LOG MY BLOOD PRESSURE FIRST&lt;/a&gt;
+&lt;p class=&quot;help-text&quot;&gt;You can start a quest now. You can log your blood pressure any time.&lt;/p&gt;
 &lt;&lt;/if&gt;&gt;
 
 &lt;/div&gt;
@@ -1209,14 +1209,14 @@ if ((!State.variables.lastSys || State.variables.lastSys === 0) &amp;&amp;
 &lt;div class=&quot;quest-list&quot;&gt;
 
 &lt;&lt;if not $reallocateDone&gt;&gt;
-&lt;&lt;link &#39;&lt;span class=&quot;quest-icon&quot;&gt;🧬&lt;/span&gt;&lt;div class=&quot;quest-text-wrap&quot;&gt;&lt;div class=&quot;quest-name&quot;&gt;Reallocate Resources&lt;/div&gt;&lt;div class=&quot;quest-blurb&quot;&gt;Send the right nutrients where they are needed.&lt;/div&gt;&lt;/div&gt;&#39;&gt;&gt;
+&lt;&lt;link &#39;&lt;span class=&quot;quest-icon&quot;&gt;🧬&lt;/span&gt;&lt;div class=&quot;quest-text-wrap&quot;&gt;&lt;div class=&quot;quest-name&quot;&gt;Deliver Nutrients&lt;/div&gt;&lt;div class=&quot;quest-blurb&quot;&gt;Send the right nutrients where they are needed.&lt;/div&gt;&lt;/div&gt;&#39;&gt;&gt;
 &lt;&lt;goto &quot;Quest Reallocate&quot;&gt;&gt;
 &lt;&lt;/link&gt;&gt;
 &lt;&lt;else&gt;&gt;
 &lt;div class=&quot;voyage-taken&quot;&gt;
 &lt;span class=&quot;quest-icon&quot;&gt;✓&lt;/span&gt;
 &lt;div class=&quot;quest-text-wrap&quot;&gt;
-&lt;div class=&quot;quest-name&quot;&gt;Reallocate Resources&lt;/div&gt;
+&lt;div class=&quot;quest-name&quot;&gt;Deliver Nutrients&lt;/div&gt;
 &lt;div class=&quot;quest-blurb&quot;&gt;Done&lt;/div&gt;
 &lt;/div&gt;
 &lt;/div&gt;
@@ -1237,7 +1237,7 @@ if ((!State.variables.lastSys || State.variables.lastSys === 0) &amp;&amp;
 &lt;&lt;/if&gt;&gt;
 
 &lt;&lt;if not $clearDone&gt;&gt;
-&lt;&lt;link &#39;&lt;span class=&quot;quest-icon&quot;&gt;🧹&lt;/span&gt;&lt;div class=&quot;quest-text-wrap&quot;&gt;&lt;div class=&quot;quest-name&quot;&gt;Clear a Path&lt;/div&gt;&lt;div class=&quot;quest-blurb&quot;&gt;Clear plaque buildup from the artery walls.&lt;/div&gt;&lt;/div&gt;&#39;&gt;&gt;
+&lt;&lt;link &#39;&lt;span class=&quot;quest-icon&quot;&gt;🧹&lt;/span&gt;&lt;div class=&quot;quest-text-wrap&quot;&gt;&lt;div class=&quot;quest-name&quot;&gt;Clear a Path&lt;/div&gt;&lt;div class=&quot;quest-blurb&quot;&gt;Clear the fatty buildup from the blood vessel walls.&lt;/div&gt;&lt;/div&gt;&#39;&gt;&gt;
 &lt;&lt;goto &quot;Quest Clear&quot;&gt;&gt;
 &lt;&lt;/link&gt;&gt;
 &lt;&lt;else&gt;&gt;
@@ -1316,7 +1316,7 @@ setTimeout(function () {
     .forEach(function (a) { a.classList.add(&#39;voyage-card&#39;); });
 }, 0);
 &lt;&lt;/script&gt;&gt;</tw-passagedata><tw-passagedata pid="6" name="Quest Reallocate" tags="nobr" position="725,100" size="100,100">&lt;div class=&quot;phone&quot;&gt;
-&lt;div class=&quot;header&quot;&gt;&lt;span&gt;Reallocate Resources&lt;/span&gt;&lt;span class=&quot;header-points&quot;&gt;$totalPoints pts&lt;/span&gt;&lt;/div&gt;
+&lt;div class=&quot;header&quot;&gt;&lt;span&gt;Deliver Nutrients&lt;/span&gt;&lt;span class=&quot;header-points&quot;&gt;$totalPoints pts&lt;/span&gt;&lt;/div&gt;
 &lt;div class=&quot;content&quot;&gt;
 
 &lt;p class=&quot;scene center&quot;&gt;Three nutrients have arrived. Each body system needs a different one. Match them up.&lt;/p&gt;
@@ -1397,14 +1397,14 @@ setTimeout(function () {
 &gt;&gt;
 
 &lt;div class=&quot;phone&quot;&gt;
-&lt;div class=&quot;header&quot;&gt;&lt;span&gt;Reallocate Resources&lt;/span&gt;&lt;span class=&quot;header-points&quot;&gt;$totalPoints pts&lt;/span&gt;&lt;/div&gt;
+&lt;div class=&quot;header&quot;&gt;&lt;span&gt;Deliver Nutrients&lt;/span&gt;&lt;span class=&quot;header-points&quot;&gt;$totalPoints pts&lt;/span&gt;&lt;/div&gt;
 &lt;div class=&quot;content&quot;&gt;
 
 &lt;div class=&quot;result-card&quot;&gt;
 &lt;div class=&quot;result-emoji&quot;&gt;🧬&lt;/div&gt;
 &lt;div class=&quot;result-headline&quot;&gt;Resources delivered&lt;/div&gt;
 &lt;div class=&quot;result-points&quot;&gt;+100 points&lt;/div&gt;
-&lt;p class=&quot;result-explain&quot;&gt;Potassium relaxes vessel walls and helps your kidneys flush sodium. Magnesium keeps heart muscle steady. Fiber lowers cholesterol so your kidneys do not work as hard. Three real nutrients. Three real jobs.&lt;/p&gt;
+&lt;p class=&quot;result-explain&quot;&gt;Potassium relaxes your blood vessels and helps your body clear out salt. Magnesium keeps your heartbeat steady. Fiber cleans out the unhealthy fat that clogs vessels, so your body has an easier job. Three real nutrients. Three real jobs.&lt;/p&gt;
 &lt;/div&gt;
 
 &lt;div class=&quot;spacer&quot;&gt;&lt;/div&gt;
@@ -1494,7 +1494,7 @@ setTimeout(function () {
 &lt;div class=&quot;result-emoji&quot;&gt;💓&lt;/div&gt;
 &lt;div class=&quot;result-headline&quot;&gt;&lt;&lt;if $heartQuality is &quot;steady&quot;&gt;&gt;Steady as a drum&lt;&lt;elseif $heartQuality is &quot;decent&quot;&gt;&gt;Solid pumping&lt;&lt;else&gt;&gt;Heart is beating&lt;&lt;/if&gt;&gt;&lt;/div&gt;
 &lt;div class=&quot;result-points&quot;&gt;+&lt;&lt;print _earned&gt;&gt; points&lt;/div&gt;
-&lt;p class=&quot;result-explain&quot;&gt;A steady heart rhythm at rest means your vessels are responding well to demand. A resting heart rate of sixty to seventy beats a minute is a good sign of cardiovascular health. Random spikes and crashes wear the heart out faster.&lt;/p&gt;
+&lt;p class=&quot;result-explain&quot;&gt;A steady heartbeat when you are resting means your blood vessels are working well. A resting heartbeat of sixty to seventy beats a minute is a good sign of a healthy heart. Sudden jumps and drops tire the heart out faster.&lt;/p&gt;
 &lt;/div&gt;
 
 &lt;div class=&quot;spacer&quot;&gt;&lt;/div&gt;
@@ -1506,10 +1506,10 @@ setTimeout(function () {
 &lt;div class=&quot;header&quot;&gt;&lt;span&gt;Clear a Path&lt;/span&gt;&lt;span class=&quot;header-points&quot;&gt;$totalPoints pts&lt;/span&gt;&lt;/div&gt;
 &lt;div class=&quot;content&quot;&gt;
 
-&lt;p class=&quot;scene center&quot;&gt;Plaque has built up on the artery wall. Tap each spot to clear it. Each tap is like eating a fiber-rich food.&lt;/p&gt;
+&lt;p class=&quot;scene center&quot;&gt;Buildup has clogged your blood vessel. Tap each spot to clean it. Each tap is like eating a high-fiber food such as oats, beans, or apples.&lt;/p&gt;
 
 &lt;div class=&quot;path-stage&quot;&gt;
-&lt;p class=&quot;path-instruction&quot;&gt;Tap all the plaque to clear the artery.&lt;/p&gt;
+&lt;p class=&quot;path-instruction&quot;&gt;Tap all the buildup to clear the blood vessel.&lt;/p&gt;
 
 &lt;div class=&quot;plaque-grid&quot; id=&quot;plaque-grid&quot;&gt;
 &lt;a class=&quot;plaque-cell&quot; data-plaque=&quot;1&quot;&gt;🍂&lt;/a&gt;
@@ -1579,7 +1579,7 @@ setTimeout(function () {
 &lt;div class=&quot;result-emoji&quot;&gt;🧹&lt;/div&gt;
 &lt;div class=&quot;result-headline&quot;&gt;Path is clear&lt;/div&gt;
 &lt;div class=&quot;result-points&quot;&gt;+100 points&lt;/div&gt;
-&lt;p class=&quot;result-explain&quot;&gt;In a real artery, plaque is built from cholesterol and other gunk that sticks to vessel walls over years. Soluble fiber from oats, beans, and apples helps your body sweep cholesterol out before it sticks. Every fiber-rich meal is one of these taps in real life.&lt;/p&gt;
+&lt;p class=&quot;result-explain&quot;&gt;In a real blood vessel, the buildup is made of unhealthy fat (called cholesterol) and other gunk that sticks to the walls over years. Fiber from oats, beans, and apples helps your body sweep that fat out before it sticks. Every high-fiber meal is one of these taps in real life.&lt;/p&gt;
 &lt;/div&gt;
 
 &lt;div class=&quot;spacer&quot;&gt;&lt;/div&gt;
@@ -1626,7 +1626,7 @@ setTimeout(function () {
 &lt;div class=&quot;result-emoji&quot;&gt;🌊&lt;/div&gt;
 &lt;div class=&quot;result-headline&quot;&gt;Vessels stretched&lt;/div&gt;
 &lt;div class=&quot;result-points&quot;&gt;+100 points&lt;/div&gt;
-&lt;p class=&quot;result-explain&quot;&gt;Slow deep breathing triggers the body&#39;s relaxation response. Heart rate drops. Blood vessels widen. Pressure can fall noticeably within minutes. Two minutes a day is enough to make a real difference over weeks.&lt;/p&gt;
+&lt;p class=&quot;result-explain&quot;&gt;Slow deep breathing tells your body to relax. Your heartbeat slows. Your blood vessels open up. Your blood pressure can drop in just a few minutes. Two minutes a day is enough to make a real difference over weeks.&lt;/p&gt;
 &lt;/div&gt;
 
 &lt;div class=&quot;spacer&quot;&gt;&lt;/div&gt;

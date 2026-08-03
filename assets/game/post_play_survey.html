@@ -761,6 +761,16 @@ setup.gameInfo = {
   bingo:   { name: "Bingo Bash",       emoji: "🎯" }
 };
 
+/* Fisher–Yates shuffle, shared so StoryInit and the ranking pages
+   use the same code. Shuffles the array in place and returns it. */
+setup.ccqShuffle = function (a) {
+  for (var i = a.length - 1; i > 0; i--) {
+    var j = Math.floor(Math.random() * (i + 1));
+    var t = a[i]; a[i] = a[j]; a[j] = t;
+  }
+  return a;
+};
+
 setup.bindSpeak = function () {
   if (typeof document === "undefined") return;
   document.querySelectorAll(".speak-btn").forEach(function (b) {
@@ -1538,6 +1548,12 @@ Position 1 (top) = most fun, Position 5 (bottom) = least fun.
 
 &lt;&lt;script&gt;&gt;
 setTimeout(function () {
+  /* Shuffle the five games fresh each time this page opens, so no game
+     sits in the same spot every session. If the player has already moved
+     an item, keep their order instead of scrambling their work. */
+  if (!State.variables.rankFunTouched &amp;&amp; setup.ccqShuffle) {
+    State.variables.rankFun = setup.ccqShuffle((State.variables.rankFun || []).slice());
+  }
   if (setup.renderRank) setup.renderRank(&quot;rank-fun-list&quot;, &quot;rankFun&quot;);
   if (setup.bindSpeak) setup.bindSpeak();
 }, 0);
@@ -1570,6 +1586,12 @@ STEP 12 PASS 2: Rank by importance for health.
 
 &lt;&lt;script&gt;&gt;
 setTimeout(function () {
+  /* Shuffle the five games fresh each time this page opens, so no game
+     sits in the same spot every session. If the player has already moved
+     an item, keep their order instead of scrambling their work. */
+  if (!State.variables.rankHealthTouched &amp;&amp; setup.ccqShuffle) {
+    State.variables.rankHealth = setup.ccqShuffle((State.variables.rankHealth || []).slice());
+  }
   if (setup.renderRank) setup.renderRank(&quot;rank-health-list&quot;, &quot;rankHealth&quot;);
   if (setup.bindSpeak) setup.bindSpeak();
 }, 0);

@@ -1,5 +1,5 @@
 // Home / dashboard - the main screen the participant sees, and the hub
-// everything hangs off. Top to bottom: a greeting + points, the latest
+// everything hangs off. Top to bottom: a greeting, the latest
 // blood-pressure reading, a game menu, the person's own goals, favourite
 // games, health stats, a caregiver card, and a feedback link. Most cards
 // just tap through to a bigger screen.
@@ -13,6 +13,7 @@ import 'package:cardio_care_quest/core/providers/user_data_manager.dart';
 import 'package:cardio_care_quest/core/hooks/hooks.dart';
 import 'package:cardio_care_quest/core/services/health_service.dart';
 import 'package:cardio_care_quest/core/widgets/sync_badge.dart';
+import 'package:cardio_care_quest/core/widgets/who_is_playing_dialog.dart';
 import '../../../core/theme/app_colors.dart';
 import '../widgets/game_detail_dialog.dart';
 import 'game_catalog_screen.dart';
@@ -48,7 +49,7 @@ class _HomeTabState extends State<HomeTab> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       _checkDashboardLocationPermission();
       // Best-effort: ask once for HealthKit / Health Connect permissions.
       // Used by HealthHooks.logSnapshot to capture wearable vitals after
@@ -58,8 +59,22 @@ class _HomeTabState extends State<HomeTab> {
       // distinguish "no Watch" from "permission denied" in the dataset.
       _requestHealthPermissionsAndReport();
       // ─── CRITICAL FIX: Fetch user data when the dashboard first loads ───
-      _ensureUserDataLoaded();
+      // Await so the who's-playing prompt below has a real uid to attribute
+      // the "I am the patient" choice to.
+      await _ensureUserDataLoaded();
+      // Ask once per launch whether the participant or a caregiver is
+      // playing, so survey responses can be tagged correctly.
+      if (mounted) _promptWhoIsPlaying();
     });
+  }
+
+  // Show the one-time "who is playing?" popup (participant vs caregiver).
+  // No-ops if a choice was already made this launch (guarded inside the
+  // dialog's show()), so it only appears on the first dashboard load.
+  void _promptWhoIsPlaying() {
+    final uid = Provider.of<UserDataProvider>(context, listen: false).uid;
+    if (uid.isEmpty) return; // no participant yet - skip, ask on next load.
+    WhoIsPlayingDialog.show(context: context, uid: uid);
   }
 
   // Ask once for access to watch/phone health data (heart rate, steps...).
@@ -214,7 +229,6 @@ class _HomeTabState extends State<HomeTab> {
         // participants log in by ID and have no profile name, so we skip
         // the real name until they actually set one.
         const name = 'Explorer';
-        final points = provider.points;
 
         // Their most recent BP numbers; "--" if they've never logged one.
         final String sys = data['lastSystolic']?.toString() ?? "--";
@@ -239,8 +253,8 @@ class _HomeTabState extends State<HomeTab> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // ---- HEADER (greeting + points) ----
-                _buildPremiumHeader(context, name, points),
+                // ---- HEADER (greeting) ----
+                _buildPremiumHeader(context, name),
 
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20.0),
@@ -449,7 +463,7 @@ class _HomeTabState extends State<HomeTab> {
   }
 
   // The "How was your experience?" card near the bottom - taps through
-  // to a short 5-question feedback survey (worth 25 points).
+  // to a short 5-question feedback survey.
   Widget _buildPostPlaySurveyCard(BuildContext context) {
     return Material(
       color: Colors.white,
@@ -499,7 +513,7 @@ class _HomeTabState extends State<HomeTab> {
                     ),
                     SizedBox(height: 4),
                     Text(
-                      'Five quick questions. Earns 25 points.',
+                      'Five quick questions.',
                       style: TextStyle(
                         fontSize: 13,
                         color: AppColors.subtitle,
@@ -725,8 +739,8 @@ class _HomeTabState extends State<HomeTab> {
     }
   }
 
-  // The top banner: "Hello, <name>!" plus the total points collected.
-  Widget _buildPremiumHeader(BuildContext context, String name, int points) {
+  // The top banner: a simple "Hello, <name>!" greeting.
+  Widget _buildPremiumHeader(BuildContext context, String name) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
@@ -751,15 +765,6 @@ class _HomeTabState extends State<HomeTab> {
               color: Color(0xFF2D3A5E),
             ),
           ),
-          const SizedBox(height: 12),
-          Text(
-            "Total Points Collected: $points",
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-              color: AppColors.title,
-            ),
-          ),
         ],
       ),
     );
@@ -777,7 +782,9 @@ class _HomeTabState extends State<HomeTab> {
             icon: Icons.grid_view,
             onTap: () => Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) => const GameCatalogScreen()),
+              MaterialPageRoute(
+                builder: (_) => const GameCatalogScreen(),
+              ),
             ),
           ),
         ),
@@ -949,9 +956,9 @@ class _FavoriteGameTile extends StatelessWidget {
                 top: 0,
                 right: 0,
                 child: Icon(
-                  Icons.favorite,
-                  size: 14,
-                  color: Colors.redAccent,
+                  Icons.star_rounded,
+                  size: 16,
+                  color: Colors.amber,
                 ),
               ),
             ],
@@ -1018,9 +1025,9 @@ class _FavoriteCustomGameTile extends StatelessWidget {
                 top: 0,
                 right: 0,
                 child: Icon(
-                  Icons.favorite,
-                  size: 14,
-                  color: Colors.redAccent,
+                  Icons.star_rounded,
+                  size: 16,
+                  color: Colors.amber,
                 ),
               ),
             ],

@@ -3,7 +3,7 @@
 // on how high the reading is, plus a little trend arrow and a timestamp.
 
 import 'package:flutter/material.dart';
-import '../../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_colors.dart';
 
 // The blood-pressure card. Give it the two numbers, a trend, and a time.
 class BPCard extends StatelessWidget {

@@ -10,6 +10,8 @@ import 'bingo_bash_game.dart';
 import 'control_game.dart';
 import 'dash_diet_twine_game.dart';
 import 'dog_quest.dart';
+import 'game_completion_signal.dart';
+import 'game_feedback.dart';
 import 'game_stories.dart';
 import 'pill_path.dart';
 import 'quiet_landscape.dart';
@@ -55,11 +57,34 @@ void launchGameStory(BuildContext context, GameStory game) {
       screen = const QuietLandscapeGame();
       break;
   }
+  // Grab the navigator now so we can still use it after the game closes,
+  // even though the little preview popup's context is gone by then.
+  final navigator = Navigator.of(context);
+
   // Actually open the chosen screen; fall back to "Coming Soon" if none matched.
-  Navigator.push(
-    context,
+  navigator
+      .push(
     MaterialPageRoute(
       builder: (_) => screen ?? ComingSoonScreen(featureName: game.title),
     ),
-  );
+  )
+      .then((_) {
+    // When the game closes, ask the four short questions - but only if the
+    // player actually finished the game and it has feedback questions set up.
+    // consume() always clears this game's signal so nothing lingers.
+    final completed = GameCompletionSignal.consume(game.id);
+    final hasQuestions = gameFeedbackQuestions.containsKey(game.id);
+    debugPrint('GameFeedback: ${game.id} closed - '
+        'completed=$completed hasQuestions=$hasQuestions');
+    if (completed && hasQuestions) {
+      navigator.push(
+        MaterialPageRoute(
+          builder: (_) => GameFeedbackScreen(
+            gameId: game.id,
+            gameTitle: game.title,
+          ),
+        ),
+      );
+    }
+  });
 }

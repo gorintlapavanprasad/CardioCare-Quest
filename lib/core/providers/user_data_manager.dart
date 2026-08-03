@@ -119,6 +119,19 @@ class UserDataProvider extends ChangeNotifier {
   Map<String, dynamic>? get userData => _userData;
   bool get isLoading => _isLoading;
 
+  // Who is physically answering this session - chosen in the "who's playing?"
+  // prompt shown once after login. `null` until chosen. Used to tag survey
+  // responses (SurveyHooks.submitResponse `respondent`) as the participant
+  // ("client") or a caregiver helping them, without changing the signed-in
+  // account. In-memory only: it resets each launch so a shared device always
+  // re-asks. Cleared on logout via clearData().
+  String? _respondent;
+  String? get respondent => _respondent;
+  set respondent(String? value) {
+    _respondent = value;
+    notifyListeners();
+  }
+
   // Handy getters. Each falls back to a safe default if the field is missing,
   // and some accept either an old or new field name for backward compatibility.
   int get points => _userData?['points'] ?? 0;
@@ -331,6 +344,7 @@ class UserDataProvider extends ChangeNotifier {
   // Forget the current user's data (used on logout / switching people).
   void clearData() {
     _userData = null;
+    _respondent = null;
     notifyListeners();
     debugPrint('User data cleared');
   }

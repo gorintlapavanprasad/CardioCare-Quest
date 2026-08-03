@@ -233,10 +233,6 @@ class _StatsBody extends StatelessWidget {
         _GameEngagementCard(stats: stats),
         const SizedBox(height: 24),
 
-        _SectionTitle('Cohort Score'),
-        _CohortScoreCard(stats: stats),
-        const SizedBox(height: 16),
-
         _Footer(fetchedAt: stats.fetchedAt, windowDays: stats.windowDays),
       ],
     );
@@ -906,38 +902,6 @@ class _CategoryBar extends StatelessWidget {
       case GameCategory.education:
         return const Color(0xFFFDE725); // yellow
     }
-  }
-}
-
-// The final card: the group's total points, plus a rough per-person average.
-class _CohortScoreCard extends StatelessWidget {
-  final CommunityStats stats;
-  const _CohortScoreCard({required this.stats});
-
-  @override
-  Widget build(BuildContext context) {
-    final perPerson = stats.cohortSize == 0
-        ? 0
-        : (stats.totalCohortPoints / stats.cohortSize).round();
-    return _StatCard(
-      icon: Icons.emoji_events_outlined,
-      headline: _formatThousands(stats.totalCohortPoints),
-      label: 'TOTAL COHORT POINTS',
-      sub: 'About $perPerson points per participant on average. '
-          'Points come from BP logs, game plays, and survey submits.',
-      iconColor: AppColors.accent,
-    );
-  }
-
-  // Add comma separators to a big number, e.g. 12345 -> "12,345".
-  static String _formatThousands(int n) {
-    final s = n.toString();
-    final buf = StringBuffer();
-    for (int i = 0; i < s.length; i++) {
-      if (i > 0 && (s.length - i) % 3 == 0) buf.write(',');
-      buf.write(s[i]);
-    }
-    return buf.toString();
   }
 }
 

@@ -7,8 +7,8 @@ import 'package:cardio_care_quest/core/constants/firestore_paths.dart';
 import 'package:cardio_care_quest/core/hooks/hooks.dart';
 
 // Medication Reminder screen - asks "Did you take your pill today?".
-// A "Yes" grows a day-streak (like a habit chain); a "No" resets it and
-// shows a kind message. Either answer earns some points.
+// A "Yes" shows a warm "well done" message; a "No" shows a kind,
+// encouraging tip. Either answer is recorded for the study.
 
 // The screen widget. Its live state is in the class below.
 class MedicationReminderScreen extends StatefulWidget {
@@ -23,6 +23,7 @@ class MedicationReminderScreen extends StatefulWidget {
 class _MedicationReminderScreenState extends State<MedicationReminderScreen> {
   int _streak = 0;
   bool _takenToday = false;
+  bool _tookPill = false;
   bool _isLoading = false;
 
   // On open, grab the saved streak so we can show it right away.
@@ -81,6 +82,7 @@ class _MedicationReminderScreenState extends State<MedicationReminderScreen> {
         setState(() {
           _streak = newStreak;
           _takenToday = true;
+          _tookPill = taken;
           _isLoading = false;
         });
       }
@@ -163,12 +165,12 @@ class _MedicationReminderScreenState extends State<MedicationReminderScreen> {
     );
   }
 
-  // The result view. If there's a streak, show a fun fire + count.
-  // If the streak is zero (just missed), show a gentle "that's okay" tip.
+  // The result view. If they took their pill, show a warm "well done".
+  // If they missed it, show a gentle "that's okay" tip.
   Widget _buildStreakCounter() {
     return Column(
       children: [
-        if (_streak > 0)
+        if (_tookPill)
           Column(
             children: [
               TweenAnimationBuilder<double>(
@@ -177,22 +179,22 @@ class _MedicationReminderScreenState extends State<MedicationReminderScreen> {
                 builder: (context, value, child) {
                   return Transform.scale(
                     scale: value,
-                    child: const Icon(Icons.local_fire_department, color: AppColors.accent, size: 120),
+                    child: const Icon(Icons.check_circle, color: AppColors.success, size: 120),
                   );
                 },
               ),
               const SizedBox(height: 16),
-              Text(
-                '$_streak Day Streak!',
-                style: const TextStyle(
+              const Text(
+                'Well done!',
+                style: TextStyle(
                   fontSize: 36,
                   fontWeight: FontWeight.bold,
-                  color: AppColors.accent,
+                  color: AppColors.success,
                 ),
               ),
               const SizedBox(height: 16),
               const Text(
-                'Excellent! Protecting your streak protects your heart.',
+                'Excellent! Taking your medicine protects your heart.',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: AppColors.subtitle, fontSize: 16),
               )

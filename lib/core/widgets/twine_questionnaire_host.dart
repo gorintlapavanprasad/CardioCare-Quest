@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:get_it/get_it.dart';
 import 'package:provider/provider.dart';
 import 'package:webview_flutter/webview_flutter.dart';
@@ -11,6 +12,8 @@ import 'package:cardio_care_quest/core/hooks/hooks.dart';
 import 'package:cardio_care_quest/core/providers/user_data_manager.dart';
 import 'package:cardio_care_quest/core/services/offline_queue.dart';
 import 'package:cardio_care_quest/core/services/session_manager.dart';
+import 'package:cardio_care_quest/core/widgets/game_web_style.dart';
+import 'package:cardio_care_quest/features/games/game_completion_signal.dart';
 
 // TwineQuestionnaireHost - runs a "sitting still" HTML game/survey in the app.
 //
@@ -73,6 +76,17 @@ class TwineQuestionnaireHost extends StatefulWidget {
 
   final Color appBarColor;
 
+  /// When `true`, exit does a single `pop(bpResult)` so this host can hand
+  /// its BP reading back to a parent game. Used ONLY by the LAUNCH_GAME
+  /// sub-flow (e.g. Vascular Village opening Quiet Minute on top): the
+  /// parent stays on the stack and needs the reading injected on return.
+  ///
+  /// When `false` (the default, i.e. a top-level game opened from the
+  /// dashboard/catalog), exit pops the navigator all the way back to the
+  /// first route so every "Home"/exit lands the player on the dashboard,
+  /// regardless of where the game was launched from.
+  final bool popResultOnly;
+
   const TwineQuestionnaireHost({
     super.key,
     required this.surveyId,
@@ -81,6 +95,7 @@ class TwineQuestionnaireHost extends StatefulWidget {
     this.defaultPointsPerResponse = 0,
     this.onCustomBridgeMessage,
     this.appBarColor = const Color(0xFF4A1D6C),
+    this.popResultOnly = false,
   });
 
   @override
@@ -142,6 +157,12 @@ class _TwineQuestionnaireHostState extends State<TwineQuestionnaireHost> {
   String get _uid =>
       Provider.of<UserDataProvider>(context, listen: false).uid;
 
+  // Copies of the phone + id kept for dispose(). dispose() runs after the
+  // widget is detached, when Provider.of(context) is no longer allowed, so we
+  // read them here while the widget is still live and use the copies below.
+  String _phoneForDispose = '';
+  String _uidForDispose = '';
+
   // ---- SETUP / LIFECYCLE ----
 
   // Runs once when the screen opens: make the session id, tell the app a game
@@ -165,6 +186,15 @@ class _TwineQuestionnaireHostState extends State<TwineQuestionnaireHost> {
     _initWebView();
   }
 
+  // Keep the dispose-time copies of phone + id up to date while the widget is
+  // still attached. dispose() can't call Provider.of, so it reads these.
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _phoneForDispose = _phone;
+    _uidForDispose = _uid;
+  }
+
   // Builds the WebView that shows the game and wires up the message bridge so
   // the web page and Dart can talk. Then loads the game's HTML file.
   void _initWebView() {
@@ -183,6 +213,13 @@ class _TwineQuestionnaireHostState extends State<TwineQuestionnaireHost> {
       ..setBackgroundColor(Colors.white)
       ..setNavigationDelegate(
         NavigationDelegate(
+          // Inject the shared full-bleed + larger text/emoji stylesheet once
+          // the game page has loaded, so every game looks the same on every
+          // device (see game_web_style.dart).
+          onPageFinished: (_) async {
+            await _controller.runJavaScript(kCcqGameStyleInjectionJs);
+            await _injectBridge();
+          },
           onWebResourceError: (error) {
             debugPrint('❌ ${widget.surveyId} WebView Error: '
                 '${error.description}');
@@ -225,6 +262,25 @@ class _TwineQuestionnaireHostState extends State<TwineQuestionnaireHost> {
         },
       )
       ..loadFlutterAsset(widget.htmlAsset);
+  }
+
+  // Loads the shared `ccq_bridge.js` shim into the game page so `window.CCQ`
+  // (goHome, submitResponse, telemetry, the burger menu, etc.) exists.
+  //
+  // Most games rely on this bridge but don't ship it themselves. A couple of
+  // games (control game, quiet landscape) inline their own copy in <head>;
+  // for those we skip injection so we never clobber a working bridge. The
+  // `if (!window.CCQ ...)` guard is what makes this safe to run on every page.
+  Future<void> _injectBridge() async {
+    try {
+      final js = await rootBundle.loadString('assets/game/ccq_bridge.js');
+      await _controller.runJavaScript(
+        'if (!window.CCQ || typeof window.CCQ.goHome !== "function") {\n'
+        '$js\n}',
+      );
+    } catch (e) {
+      debugPrint('${widget.surveyId} bridge inject failed: $e');
+    }
   }
 
   // ---- JS BRIDGE MESSAGES ----
@@ -316,6 +372,9 @@ class _TwineQuestionnaireHostState extends State<TwineQuestionnaireHost> {
                 title: gameId,
                 htmlAsset: 'assets/game/$gameId.html',
                 appBarColor: widget.appBarColor,
+                // Sub-flow: pop straight back to THIS parent with the BP
+                // reading rather than jumping to the dashboard.
+                popResultOnly: true,
               ),
             ),
           );
@@ -539,6 +598,9 @@ class _TwineQuestionnaireHostState extends State<TwineQuestionnaireHost> {
       case 'SUBMIT_RESPONSE':
         final answers = data['answers'];
         if (answers is Map) {
+          // Reaching a submit means the player got to a success screen - mark
+          // the game done so the launcher can show the short feedback popup.
+          GameCompletionSignal.markCompleted(widget.surveyId);
           final pointsEarned = (data['pointsEarned'] is num)
               ? (data['pointsEarned'] as num).toInt()
               : widget.defaultPointsPerResponse;
@@ -557,8 +619,14 @@ class _TwineQuestionnaireHostState extends State<TwineQuestionnaireHost> {
 
           // Optional respondent (UPDATE1) - a Twine page can name who
           // physically entered the answers (participant vs caregiver on a
-          // shared device). Falls back to the logged-in participant.
-          final respondent = data['respondent'] as String?;
+          // shared device). If the page didn't say, fall back to the
+          // choice made in the "who's playing?" prompt after login (held
+          // in UserDataProvider). Falls back further to the participant.
+          final respondent = (data['respondent'] as String?) ??
+              (mounted
+                  ? Provider.of<UserDataProvider>(context, listen: false)
+                      .respondent
+                  : null);
 
           await SurveyHooks.submitResponse(
             uid: _uid,
@@ -622,6 +690,10 @@ class _TwineQuestionnaireHostState extends State<TwineQuestionnaireHost> {
         // path in _performExit when callers opt out.
         final questId = data['questId'];
         if (questId is String && questId.isNotEmpty) {
+          // Finishing a mini-quest counts as reaching a success state - mark
+          // the game done so the launcher can show the short feedback popup.
+          GameCompletionSignal.markCompleted(
+              (data['gameId'] as String?) ?? widget.surveyId);
           final pointsEarned = (data['pointsEarned'] is num)
               ? (data['pointsEarned'] as num).toInt()
               : 0;
@@ -801,7 +873,16 @@ class _TwineQuestionnaireHostState extends State<TwineQuestionnaireHost> {
               'diastolic': _lastLoggedDia,
             }
           : null;
-      Navigator.of(context).pop(bpResult);
+      // A sub-flow game (LAUNCH_GAME, e.g. Quiet Minute launched by
+      // Vascular Village) does a single pop so the parent gets bpResult
+      // back. Every top-level game instead pops all the way to the first
+      // route, so "Home"/exit always lands the player on the dashboard no
+      // matter where the game was launched from.
+      if (widget.popResultOnly) {
+        Navigator.of(context).pop(bpResult);
+      } else {
+        Navigator.of(context).popUntil((route) => route.isFirst);
+      }
     }
   }
 
@@ -848,8 +929,8 @@ class _TwineQuestionnaireHostState extends State<TwineQuestionnaireHost> {
         'gameId': widget.surveyId,
         'sessionId': _sessionId,
       },
-      phone: _phone,
-      userId: _uid,
+      phone: _phoneForDispose,
+      userId: _uidForDispose,
     );
     super.dispose();
   }
@@ -893,7 +974,42 @@ class _TwineQuestionnaireHostState extends State<TwineQuestionnaireHost> {
         // WebView fill all the way up, so the game header sits
         // directly under the status bar with no seam.
         backgroundColor: const Color(0xFF1a1b2e),
-        body: WebViewWidget(controller: _controller),
+        // Stack a small always-visible Home button over the WebView so the
+        // player has a guaranteed way out even when the game's own HTML
+        // header (and its injected burger menu) is missing - the DASH Diet
+        // and Salt Sludge pages have no `.menu-icon`, so before this there
+        // was no on-screen exit and the player was stuck in the game.
+        body: Stack(
+          // Expand to fill the Scaffold body; without this the Stack shrinks
+          // to its smallest non-positioned child (the Home button) and the
+          // WebView underneath collapses to a sliver.
+          fit: StackFit.expand,
+          children: [
+            Positioned.fill(child: WebViewWidget(controller: _controller)),
+            // Top-left, inside the safe area so it clears the status bar.
+            // Align keeps the button its natural small size - without it,
+            // StackFit.expand stretches this non-positioned child to fill
+            // the whole screen (the Material circle balloons to cover the
+            // game).
+            SafeArea(
+              child: Align(
+                alignment: Alignment.topLeft,
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 8, top: 4),
+                  child: Material(
+                    color: Colors.black.withValues(alpha: 0.45),
+                    shape: const CircleBorder(),
+                    child: IconButton(
+                      tooltip: 'Home',
+                      icon: const Icon(Icons.home_rounded, color: Colors.white),
+                      onPressed: () => _performExit(exitReason: 'home_button'),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -193,9 +193,9 @@ class _FavoriteHeartButton extends StatelessWidget {
             FavoritesService.instance.toggle(gameId);
           },
           icon: Icon(
-            isFav ? Icons.favorite : Icons.favorite_border,
-            color: isFav ? Colors.redAccent : AppColors.subtitle,
-            size: 28,
+            isFav ? Icons.star_rounded : Icons.star_border_rounded,
+            color: isFav ? Colors.amber : AppColors.subtitle,
+            size: 30,
           ),
         );
       },

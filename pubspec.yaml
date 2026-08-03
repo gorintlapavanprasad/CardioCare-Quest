@@ -79,6 +79,7 @@ flutter:
     - assets/game/vascular_village.html
     - assets/game/quiet_minute.html
     - assets/game/post_play_survey.html
+    - assets/game/game_feedback.html
     - assets/game/pill_path.html
     - assets/game/quiet_landscape.html
     # Atkinson Hyperlegible — bundled locally so the font ships in

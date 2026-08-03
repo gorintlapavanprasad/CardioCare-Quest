@@ -120,14 +120,18 @@ body {
   font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif;
   background-color: #f4f1d8;
   margin: 0;
-  padding: 1.5em 0;
+  /* No outer padding: the game fills the screen edge-to-edge on every
+     device instead of floating as a card on a cream border. */
+  padding: 0;
 }
 
 #ui-bar { display: none; }
 
 #story {
   margin: 0 auto;
-  max-width: 380px;
+  /* Fill the full width on phones (was a fixed 380px card, which left
+     cream strips on wider screens). */
+  max-width: 100%;
   padding: 0;
 }
 
@@ -138,15 +142,21 @@ body {
   line-height: 1.5;
 }
 
-/* Phone frame — viridis purple-blue gradient */
+/* Full-screen frame — viridis purple-blue gradient */
 .phone {
   background: linear-gradient(180deg, #440154 0%, #3b528b 50%, #21918c 100%);
-  border-radius: 32px;
+  /* Edge-to-edge: no rounded corners / card shadow now that the gradient
+     fills the whole screen. */
+  border-radius: 0;
   overflow: hidden;
-  box-shadow: 0 8px 30px rgba(0,0,0,0.18);
   color: #ffffff;
   position: relative;
-  min-height: 660px;
+  /* Fill the viewport height on every device. dvh tracks the *visible*
+     viewport (handles the iOS status/nav bars); vh is the fallback for
+     any engine without dvh support. min-height (not height) lets tall
+     content still grow and scroll. */
+  min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -729,6 +739,22 @@ $(document).on(":passagedisplay", function (ev) {
     }
   }
 
+  // Diet filter: hide meal-builder items the player does not eat, and only
+  // show the plant stand-ins (Lentils, Salted crackers) when a diet has
+  // removed a meat item, so the "I eat everything" grid stays unchanged.
+  var diet = (State.variables && State.variables.playerDiet) || "everything";
+  var allWraps = document.querySelectorAll(".ing-wrap");
+  for (var w = 0; w < allWraps.length; w++) {
+    var wr = allWraps[w];
+    var wDiet = wr.dataset.ingDiet || "";
+    var hide = false;
+    if (wDiet === "meat" && (diet === "vegetarian" || diet === "vegan")) hide = true;
+    if (wDiet === "dairy" && diet === "vegan") hide = true;
+    // Plant stand-ins only appear for the veg/vegan diets.
+    if (wDiet === "plant" && diet === "everything") hide = true;
+    wr.style.display = hide ? "none" : "";
+  }
+
   var wraps = document.querySelectorAll(".ing-wrap");
   for (var i = 0; i < wraps.length; i++) {
     var wrap = wraps[i];
@@ -795,7 +821,7 @@ setup.dash.foods = [
     name: "Banana",
     desc: "A common fruit. Sweet. Easy to find. You probably already know someone who eats one every morning.",
     correct: "lowers",
-    explain: "Bananas are high in potassium, which helps your kidneys flush excess sodium out. Less sodium means less pressure on your artery walls. A banana a day is a real cardiovascular tool.",
+    explain: "Bananas are high in potassium, a mineral that helps your body remove extra salt. Less salt means less pressure on your blood vessels. A banana a day is a real heart-health tool.",
     packaged: false
   },
   {
@@ -804,7 +830,7 @@ setup.dash.foods = [
     name: "Instant Noodles",
     desc: "Quick to make. Inexpensive. A meal that shows up in most kitchens at some point.",
     correct: "raises",
-    explain: "One packet of instant noodles can contain 1500 milligrams of sodium. The recommended daily limit is 2300. One packet gets you halfway there before anything else.",
+    explain: "One packet of instant noodles has about two thirds of all the salt you should eat in a whole day. One packet, before anything else you eat.",
     packaged: true
   },
   {
@@ -813,17 +839,18 @@ setup.dash.foods = [
     name: "Dark Chocolate",
     desc: "Not milk chocolate. Dark, seventy percent cacao or higher. A small square. Not a whole bar.",
     correct: "lowers",
-    explain: "Dark chocolate contains flavonoids that help blood vessels relax and widen. A small amount, around one square, can produce a measurable drop in blood pressure. The key word is small.",
+    explain: "Dark chocolate has natural plant compounds that help blood vessels relax and open up. A small amount, around one square, can lower blood pressure a little. The key word is small.",
     packaged: false
   },
   {
     id: "bacon",
     emoji: "🥓",
     name: "Bacon",
-    desc: "Cured in salt. High in saturated fat. A food that appears on a lot of breakfast plates.",
+    desc: "Soaked in salt. Full of unhealthy fat. A food that appears on a lot of breakfast plates.",
     correct: "raises",
-    explain: "Bacon is cured in salt and high in saturated fat. Sodium increases blood volume. Saturated fat stiffens artery walls. Together they are a real cardiovascular load.",
-    packaged: true
+    explain: "Bacon is soaked in salt and full of unhealthy fat. The salt pulls extra water into your blood. The fat makes your blood vessels stiff. Together they make your heart work much harder.",
+    packaged: true,
+    diet: "meat"
   },
   {
     id: "spinach",
@@ -831,7 +858,7 @@ setup.dash.foods = [
     name: "Spinach",
     desc: "A leafy green. Eaten raw or cooked. Shows up in salads, soups, side dishes.",
     correct: "lowers",
-    explain: "Spinach is high in potassium and magnesium, two minerals that directly support healthy blood pressure. One of the most nutrient-dense foods for the heart.",
+    explain: "Spinach is high in potassium and magnesium, two minerals that help keep blood pressure healthy. One of the best foods you can eat for your heart.",
     packaged: false
   },
   {
@@ -840,7 +867,7 @@ setup.dash.foods = [
     name: "Canned Soup",
     desc: "Warm. Convenient. A common meal for busy days or cold evenings.",
     correct: "raises",
-    explain: "One serving of canned soup often contains 800 to 1200 milligrams of sodium. Many cans hold two servings. Checking labels on canned food is one of the best things you can do for blood pressure.",
+    explain: "One bowl of canned soup often has a third to a half of a whole day's salt. And many cans hold two bowls. Checking the salt on food labels is one of the best things you can do for your blood pressure.",
     packaged: true
   },
   {
@@ -849,17 +876,18 @@ setup.dash.foods = [
     name: "Salted Pretzels",
     desc: "A crunchy snack straight from the bag. Twisted, golden, coated in coarse salt.",
     correct: "raises",
-    explain: "Those salt crystals on top are the giveaway. A single serving of pretzels carries several hundred milligrams of sodium, and the bag rarely holds just one serving.",
+    explain: "Those salt crystals on top are the giveaway. One handful of pretzels carries a lot of salt, and the bag rarely holds just one handful.",
     packaged: true
   },
   {
     id: "frozenpizza",
     emoji: "🍕",
     name: "Frozen Pizza",
-    desc: "Straight from the freezer to the oven. Cheese, cured toppings, a salted crust.",
+    desc: "Straight from the freezer to the oven. Cheese, salty toppings, a salted crust.",
     correct: "raises",
-    explain: "Between the cheese, the processed meat, and the dough, one frozen pizza can hold most of a day's sodium in a single meal.",
-    packaged: true
+    explain: "Between the cheese, the packaged meat, and the dough, one frozen pizza can hold most of a whole day's salt in a single meal.",
+    packaged: true,
+    diet: "dairy"
   },
   {
     id: "deliham",
@@ -867,8 +895,9 @@ setup.dash.foods = [
     name: "Deli Ham",
     desc: "Sliced at the deli counter. Pink, thin, ready for a sandwich.",
     correct: "raises",
-    explain: "Processed deli meats are cured and preserved with salt. A few slices deliver a surprising sodium load before the bread is even added.",
-    packaged: true
+    explain: "Packaged deli meats are preserved with a lot of salt. A few slices carry a surprising amount of salt before the bread is even added.",
+    packaged: true,
+    diet: "meat"
   },
   {
     id: "sweetpotato",
@@ -876,20 +905,159 @@ setup.dash.foods = [
     name: "Sweet Potato",
     desc: "An orange root vegetable. Baked, roasted, or mashed. Naturally sweet.",
     correct: "lowers",
-    explain: "Sweet potato is quietly one of the best blood pressure foods. High in potassium, low in sodium. Your arteries appreciate it.",
+    explain: "Sweet potato is quietly one of the best blood pressure foods. Lots of potassium, very little salt. Your blood vessels love it.",
+    packaged: false
+  },
+  {
+    id: "beans",
+    emoji: "🫘",
+    name: "Beans",
+    desc: "Black beans, kidney beans, chickpeas. In stews, salads, and on toast.",
+    correct: "lowers",
+    explain: "Beans are full of potassium and fiber and have almost no salt when cooked from dry. They help your body handle salt and keep your heart steady.",
+    packaged: false
+  },
+  {
+    id: "oats",
+    emoji: "🥣",
+    name: "Oats",
+    desc: "Plain porridge oats. Cooked with milk or water for breakfast.",
+    correct: "lowers",
+    explain: "Plain oats are low in salt and high in fiber. That fiber helps lower blood pressure over time. Just watch the flavored packets, which often add sugar and salt.",
+    packaged: false
+  },
+  {
+    id: "salmon",
+    emoji: "🐟",
+    name: "Salmon",
+    desc: "A pink fish. Baked, grilled, or pan-cooked. A common dinner.",
+    correct: "lowers",
+    explain: "Salmon has healthy fats that help keep your blood vessels soft and flexible. Fresh fish is low in salt and one of the best foods for your heart.",
+    packaged: false,
+    diet: "meat"
+  },
+  {
+    id: "avocado",
+    emoji: "🥑",
+    name: "Avocado",
+    desc: "A green, creamy fruit. Mashed on toast or sliced into a salad.",
+    correct: "lowers",
+    explain: "Avocado is rich in potassium, even more than a banana. Potassium helps your body clear extra salt, which eases pressure on your blood vessels.",
+    packaged: false
+  },
+  {
+    id: "oranges",
+    emoji: "🍊",
+    name: "Oranges",
+    desc: "A sweet, juicy fruit you peel. Eaten as a snack or squeezed for juice.",
+    correct: "lowers",
+    explain: "Oranges are full of potassium and vitamin C. Whole oranges are best. They give you the potassium with the fiber and none of the added sugar of some juices.",
+    packaged: false
+  },
+  {
+    id: "yogurt",
+    emoji: "🥛",
+    name: "Plain Yogurt",
+    desc: "Plain, unsweetened yogurt. Eaten on its own or with fruit.",
+    correct: "lowers",
+    explain: "Plain low-fat yogurt gives you calcium, which helps keep blood pressure healthy. Choose plain over the sweetened cups, which pack in a lot of sugar.",
+    packaged: false,
+    diet: "dairy"
+  },
+  {
+    id: "tomato",
+    emoji: "🍅",
+    name: "Tomato",
+    desc: "A red fruit used like a vegetable. Fresh in salads and sandwiches.",
+    correct: "lowers",
+    explain: "Fresh tomatoes are low in salt and high in potassium. Just note that ketchup and canned tomato sauce are different, as they often have a lot of added salt.",
+    packaged: false
+  },
+  {
+    id: "soysauce",
+    emoji: "🍶",
+    name: "Soy Sauce",
+    desc: "A dark, salty liquid. Splashed over rice, noodles, and stir-fries.",
+    correct: "raises",
+    explain: "One tablespoon of soy sauce can hold almost half a day's worth of salt. A few splashes add up fast. Low-salt soy sauce is an easy swap that helps.",
+    packaged: true
+  },
+  {
+    id: "chips",
+    emoji: "🍟",
+    name: "Potato Chips",
+    desc: "Thin, crispy, salty slices from a bag. A snack that is hard to stop eating.",
+    correct: "raises",
+    explain: "Chips are coated in salt and easy to eat by the handful. One small bag can carry a big part of a day's salt before you notice.",
+    packaged: true
+  },
+  {
+    id: "pickles",
+    emoji: "🥒",
+    name: "Pickles",
+    desc: "Cucumbers soaked in salty brine. Crunchy and sour, often with a sandwich.",
+    correct: "raises",
+    explain: "Pickles sit in salty water for days, so they soak up a lot of salt. Even one large pickle can hold a big share of your daily limit.",
+    packaged: true
+  },
+  {
+    id: "cheese",
+    emoji: "🧀",
+    name: "Cheese",
+    desc: "A firm, tasty dairy food. Sliced on sandwiches or melted over meals.",
+    correct: "raises",
+    explain: "Cheese is saltier than most people expect, and it is easy to eat a lot. A little goes a long way, so smaller amounts are kinder to your blood pressure.",
+    packaged: true,
+    diet: "dairy"
+  },
+  {
+    id: "hotdog",
+    emoji: "🌭",
+    name: "Hot Dog",
+    desc: "A pink sausage in a soft bun. A common food at ball games and cookouts.",
+    correct: "raises",
+    explain: "Hot dogs are processed meat, preserved with a lot of salt. One hot dog, before the bun and toppings, already carries a big share of a day's salt.",
+    packaged: true,
+    diet: "meat"
+  },
+  {
+    id: "beets",
+    emoji: "🫜",
+    name: "Beets",
+    desc: "A deep red root vegetable. Roasted, boiled, or grated into a salad.",
+    correct: "lowers",
+    explain: "Beets have natural nitrates that help your blood vessels relax and open up. Studies show a cup of beets can gently lower blood pressure.",
     packaged: false
   }
 ];
 
+/* True if a food fits the player's diet choice.
+   - "meat" foods (bacon, ham) are hidden for vegetarian and vegan.
+   - "dairy" foods (frozen pizza's cheese) are hidden for vegan.
+   - anything with no diet tag is a plant food, shown to everyone. */
+setup.dash.fitsDiet = function (f) {
+  var diet = State.variables.playerDiet || "everything";
+  if (diet === "vegan" && (f.diet === "meat" || f.diet === "dairy")) return false;
+  if (diet === "vegetarian" && f.diet === "meat") return false;
+  return true;
+};
+
+/* How many quiz foods this player will actually see, given their diet.
+   Used for the "Round X of N" labels so the count matches what they get. */
+setup.dash.eligibleCount = function () {
+  return setup.dash.foods.filter(setup.dash.fitsDiet).length;
+};
+
 /* Draw the next food:
-   - candidates = foods not yet in seenFoods (UPDATE6, no repeats)
+   - candidates = foods not yet in seenFoods (UPDATE6, no repeats) AND
+     that fit the player's diet choice (veg / vegan hide animal foods)
    - none left  -> return null so Round Start ends the quiz (UPDATE7)
    - otherwise weight packaged items 2.5x vs 1x for fresh (UPDATE8),
      record the pick in seenFoods, stash it in $currentFood, return it. */
 setup.dash.pickFood = function () {
   var seen = State.variables.seenFoods || [];
   var candidates = setup.dash.foods.filter(function (f) {
-    return seen.indexOf(f.id) === -1;
+    return seen.indexOf(f.id) === -1 && setup.dash.fitsDiet(f);
   });
   if (candidates.length === 0) {
     return null;
@@ -944,6 +1112,10 @@ You do not need to edit this.
    starts from a full, unshuffled-order pool. */
 &lt;&lt;set $seenFoods to []&gt;&gt;
 &lt;&lt;set $currentFood to null&gt;&gt;
+/* Diet choice (everything / vegetarian / vegan). Set on the Diet Choice
+   screen right after Welcome. Foods tagged diet:"meat"/"dairy" are hidden
+   for the matching diet so no one is shown food they do not eat. */
+&lt;&lt;set $playerDiet to &quot;everything&quot;&gt;&gt;
 /* One-shot guard so Meal Result&#39;s submitResponse fires exactly once
    per play-through. Reset on Story innit so PLAY AGAIN gets a fresh
    shot. See ::Meal Result for the submit body. */
@@ -964,16 +1136,51 @@ Card 1 of 2 before gameplay starts.
 
 &lt;p class=&quot;narrative center&quot;&gt;Hey $playerName.&lt;/p&gt;
 
-&lt;p class=&quot;narrative&quot;&gt;DASH means Dietary Approaches to Stop Hypertension. A way of eating proven to lower blood pressure.&lt;/p&gt;
+&lt;p class=&quot;narrative&quot;&gt;DASH is a way of eating that is proven to lower high blood pressure.&lt;/p&gt;
 
 &lt;p class=&quot;narrative&quot;&gt;This game shows you which everyday foods help and which ones work against you.&lt;/p&gt;
 
 &lt;div class=&quot;spacer&quot;&gt;&lt;/div&gt;
 
-&lt;a class=&quot;btn-primary&quot; data-passage=&quot;How To Play&quot;&gt;HOW IT WORKS&lt;/a&gt;
+&lt;a class=&quot;btn-primary&quot; data-passage=&quot;Diet Choice&quot;&gt;NEXT&lt;/a&gt;
 
 &lt;/div&gt;
-&lt;/div&gt;</tw-passagedata><tw-passagedata pid="3" name="How To Play" tags="Important/Needed nobr" position="350,100" size="100,100">/*
+&lt;/div&gt;</tw-passagedata><tw-passagedata pid="11" name="Diet Choice" tags="Important/Needed nobr" position="225,225" size="100,100">/*
+DIET CHOICE: Ask once what the player eats. Sets $playerDiet, which
+setup.dash.fitsDiet() reads to hide meat/dairy foods for vegetarian /
+vegan players in both the quiz and the meal builder.
+*/
+
+&lt;div class=&quot;phone&quot;&gt;
+&lt;div class=&quot;header&quot;&gt;&lt;span&gt;DASH Game&lt;/span&gt;&lt;/div&gt;
+&lt;div class=&quot;content&quot;&gt;
+
+&lt;span class=&quot;hero-emoji&quot;&gt;🍽️&lt;/span&gt;
+
+&lt;h2 class=&quot;intro-title&quot;&gt;What do you eat?&lt;/h2&gt;
+
+&lt;p class=&quot;narrative center&quot;&gt;Pick one. We will only show you foods you actually eat.&lt;/p&gt;
+
+&lt;div class=&quot;spacer&quot;&gt;&lt;/div&gt;
+
+&lt;&lt;link &#39;🍗  I eat everything&#39;&gt;&gt;&lt;&lt;set $playerDiet to &quot;everything&quot;&gt;&gt;&lt;&lt;goto &quot;How To Play&quot;&gt;&gt;&lt;&lt;/link&gt;&gt;
+
+&lt;&lt;link &#39;🥗  Vegetarian (no meat)&#39;&gt;&gt;&lt;&lt;set $playerDiet to &quot;vegetarian&quot;&gt;&gt;&lt;&lt;goto &quot;How To Play&quot;&gt;&gt;&lt;&lt;/link&gt;&gt;
+
+&lt;&lt;link &#39;🌱  Vegan (no meat or dairy)&#39;&gt;&gt;&lt;&lt;set $playerDiet to &quot;vegan&quot;&gt;&gt;&lt;&lt;goto &quot;How To Play&quot;&gt;&gt;&lt;&lt;/link&gt;&gt;
+
+&lt;/div&gt;
+&lt;/div&gt;
+
+&lt;&lt;script&gt;&gt;
+setTimeout(function () {
+  var links = document.querySelectorAll(&#39;.content a.macro-link, .content a.link-internal&#39;);
+  for (var i = 0; i &lt; links.length; i++) {
+    links[i].classList.add(&#39;btn-primary&#39;);
+    links[i].style.marginBottom = &#39;12px&#39;;
+  }
+}, 0);
+&lt;&lt;/script&gt;&gt;</tw-passagedata><tw-passagedata pid="3" name="How To Play" tags="Important/Needed nobr" position="350,100" size="100,100">/*
 RULES in one screen.
 Card 2 of 2 before gameplay starts.
 */
@@ -1015,7 +1222,7 @@ false. Then on to Food Result. Replaces the old hardcoded Food Card 1..6.
 */
 
 &lt;div class=&quot;phone&quot;&gt;
-&lt;div class=&quot;header&quot;&gt;&lt;span&gt;DASH Game&lt;/span&gt;&lt;span class=&quot;round-label&quot;&gt;Round $round of &lt;&lt;print setup.dash.foods.length&gt;&gt;&lt;/span&gt;&lt;/div&gt;
+&lt;div class=&quot;header&quot;&gt;&lt;span&gt;DASH Game&lt;/span&gt;&lt;span class=&quot;round-label&quot;&gt;Round $round of &lt;&lt;print setup.dash.eligibleCount()&gt;&gt;&lt;/span&gt;&lt;/div&gt;
 
 &lt;div class=&quot;meters-wrap&quot;&gt;
 &lt;div class=&quot;meter-row&quot;&gt;&lt;div class=&quot;meter-label&quot;&gt;Correct&lt;/div&gt;&lt;div class=&quot;meter-bar&quot;&gt;&lt;div class=&quot;meter-bar-fill correct&quot; @style=&quot;&#39;width: &#39; + Math.min(100, ($score / 6) * 100) + &#39;%&#39;&quot;&gt;&lt;/div&gt;&lt;/div&gt;&lt;/div&gt;
@@ -1075,7 +1282,7 @@ Moves to next round or meal builder after round 6.
 */
 
 &lt;div class=&quot;phone&quot;&gt;
-&lt;div class=&quot;header&quot;&gt;&lt;span&gt;DASH Game&lt;/span&gt;&lt;span class=&quot;round-label&quot;&gt;Round $round of &lt;&lt;print setup.dash.foods.length&gt;&gt;&lt;/span&gt;&lt;/div&gt;
+&lt;div class=&quot;header&quot;&gt;&lt;span&gt;DASH Game&lt;/span&gt;&lt;span class=&quot;round-label&quot;&gt;Round $round of &lt;&lt;print setup.dash.eligibleCount()&gt;&gt;&lt;/span&gt;&lt;/div&gt;
 
 &lt;div class=&quot;meters-wrap&quot;&gt;
 &lt;div class=&quot;meter-row&quot;&gt;&lt;div class=&quot;meter-label&quot;&gt;Correct&lt;/div&gt;&lt;div class=&quot;meter-bar&quot;&gt;&lt;div class=&quot;meter-bar-fill correct&quot; @style=&quot;&#39;width: &#39; + Math.min(100, ($score / 6) * 100) + &#39;%&#39;&quot;&gt;&lt;/div&gt;&lt;/div&gt;&lt;/div&gt;
@@ -1114,7 +1321,7 @@ TRANSITION: Cards done. Introduce meal building.
 
 &lt;h2 class=&quot;intro-title&quot;&gt;Build a Meal&lt;/h2&gt;
 
-&lt;p class=&quot;narrative center&quot;&gt;You scored $score out of &lt;&lt;print setup.dash.foods.length&gt;&gt; on the cards.&lt;/p&gt;
+&lt;p class=&quot;narrative center&quot;&gt;You scored $score out of &lt;&lt;print setup.dash.eligibleCount()&gt;&gt; on the cards.&lt;/p&gt;
 
 &lt;p class=&quot;narrative&quot;&gt;Now pick ingredients to build a meal. Tap each one to add it. The score bar fills as you choose.&lt;/p&gt;
 
@@ -1149,7 +1356,7 @@ Score bar reflects $mealScore.
      who fat-fingered an item couldn&#39;t remove it. --&gt;
 &lt;div class=&quot;section-label&quot;&gt;Proteins&lt;/div&gt;
 &lt;div class=&quot;ingredients-grid&quot;&gt;
-&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Brown rice&quot; data-ing-emoji=&quot;🍚&quot; data-ing-score=&quot;10&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;🍚&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Brown rice&lt;/span&gt;&lt;/span&gt;&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Beans&quot; data-ing-emoji=&quot;🍲&quot; data-ing-score=&quot;15&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;🍲&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Beans&lt;/span&gt;&lt;/span&gt;&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Bacon&quot; data-ing-emoji=&quot;🥓&quot; data-ing-score=&quot;-15&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;🥓&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Bacon&lt;/span&gt;&lt;/span&gt;&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Yogurt&quot; data-ing-emoji=&quot;🥛&quot; data-ing-score=&quot;10&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;🥛&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Yogurt&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Brown rice&quot; data-ing-emoji=&quot;🍚&quot; data-ing-score=&quot;10&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;🍚&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Brown rice&lt;/span&gt;&lt;/span&gt;&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Beans&quot; data-ing-emoji=&quot;🍲&quot; data-ing-score=&quot;15&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;🍲&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Beans&lt;/span&gt;&lt;/span&gt;&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Bacon&quot; data-ing-emoji=&quot;🥓&quot; data-ing-score=&quot;-15&quot; data-ing-diet=&quot;meat&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;🥓&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Bacon&lt;/span&gt;&lt;/span&gt;&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Yogurt&quot; data-ing-emoji=&quot;🥛&quot; data-ing-score=&quot;10&quot; data-ing-diet=&quot;dairy&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;🥛&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Yogurt&lt;/span&gt;&lt;/span&gt;&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Lentils&quot; data-ing-emoji=&quot;🫘&quot; data-ing-score=&quot;15&quot; data-ing-diet=&quot;plant&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;🫘&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Lentils&lt;/span&gt;&lt;/span&gt;
 &lt;/div&gt;
 
 &lt;div class=&quot;section-label&quot;&gt;Vegetables and Fruit&lt;/div&gt;
@@ -1159,7 +1366,7 @@ Score bar reflects $mealScore.
 
 &lt;div class=&quot;section-label&quot;&gt;Extras&lt;/div&gt;
 &lt;div class=&quot;ingredients-grid&quot;&gt;
-&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Dark chocolate&quot; data-ing-emoji=&quot;🍫&quot; data-ing-score=&quot;5&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;🍫&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Dark chocolate&lt;/span&gt;&lt;/span&gt;&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Instant noodles&quot; data-ing-emoji=&quot;🍜&quot; data-ing-score=&quot;-20&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;🍜&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Instant noodles&lt;/span&gt;&lt;/span&gt;&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Water&quot; data-ing-emoji=&quot;💧&quot; data-ing-score=&quot;5&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;💧&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Water&lt;/span&gt;&lt;/span&gt;&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Hot dog&quot; data-ing-emoji=&quot;🌭&quot; data-ing-score=&quot;-15&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;🌭&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Hot dog&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Dark chocolate&quot; data-ing-emoji=&quot;🍫&quot; data-ing-score=&quot;5&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;🍫&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Dark chocolate&lt;/span&gt;&lt;/span&gt;&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Instant noodles&quot; data-ing-emoji=&quot;🍜&quot; data-ing-score=&quot;-20&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;🍜&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Instant noodles&lt;/span&gt;&lt;/span&gt;&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Water&quot; data-ing-emoji=&quot;💧&quot; data-ing-score=&quot;5&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;💧&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Water&lt;/span&gt;&lt;/span&gt;&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Hot dog&quot; data-ing-emoji=&quot;🌭&quot; data-ing-score=&quot;-15&quot; data-ing-diet=&quot;meat&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;🌭&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Hot dog&lt;/span&gt;&lt;/span&gt;&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Salted crackers&quot; data-ing-emoji=&quot;🍘&quot; data-ing-score=&quot;-10&quot; data-ing-diet=&quot;plant&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;🍘&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Salted crackers&lt;/span&gt;&lt;/span&gt;
 &lt;/div&gt;
 
 &lt;a class=&quot;btn-primary&quot; data-passage=&quot;Meal Result&quot;&gt;SEE MY MEAL RESULT&lt;/a&gt;
@@ -1221,26 +1428,25 @@ session flag so PLAY AGAIN doesn&#39;t double-credit.
 
 &lt;&lt;if $mealScore gte 30&gt;&gt;
 &lt;div class=&quot;meal-verdict strong&quot;&gt;Strong DASH meal&lt;/div&gt;
-&lt;p class=&quot;meal-explain&quot;&gt;Your ingredient choices are high in potassium, fiber, and minerals that actively support lower blood pressure. A meal like this, eaten regularly, produces measurable results over weeks.&lt;/p&gt;
+&lt;p class=&quot;meal-explain&quot;&gt;Your choices are packed with the potassium, fiber, and minerals that help lower blood pressure. Eating meals like this often makes a real difference over a few weeks.&lt;/p&gt;
 &lt;&lt;elseif $mealScore gte 10&gt;&gt;
-&lt;div class=&quot;meal-verdict moderate&quot;&gt;Moderate DASH meal&lt;/div&gt;
-&lt;p class=&quot;meal-explain&quot;&gt;Some strong choices in there. Swapping one high-sodium ingredient for a potassium-rich one would shift this meal a lot in the right direction.&lt;/p&gt;
+&lt;div class=&quot;meal-verdict moderate&quot;&gt;Good meal&lt;/div&gt;
+&lt;p class=&quot;meal-explain&quot;&gt;Some good picks in there. Trading one salty item for a healthy one would move this meal a lot in the right direction.&lt;/p&gt;
 &lt;&lt;elseif $mealScore gte 0&gt;&gt;
 &lt;div class=&quot;meal-verdict mixed&quot;&gt;Mixed meal&lt;/div&gt;
-&lt;p class=&quot;meal-explain&quot;&gt;The DASH-friendly choices are being offset by the high-sodium ones. Small swaps make a real difference here.&lt;/p&gt;
+&lt;p class=&quot;meal-explain&quot;&gt;Your healthy picks are being cancelled out by the salty ones. Small swaps make a real difference here.&lt;/p&gt;
 &lt;&lt;else&gt;&gt;
 &lt;div class=&quot;meal-verdict weak&quot;&gt;Working against you&lt;/div&gt;
-&lt;p class=&quot;meal-explain&quot;&gt;This meal is working against your blood pressure. The sodium load is high and the potassium is low. Try replacing one ingredient and see what changes.&lt;/p&gt;
+&lt;p class=&quot;meal-explain&quot;&gt;This meal puts pressure on your heart. It has too much salt and not enough potassium. Try replacing one item and see what changes.&lt;/p&gt;
 &lt;&lt;/if&gt;&gt;
 &lt;/div&gt;
 
 &lt;div class=&quot;spacer&quot;&gt;&lt;/div&gt;
 
-&lt;a class=&quot;btn-primary&quot; data-passage=&quot;Story innit&quot;&gt;PLAY AGAIN&lt;/a&gt;
-&lt;!-- Direct goHome via the ccq-home-trigger class — the bridge
-     intercepts the click and fires CCQ.goHome() without trampolining
-     through the (now unused) Central Hub passage. --&gt;
-&lt;a class=&quot;btn-secondary ccq-home-trigger&quot; href=&quot;javascript:void(0)&quot;&gt;BACK TO CARDIOCAREQUEST&lt;/a&gt;
+&lt;!-- Single exit button. Direct goHome via the ccq-home-trigger class — the
+     bridge intercepts the click and fires CCQ.goHome() to pop the WebView
+     route back to the dashboard. --&gt;
+&lt;a class=&quot;btn-primary ccq-home-trigger&quot; href=&quot;javascript:void(0)&quot;&gt;BACK TO CARDIOCARE QUEST&lt;/a&gt;
 
 &lt;/div&gt;
 &lt;/div&gt;</tw-passagedata><tw-passagedata pid="10" name="Central Hub" tags="Important/Needed nobr" position="1225,100" size="100,100">/*

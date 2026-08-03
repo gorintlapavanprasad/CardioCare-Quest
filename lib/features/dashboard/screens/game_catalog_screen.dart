@@ -21,16 +21,34 @@ import 'category_games_screen.dart';
 import 'custom_games_screen.dart';
 
 // The catalog screen: builds the tile grid and adds "Your Goals" if needed.
-class GameCatalogScreen extends StatelessWidget {
+class GameCatalogScreen extends StatefulWidget {
   const GameCatalogScreen({super.key});
+
+  @override
+  State<GameCatalogScreen> createState() => _GameCatalogScreenState();
+}
+
+class _GameCatalogScreenState extends State<GameCatalogScreen> {
+  // The five factor tiles, mapped to their games. We shuffle the order once
+  // each time the screen opens so the tiles land in a fresh spot every visit,
+  // but stay put during rebuilds (e.g. when "Your Goals" pops in).
+  late final Map<GameCategory, List<GameStory>> _byCategory;
+  late final List<GameCategory> _categories;
+
+  @override
+  void initState() {
+    super.initState();
+    _byCategory = GameCatalog.getCatalogGamesByCategory();
+    _categories = _byCategory.keys.toList()..shuffle();
+  }
 
   // Build a tile per category, plus a "Your Goals" tile once the user
   // has any custom games. We watch custom games live so that tile pops
   // in on its own.
   @override
   Widget build(BuildContext context) {
-    final byCategory = GameCatalog.getCatalogGamesByCategory();
-    final categories = byCategory.keys.toList();
+    final byCategory = _byCategory;
+    final categories = _categories;
     final uid = context.select<UserDataProvider, String>((p) => p.uid);
 
     return Scaffold(
