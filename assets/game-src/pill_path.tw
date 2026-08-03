@@ -182,6 +182,16 @@ setup.pillPath = (function () {
     State.variables.entries = entries;
     saveState();
 
+    // Shared, date-keyed habit record so Bingo Bash can auto-mark its
+    // "Take meds" cell. Cross-game read via the same localStorage key.
+    try {
+      var sharedRaw = window.localStorage.getItem("ccq_shared_habits");
+      var sharedObj = sharedRaw ? JSON.parse(sharedRaw) : {};
+      if (!sharedObj || typeof sharedObj !== "object") sharedObj = {};
+      sharedObj[today] = { medTaken: true, medHelper: !!caregiver };
+      window.localStorage.setItem("ccq_shared_habits", JSON.stringify(sharedObj));
+    } catch (e) { /* best-effort cross-game hint */ }
+
     var pathStart = (pathNum - 1) * 7;
     var pathSlice = entries.slice(pathStart, pathStart + 7);
     State.temporary.nextStop =
@@ -195,7 +205,7 @@ setup.pillPath = (function () {
     // participant can't farm the Edit Today flow for points.
     try {
       if (window.CCQ && typeof window.CCQ.logQuestCompletion === "function") {
-        window.CCQ.logQuestCompletion("pill_taken", {
+        window.CCQ.logQuestCompletion(caregiver ? "pill_taken_helper" : "pill_taken_self", {
           pointsEarned: isCorrection ? 0 : 25,
           gameId: "pill_path",
           data: {

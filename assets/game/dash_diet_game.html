@@ -93,937 +93,6 @@ var saveAs=saveAs||navigator.msSaveBlob&&navigator.msSaveBlob.bind(navigator)||f
 <style id="style-ui" type="text/css">#ui-dialog-body.settings [id|=setting-body]>div:first-child{display:table;width:100%}#ui-dialog-body.settings [id|=setting-label]{display:table-cell;padding:.4em 2em .4em 0}#ui-dialog-body.settings [id|=setting-label]+div{display:table-cell;min-width:8em;text-align:right;vertical-align:middle;white-space:nowrap}#ui-dialog-body.list{padding:0}#ui-dialog-body.list ul{margin:0;padding:0;list-style:none;border:1px solid transparent}#ui-dialog-body.list li{margin:0}#ui-dialog-body.list li:not(:first-child){border-top:1px solid #444}#ui-dialog-body.list li a{display:block;padding:.25em .75em;border:1px solid transparent;color:#eee;text-decoration:none}#ui-dialog-body.list li a:hover{background-color:#333;border-color:#eee}#ui-dialog-body.saves{padding:0 0 1px}#ui-dialog-body.saves>:not(:first-child){border-top:1px solid #444}#ui-dialog-body.saves table{border-spacing:0;width:100%}#ui-dialog-body.saves tr:not(:first-child){border-top:1px solid #444}#ui-dialog-body.saves td{padding:.33em .33em}#ui-dialog-body.saves td:first-child{min-width:1.5em;text-align:center}#ui-dialog-body.saves td:nth-child(3){line-height:1.2}#ui-dialog-body.saves td:last-child{text-align:right}#ui-dialog-body.saves .empty{color:#999;speak:none;text-align:center;-webkit-user-select:none;-moz-user-select:none;-ms-user-select:none;user-select:none}#ui-dialog-body.saves .datestamp{font-size:75%;margin-left:1em}#ui-dialog-body.saves ul.buttons li{padding:.4em}#ui-dialog-body.saves ul.buttons>li+li>button{margin-left:.2em}#ui-dialog-body.saves ul.buttons li:last-child{float:right}#ui-dialog-body.settings div[id|=header-body]{margin:1em 0}#ui-dialog-body.settings div[id|=header-body]:first-child{margin-top:0}#ui-dialog-body.settings div[id|=header-body]:not(:first-child){border-top:1px solid #444;padding-top:1em}#ui-dialog-body.settings div[id|=header-body]>*{margin:0}#ui-dialog-body.settings h2[id|=header-heading]{font-size:1.375em}#ui-dialog-body.settings p[id|=header-desc],#ui-dialog-body.settings p[id|=setting-desc]{font-size:87.5%;margin:0 0 0 .5em}#ui-dialog-body.settings div[id|=setting-body]+div[id|=setting-body]{margin:1em 0}#ui-dialog-body.settings [id|=setting-control]{white-space:nowrap}#ui-dialog-body.settings button[id|=setting-control]{color:#eee;background-color:transparent;border:1px solid #444;padding:.4em}#ui-dialog-body.settings button[id|=setting-control]:hover{background-color:#333;border-color:#eee}#ui-dialog-body.settings button[id|=setting-control].enabled{background-color:#282;border-color:#4a4}#ui-dialog-body.settings button[id|=setting-control].enabled:hover{background-color:#4a4;border-color:#6c6}#ui-dialog-body.settings input[type=range][id|=setting-control]{max-width:35vw}#ui-dialog-body.list a,#ui-dialog-body.settings span[id|=setting-input]{-webkit-user-select:none;-moz-user-select:none;-ms-user-select:none;user-select:none}#ui-dialog-body.saves button[id=saves-clear]:before,#ui-dialog-body.saves button[id=saves-export]:before,#ui-dialog-body.saves button[id=saves-import]:before,#ui-dialog-body.settings button[id|=setting-control].enabled:after,#ui-dialog-body.settings button[id|=setting-control]:after{font-family:tme-fa-icons;font-style:normal;font-weight:400;font-variant:normal;text-transform:none;line-height:1;speak:none}#ui-dialog-body.saves button[id=saves-export]:before{content:"\e829\00a0"}#ui-dialog-body.saves button[id=saves-import]:before{content:"\e82a\00a0"}#ui-dialog-body.saves button[id=saves-clear]:before{content:"\e827\00a0"}#ui-dialog-body.settings button[id|=setting-control]:after{content:"\00a0\00a0\e830"}#ui-dialog-body.settings button[id|=setting-control].enabled:after{content:"\00a0\00a0\e831"}</style>
 <style id="style-ui-bar" type="text/css">#story{margin-left:20em;-o-transition:margin-left .2s ease-in;transition:margin-left .2s ease-in}#ui-bar.stowed~#story{margin-left:4.5em}@media screen and (max-width:1136px){#story{margin-left:19em}#ui-bar.stowed~#story{margin-left:3.5em}}@media screen and (max-width:768px){#story{margin-left:3.5em}}#ui-bar{position:fixed;z-index:50;top:0;left:0;width:17.5em;height:100%;margin:0;padding:0;-o-transition:left .2s ease-in;transition:left .2s ease-in}#ui-bar.stowed{left:-15.5em}#ui-bar-body{height:90%;height:calc(100% - 2.5em);margin:2.5em 0;padding:0 1.5em}#ui-bar.stowed #ui-bar-body,#ui-bar.stowed #ui-bar-history{visibility:hidden;-o-transition:visibility .2s step-end;transition:visibility .2s step-end}#ui-bar{background-color:#222;border-right:1px solid #444;text-align:center}#ui-bar-tray{position:absolute;top:.2em;left:0;right:0}#ui-bar a{text-decoration:none}#ui-bar hr{border-color:#444}#ui-bar-history [id|=history],#ui-bar-toggle{font-size:1.2em;line-height:inherit;color:#eee;background-color:transparent;border:1px solid #444}#ui-bar-toggle{display:block;position:absolute;top:0;right:0;border-right:none;padding:.3em .45em .25em}#ui-bar.stowed #ui-bar-toggle{padding:.3em .35em .25em .55em}#ui-bar-toggle:hover{background-color:#444;border-color:#eee}#ui-bar-history{margin:0 auto}#ui-bar-history [id|=history]{padding:.2em .45em .35em}#ui-bar-history #history-jumpto{padding:.2em .665em .35em}#ui-bar-history [id|=history]:not(:first-child){margin-left:1.2em}#ui-bar-history [id|=history]:hover{background-color:#444;border-color:#eee}#ui-bar-history [id|=history]:disabled{color:#444;background-color:transparent;border-color:#444}#ui-bar-body{line-height:1.5;overflow:auto}#ui-bar-body>:not(:first-child){margin-top:2em}#story-title{margin:0;font-size:162.5%}#story-author{margin-top:2em;font-weight:700}#menu ul{margin:1em 0 0;padding:0;list-style:none;border:1px solid #444}#menu ul:empty{display:none}#menu li{margin:0}#menu li:not(:first-child){border-top:1px solid #444}#menu li a{display:block;padding:.25em .75em;border:1px solid transparent;color:#eee;text-transform:uppercase}#menu li a:hover{background-color:#444;border-color:#eee}#menu a,#ui-bar-history [id|=history],#ui-bar-toggle{-webkit-user-select:none;-moz-user-select:none;-ms-user-select:none;user-select:none}#menu-core li[id|=menu-item] a:before,#ui-bar-history [id|=history],#ui-bar-toggle:before{font-family:tme-fa-icons;font-style:normal;font-weight:400;font-variant:normal;text-transform:none;line-height:1;speak:none}#ui-bar-toggle:before{content:"\e81d"}#ui-bar.stowed #ui-bar-toggle:before{content:"\e81e"}#menu-item-saves a:before{content:"\e82b\00a0"}#menu-item-settings a:before{content:"\e82d\00a0"}#menu-item-restart a:before{content:"\e82c\00a0"}#menu-item-share a:before{content:"\e82f\00a0"}</style>
 <style id="style-ui-debug" type="text/css">#debug-bar{background-color:#222;border-left:1px solid #444;border-top:1px solid #444;bottom:0;margin:0;max-height:75%;padding:.5em;position:fixed;right:0;z-index:99900}#debug-bar>div:not([id])+div{margin-top:.5em}#debug-bar>div>label{margin-right:.5em}#debug-bar>div>input[type=text]{min-width:0;width:8em}#debug-bar>div>select{width:15em}#debug-bar-toggle{color:#eee;background-color:#222;border:1px solid #444;height:101%;height:calc(100% + 1px);left:-2em;left:calc(-2em - 1px);position:absolute;top:-1px;width:2em}#debug-bar-toggle:hover{background-color:#333;border-color:#eee}#debug-bar-hint{bottom:.175em;font-size:4.5em;opacity:.33;pointer-events:none;position:fixed;right:.6em;-webkit-user-select:none;-moz-user-select:none;-ms-user-select:none;user-select:none;white-space:nowrap}#debug-bar-watch{background-color:#222;border-left:1px solid #444;border-top:1px solid #444;bottom:102%;bottom:calc(100% + 1px);font-size:.9em;left:-1px;max-height:650%;max-height:65vh;position:absolute;overflow-x:hidden;overflow-y:scroll;right:0;z-index:99800}#debug-bar-watch[hidden]{display:none}#debug-bar-watch div{color:#999;font-style:italic;margin:1em auto;text-align:center}#debug-bar-watch table{width:100%}#debug-bar-watch tr:nth-child(2n){background-color:rgba(127,127,127,.15)}#debug-bar-watch td{padding:.2em 0}#debug-bar-watch td:first-child+td{padding:.2em .3em .2em .1em}#debug-bar-watch .watch-delete{background-color:transparent;border:none;color:#c00}#debug-bar-watch-all,#debug-bar-watch-none{margin-left:.5em}#debug-bar-views-toggle,#debug-bar-watch-toggle{color:#eee;background-color:transparent;border:1px solid #444;margin-right:1em;padding:.4em}#debug-bar-views-toggle:hover,#debug-bar-watch-toggle:hover{background-color:#333;border-color:#eee}#debug-bar-watch:not([hidden])~div #debug-bar-watch-toggle,html[data-debug-view] #debug-bar-views-toggle{background-color:#282;border-color:#4a4}#debug-bar-watch:not([hidden])~div #debug-bar-watch-toggle:hover,html[data-debug-view] #debug-bar-views-toggle:hover{background-color:#4a4;border-color:#6c6}#debug-bar-hint:after,#debug-bar-toggle:before,#debug-bar-views-toggle:after,#debug-bar-watch .watch-delete:before,#debug-bar-watch-add:before,#debug-bar-watch-all:before,#debug-bar-watch-none:before,#debug-bar-watch-toggle:after{font-family:tme-fa-icons;font-style:normal;font-weight:400;font-variant:normal;text-transform:none;line-height:1;speak:none}#debug-bar-toggle:before{content:"\e838"}#debug-bar-hint:after{content:"\e838\202f\e822"}#debug-bar-watch .watch-delete:before{content:"\e804"}#debug-bar-watch-add:before{content:"\e805"}#debug-bar-watch-all:before{content:"\e83a"}#debug-bar-watch-none:before{content:"\e827"}#debug-bar-views-toggle:after,#debug-bar-watch-toggle:after{content:"\00a0\00a0\e830"}#debug-bar-watch:not([hidden])~div #debug-bar-watch-toggle:after,html[data-debug-view] #debug-bar-views-toggle:after{content:"\00a0\00a0\e831"}html[data-debug-view] .debug{padding:.25em;background-color:#234}html[data-debug-view] .debug[title]{cursor:help}html[data-debug-view] .debug.block{display:inline-block;vertical-align:middle}html[data-debug-view] .debug.invalid{text-decoration:line-through}html[data-debug-view] .debug.hidden,html[data-debug-view] .debug.hidden .debug{background-color:#555}html:not([data-debug-view]) .debug.hidden{display:none}html[data-debug-view] .debug[data-name][data-type].nonvoid:after,html[data-debug-view] .debug[data-name][data-type]:before{background-color:rgba(0,0,0,.25);font-family:monospace,monospace;white-space:pre}html[data-debug-view] .debug[data-name][data-type]:before{content:attr(data-name)}html[data-debug-view] .debug[data-name][data-type|=macro]:before{content:"<<" attr(data-name) ">>"}html[data-debug-view] .debug[data-name][data-type|=macro].nonvoid:after{content:"<</" attr(data-name) ">>"}html[data-debug-view] .debug[data-name][data-type|=html]:before{content:"<" attr(data-name) ">"}html[data-debug-view] .debug[data-name][data-type|=html].nonvoid:after{content:"</" attr(data-name) ">"}html[data-debug-view] .debug[data-name][data-type]:not(:empty):before{margin-right:.25em}html[data-debug-view] .debug[data-name][data-type].nonvoid:not(:empty):after{margin-left:.25em}html[data-debug-view] .debug[data-name][data-type|=special],html[data-debug-view] .debug[data-name][data-type|=special]:before{display:block}</style>
-<!-- CardioCare Quest — FlutterBridge shim inlined at build time. -->
-<script>
-// CardioCare Quest — Twine ↔ Flutter bridge shim.
-//
-// Drop this script into the <head> of any Twine HTML game hosted by the
-// Flutter `TwineGameHost` widget. It exposes a friendly `window.CCQ` object
-// that wraps the raw `window.FlutterBridge.postMessage(...)` JSON protocol
-// the host expects.
-//
-// Usage from Twine / vanilla JS:
-//
-//   CCQ.startTracking(500);             // begin a movement quest of 500m
-//   CCQ.setBuddyName('Rex');            // user named their companion
-//   CCQ.saveState(JSON.stringify(state));// persist your local state JSON
-//   CCQ.finishQuest();                   // tell host the quest is done
-//   CCQ.goHome();                        // exit back to dashboard
-//   CCQ.telemetry('scene2_visited', {sceneId:'2'}); // optional analytics
-//
-// The host also CALLS into your Twine page through a few well-known global
-// functions (these are ones YOUR HTML must define if you want them invoked):
-//
-//   setBuddyName(name)               — restore the saved companion name
-//   setWeeklyQuestCount(count)       — update the week-completion stats line
-//   updateGameProgress(walked, target) — drive the progress bar mid-walk
-//   resumeWalk(walked, target)       — switch to the active-walk page on resume
-//   onQuestFinished(pointsGained)    — show your completion scene
-//   hydrateState(jsonString)         — restore your local state on launch
-//
-// All bridge messages are best-effort. If `FlutterBridge` is unavailable
-// (e.g. the page is opened in a regular browser for development), CCQ
-// silently logs to the console instead of throwing.
-
-(function () {
-  'use strict';
-
-  // ───────────────────────────────────────────────────────────────────
-  // PARTICIPANT ISOLATION
-  //
-  // Each Flutter host (`TwineQuestionnaireHost`, `TwineGameHost`) sets
-  // the WebView's user agent to `CCQApp/<participantId>` before
-  // navigating to the compiled HTML. That tag is the only signal the
-  // Twine side gets about WHO is currently logged in — `localStorage`
-  // is otherwise shared across all participants on the same device,
-  // which would let participant 124 see participant 123's last BP
-  // reading, voyage-taken-today gate, points cache, etc.
-  //
-  // We compare the tagged uid against a stamp stored in localStorage
-  // (`ccq_active_pid`) and, on mismatch, clear the per-user keys so
-  // the new participant starts clean. Runs synchronously here at the
-  // top of the bridge IIFE — that's BEFORE SugarCube StoryInit, which
-  // is what reads the cleared keys back.
-  try {
-    var ua = (typeof navigator !== 'undefined' && navigator.userAgent) || '';
-    var match = ua.match(/CCQApp\/([^\s]+)/);
-    var currentPid = match ? match[1] : '';
-    if (currentPid) {
-      var savedPid = window.localStorage.getItem('ccq_active_pid') || '';
-      if (savedPid !== currentPid) {
-        // Add new keys to this list as games introduce them.
-        // 2026-05-10: pill_path_save was missing — participant A's
-        // 7-stone path data was leaking to participant B on shared
-        // devices. Same vector as quietMinute_history.
-        // 2026-05-10 (later): cardiocarequest_survey added — the
-        // post-play survey writes a defensive backup of every
-        // participant's full payload to that key on the Done
-        // passage. Without this entry, participant B would see
-        // participant A's last survey responses if A's WebView
-        // localStorage were inspected.
-        var staleKeys = [
-          'quietMinute_history',
-          'quietMinute_points',
-          'vv_save',
-          'pill_path_save',
-          'cardiocarequest_survey',
-        ];
-        for (var i = 0; i < staleKeys.length; i++) {
-          try {
-            window.localStorage.removeItem(staleKeys[i]);
-          } catch (e) { /* ignore */ }
-        }
-        window.localStorage.setItem('ccq_active_pid', currentPid);
-      }
-    }
-  } catch (e) { /* keep going — isolation is best-effort */ }
-
-  // ───────────────────────────────────────────────────────────────────
-  // ATKINSON HYPERLEGIBLE FONT
-  //
-  // Designed by the Braille Institute for low-vision readability.
-  // Bundled locally (TTF in `assets/fonts/Atkinson_Hyperlegible/`,
-  // declared in `pubspec.yaml`) so the font loads even when offline
-  // and on devices Google Fonts can't reach. We inject `@font-face`
-  // declarations once per WebView via a <style> tag in <head>; the
-  // path is resolved relative to the compiled HTML's location, which
-  // is `assets/game/<game>.html` under flutter_assets, so `../fonts/`
-  // walks one directory up to the bundled font folder.
-  //
-  // Idempotent via the id check so the style block doesn't duplicate
-  // across passage re-renders or LAUNCH_GAME sub-host stacking.
-  // ───────────────────────────────────────────────────────────────────
-  try {
-    var injectFontFace = function () {
-      if (document.getElementById('ccq-fonts-style')) return;
-      var style = document.createElement('style');
-      style.id = 'ccq-fonts-style';
-      style.textContent =
-        "@font-face {" +
-        "  font-family: 'Atkinson Hyperlegible';" +
-        "  src: url('../fonts/Atkinson_Hyperlegible/AtkinsonHyperlegible-Regular.ttf') format('truetype');" +
-        "  font-weight: 400;" +
-        "  font-style: normal;" +
-        "  font-display: swap;" +
-        "}" +
-        "@font-face {" +
-        "  font-family: 'Atkinson Hyperlegible';" +
-        "  src: url('../fonts/Atkinson_Hyperlegible/AtkinsonHyperlegible-Italic.ttf') format('truetype');" +
-        "  font-weight: 400;" +
-        "  font-style: italic;" +
-        "  font-display: swap;" +
-        "}" +
-        "@font-face {" +
-        "  font-family: 'Atkinson Hyperlegible';" +
-        "  src: url('../fonts/Atkinson_Hyperlegible/AtkinsonHyperlegible-Bold.ttf') format('truetype');" +
-        "  font-weight: 700;" +
-        "  font-style: normal;" +
-        "  font-display: swap;" +
-        "}" +
-        "@font-face {" +
-        "  font-family: 'Atkinson Hyperlegible';" +
-        "  src: url('../fonts/Atkinson_Hyperlegible/AtkinsonHyperlegible-BoldItalic.ttf') format('truetype');" +
-        "  font-weight: 700;" +
-        "  font-style: italic;" +
-        "  font-display: swap;" +
-        "}";
-      var head = document.head || document.getElementsByTagName('head')[0];
-      if (head) head.appendChild(style);
-    };
-    if (document.head) {
-      injectFontFace();
-    } else {
-      // <head> not yet parsed — defer until it exists.
-      document.addEventListener('DOMContentLoaded', injectFontFace);
-    }
-  } catch (e) { /* font is best-effort — fallback stack handles it */ }
-
-  function post(payload) {
-    try {
-      if (window.FlutterBridge && typeof window.FlutterBridge.postMessage === 'function') {
-        window.FlutterBridge.postMessage(JSON.stringify(payload));
-      } else {
-        console.log('[CCQ.dev] Bridge unavailable, payload would have been:', payload);
-      }
-    } catch (e) {
-      console.error('[CCQ] Bridge post failed:', e, payload);
-    }
-  }
-
-  /**
-   * Start the GPS-tracked portion of a quest. The host begins listening to
-   * the position stream, applies an accuracy filter, and writes periodic
-   * batches via the OfflineQueue. Pass the **target distance in meters**.
-   */
-  function startTracking(distance) {
-    post({type: 'START_TRACKING', distance: Number(distance) || 0});
-  }
-
-  /**
-   * Persist the player's chosen companion name. Mirrors to both `dogName`
-   * and `buddyName` on the user profile so it survives across games.
-   */
-  function setBuddyName(name) {
-    if (typeof name !== 'string' || !name.trim()) return;
-    post({type: 'SET_DOG_NAME', name: name.trim()});
-  }
-
-  /**
-   * Save your Twine state as a JSON string. The host writes it to
-   * `userData/{uid}/gameStates/{gameId}.gameState` (string field). On the
-   * next app launch the host calls `hydrateState(stateJson)` so your page
-   * can restore.
-   */
-  function saveState(stateJson) {
-    if (typeof stateJson !== 'string') return;
-    post({type: 'SAVE_STATE', state: stateJson});
-  }
-
-  /**
-   * Tell the host the quest is finished. The host runs the end-game flow:
-   * awards points, writes the session completion + CheckData, clears the
-   * resume slot, fires the `*_quest_completed` telemetry event, and then
-   * calls `onQuestFinished(pointsGained)` back into your page so you can
-   * show the completion scene.
-   */
-  function finishQuest() {
-    post({type: 'FINISH_QUEST_DATA'});
-  }
-
-  /**
-   * Pop back to the dashboard. Use on "Back to home" buttons inside the
-   * game.
-   */
-  function goHome() {
-    post({type: 'GO_HOME'});
-  }
-
-  /**
-   * Fire a custom telemetry event. The host queues it through
-   * LoggingService so it lands in `events/*` regardless of online state.
-   * `params` should be a plain object with primitive values (no PII).
-   *
-   * Note: requires `TwineGameHost.onCustomBridgeMessage` to be wired up to
-   * route `TELEMETRY` to TelemetryHooks. The host's default handler does
-   * NOT process this message — it's reserved for game-specific extensions.
-   */
-  function telemetry(name, params) {
-    if (typeof name !== 'string' || !name) return;
-    post({type: 'TELEMETRY', name: name, params: params || {}});
-  }
-
-  /**
-   * Submit a completed questionnaire / survey response. Used by the
-   * non-movement `TwineQuestionnaireHost` (e.g. control game, post-play
-   * survey). The host writes one row to
-   * `surveys/{surveyId}/responses/{auto}` plus an immutable `events/*` row.
-   *
-   * @param {Object} answers       Plain object of {questionId: answer}.
-   * @param {Object} [opts]        Optional extras.
-   * @param {number} [opts.pointsEarned]  Override host's default points.
-   * @param {string} [opts.surveyId]      Override host's surveyId (rare).
-   * @param {boolean} [opts.countAsCompletion=true]  Set false to credit
-   *   `points` without bumping the user-level `surveysCompleted`
-   *   counter. Used by games whose individual submits are partial
-   *   progress (e.g. Vascular Village's per-quest credits) — the host
-   *   then bumps `surveysCompleted` once on session exit instead.
-   */
-  function submitResponse(answers, opts) {
-    if (typeof answers !== 'object' || answers === null) return;
-    var payload = {type: 'SUBMIT_RESPONSE', answers: answers};
-    if (opts && typeof opts.pointsEarned === 'number') {
-      payload.pointsEarned = opts.pointsEarned;
-    }
-    if (opts && typeof opts.surveyId === 'string' && opts.surveyId) {
-      payload.surveyId = opts.surveyId;
-    }
-    if (opts && opts.countAsCompletion === false) {
-      payload.countAsCompletion = false;
-    }
-    post(payload);
-  }
-
-  /**
-   * Log a per-quest completion from a hub-and-spoke game (Vascular
-   * Village's quests, etc.). The host routes this to GameLogHooks
-   * which writes to `userData/{uid}/gameLogs/{auto}` rather than
-   * `surveys/...` — keeps research game data out of the surveys
-   * collection (surveys are reserved for actual questionnaires).
-   *
-   * @param {string} questId          Quest identifier within the game.
-   * @param {Object} [opts]
-   * @param {number} [opts.pointsEarned=0]  Points credited to the user.
-   * @param {string} [opts.gameId]          Override host's gameId (rare).
-   * @param {Object} [opts.data]            Free-form context (e.g. quality, choices).
-   * @param {boolean} [opts.countAsCompletion=true]  Set false to skip
-   *   the user-level `surveysCompleted` counter bump — the host fires
-   *   it once on session exit instead. Use for partial-progress
-   *   submits where one play of the game produces multiple calls.
-   */
-  function logQuestCompletion(questId, opts) {
-    if (typeof questId !== 'string' || !questId) return;
-    var payload = {type: 'LOG_QUEST_COMPLETION', questId: questId};
-    if (opts && typeof opts.pointsEarned === 'number') {
-      payload.pointsEarned = opts.pointsEarned;
-    }
-    if (opts && typeof opts.gameId === 'string' && opts.gameId) {
-      payload.gameId = opts.gameId;
-    }
-    if (opts && opts.data && typeof opts.data === 'object') {
-      payload.data = opts.data;
-    }
-    if (opts && opts.countAsCompletion === false) {
-      payload.countAsCompletion = false;
-    }
-    post(payload);
-  }
-
-  /**
-   * Log a blood-pressure reading captured inside the game (e.g. the Quiet
-   * Minute calm-state BP form). The host routes this to
-   * `DailyLogHooks.logBP` which writes the reading to
-   * `userData/{uid}/dailyLogs/{today}/bpReadings/{auto}` and bumps the
-   * dashboard's lifetime counters. Mood defaults to 2 (neutral) if not
-   * provided — the post-game prompt intentionally skips mood capture.
-   *
-   * @param {number} systolic   top number, mmHg
-   * @param {number} diastolic  bottom number, mmHg
-   * @param {number} [mood=2]   0..4, 2 is neutral
-   */
-  function logBP(systolic, diastolic, mood) {
-    var sys = Number(systolic);
-    var dia = Number(diastolic);
-    if (!isFinite(sys) || !isFinite(dia) || sys <= 0 || dia <= 0) return;
-    var m = (typeof mood === 'number' && isFinite(mood)) ? mood : 2;
-    post({type: 'LOG_BP', systolic: sys, diastolic: dia, mood: m});
-  }
-
-  /**
-   * Launch another catalog game on top of the current one as a sub-flow.
-   * The host pushes a new route for the target game. When that game's
-   * GO_HOME fires, the route pops back to this game with control where it
-   * left off. If the sub-game logged BP via CCQ.logBP, the host injects
-   * the values into THIS game's SugarCube state so the parent picks up
-   * the fresh reading without needing shared localStorage:
-   *   SugarCube.State.variables.lastSys
-   *   SugarCube.State.variables.lastDia
-   *
-   * Used by Vascular Village to route the player through Quiet Minute
-   * for a calm-state BP reading mid-story.
-   *
-   * @param {string} gameId  Catalog id of the target game (e.g. 'quiet_minute').
-   */
-  function launchGame(gameId) {
-    if (typeof gameId !== 'string' || !gameId) return;
-    post({type: 'LAUNCH_GAME', gameId: gameId});
-  }
-
-  /**
-   * Pull the latest blood-pressure reading FOR TODAY from Firestore via
-   * the host. Fire-and-forget: the host responds asynchronously by
-   * calling `runJavaScript` to set:
-   *   SugarCube.State.variables.lastSys
-   *   SugarCube.State.variables.lastDia
-   * and then `Engine.play(currentPassage)` so the rendered passage
-   * picks up the fresh reading.
-   *
-   * Why this exists: webview_flutter on Android does NOT reliably
-   * share localStorage across WebViewController instances — Quiet
-   * Landscape's `quietMinute_history` write lands in its own WebView's
-   * storage and Vascular Village's StoryInit can't see it. Calling
-   * this in StoryInit gives Vascular Village a Firestore-backed
-   * fallback so the village BP gate works regardless of how the
-   * platform's WebView implements storage isolation. The host also
-   * seeds `quietMinute_history` in this WebView's localStorage so
-   * subsequent renders inside the same launch (e.g. Hub's self-heal
-   * script) hit the cache rather than asking Flutter again.
-   *
-   * No-op when called from a host that doesn't recognise GET_TODAY_BP
-   * (older builds) — the host swallows unknown message types.
-   */
-  function getTodayBP() {
-    post({type: 'GET_TODAY_BP'});
-  }
-
-  window.CCQ = {
-    startTracking: startTracking,
-    setBuddyName: setBuddyName,
-    saveState: saveState,
-    finishQuest: finishQuest,
-    goHome: goHome,
-    telemetry: telemetry,
-    submitResponse: submitResponse,
-    logQuestCompletion: logQuestCompletion,
-    logBP: logBP,
-    launchGame: launchGame,
-    getTodayBP: getTodayBP,
-  };
-
-  // ───────────────────────────────────────────────────────────────────
-  // BURGER MENU — LEFT-SIDE OFF-CANVAS DRAWER
-  //
-  // Every compiled Twine game has a `<span class="menu-icon">≡</span>`
-  // (or similar) in its header. Tapping it slides a drawer in from the
-  // LEFT edge (matching netguage's SugarCube UIBar pattern) with four
-  // options. Handling the menu HERE — in the shared bridge — instead
-  // of per-game means all 7 games inherit the same options, the same
-  // animation, and the same UX without duplicating markup across 7
-  // .tw files.
-  //
-  // Options:
-  //   • Home              — CCQ.goHome() (back to Flutter dashboard)
-  //   • Back              — SugarCube.Engine.backward() (one passage)
-  //   • Exit the game     — CCQ.goHome() (same effect as Home; the
-  //                         label is for participants who think of
-  //                         "leaving" as different from "Home")
-  //   • Play from beginning — SugarCube.Engine.restart() (full reset)
-  //
-  // Implementation notes:
-  //   • Click delegation on `document` (capture phase) so the trigger
-  //     works regardless of when the .menu-icon was added to the DOM
-  //     and survives every passage transition.
-  //   • Overlay div is created lazily on first open — by then body
-  //     exists, even though this script runs in <head>.
-  //   • Drawer slides in via `transform: translateX` so the animation
-  //     stays GPU-composited; the dim backdrop fades in via `opacity`.
-  //   • Inline styles use Nunito (matches the games) with a system-
-  //     font fallback so the menu still reads if Nunito hasn't loaded.
-  // ───────────────────────────────────────────────────────────────────
-
-  function injectMenuStyles() {
-    if (document.getElementById('ccq-menu-styles')) return;
-    var style = document.createElement('style');
-    style.id = 'ccq-menu-styles';
-    // `.menu-icon` styles use !important so they win over per-game CSS
-    // (Dog Quest had `.menu-icon { display: none }` for years, and other
-    // games may have similar one-off rules). Color is white-with-shadow
-    // so the glyph stays legible on both the dark headers (most games)
-    // and any light-themed ones — the dark text-shadow gives it an
-    // outline against light backgrounds. font-size:1.4em scales from
-    // the parent header's size so small headers (Dog Quest's 0.7rem
-    // "EXERCISE" label) still get a tappable icon.
-    style.textContent =
-      '.menu-icon {' +
-      '  cursor: pointer !important;' +
-      '  user-select: none; -webkit-user-select: none;' +
-      '  display: inline-flex !important;' +
-      '  align-items: center;' +
-      '  justify-content: center;' +
-      '  color: rgba(255, 255, 255, 0.95) !important;' +
-      '  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);' +
-      '  font-size: 24px !important;' +
-      '  line-height: 1 !important;' +
-      // No `margin-left: auto` — most game headers already use
-      // `justify-content: space-between` to spread their children
-      // (title / progress / icon). Auto margin here collapses the
-      // first two children together (e.g. End Survey screen smushed
-      // "End Survey" against "Step 9 of 12" with no gap).
-      '  padding: 4px 6px !important;' +
-      '  min-width: 28px;' +
-      '  min-height: 28px;' +
-      '}' +
-      // Backdrop: full-screen dim layer beneath the drawer. Click
-      // anywhere on it (outside the panel) to dismiss.
-      '.ccq-menu-overlay {' +
-      '  position: fixed; inset: 0;' +
-      '  background: rgba(15, 18, 28, 0.55);' +
-      '  z-index: 99999;' +
-      '  opacity: 0; pointer-events: none;' +
-      '  transition: opacity 0.22s ease-out;' +
-      '  font-family: \'Atkinson Hyperlegible\', system-ui, -apple-system, "Segoe UI", sans-serif;' +
-      '}' +
-      '.ccq-menu-overlay.ccq-open { opacity: 1; pointer-events: auto; }' +
-      // Drawer: full-screen overlay that slides in from the left.
-      // Width is 100vw so the menu fully covers the game while open
-      // — easier reading for older participants and removes any
-      // ambiguity about what's tappable. Gradient mirrors the
-      // in-game phone-frame palette so the drawer reads as part of
-      // the game, not a stray dialog.
-      '.ccq-menu-panel {' +
-      '  position: fixed; top: 0; left: 0; bottom: 0; right: 0;' +
-      '  width: 100vw;' +
-      '  background: linear-gradient(180deg, #2a1a4a 0%, #3b528b 55%, #21918c 100%);' +
-      '  box-shadow: 4px 0 28px rgba(0, 0, 0, 0.45);' +
-      '  display: flex; flex-direction: column;' +
-      '  padding: 0 0 12px 0;' +
-      '  transform: translateX(-100%);' +
-      '  transition: transform 0.25s ease-out;' +
-      '  overflow-y: auto;' +
-      '  -webkit-overflow-scrolling: touch;' +
-      '}' +
-      '.ccq-menu-overlay.ccq-open .ccq-menu-panel { transform: translateX(0); }' +
-      // Header row: "MENU" label + an X close button. With the
-      // panel full-width there's no exposed backdrop to tap-to-
-      // dismiss, so we need an explicit close affordance for
-      // participants who open the menu and change their mind.
-      //
-      // Layout: header is a flex row with align-items: center, so
-      // both children (the MENU span and the X button) land with
-      // their vertical centers on the same y. The header's
-      // top-padding uses `env(safe-area-inset-top)` so the row sits
-      // BELOW the system status bar on devices that report one,
-      // matching the game's own .header behaviour set by the build-
-      // time viewport override.
-      '.ccq-menu-header {' +
-      '  padding-top: max(20px, calc(env(safe-area-inset-top, 0px) + 12px));' +
-      '  padding-right: 16px;' +
-      '  padding-bottom: 14px;' +
-      '  padding-left: 22px;' +
-      '  font-size: 12px;' +
-      '  letter-spacing: 1.6px;' +
-      '  text-transform: uppercase;' +
-      '  color: rgba(255, 255, 255, 0.65);' +
-      '  font-weight: 800;' +
-      '  display: flex;' +
-      '  align-items: center;' +
-      '  justify-content: space-between;' +
-      '  min-height: 56px;' +
-      '  box-sizing: border-box;' +
-      '}' +
-      // 44×44 square button — gives a recommended-minimum tap
-      // target without resorting to a negative-margin trick that
-      // used to knock the X out of vertical alignment with the
-      // MENU label. flex centering on the inner X glyph keeps it
-      // pixel-centered inside the square regardless of font
-      // metrics. The button itself is then vertically centered
-      // by the parent row's align-items: center, so MENU + X
-      // share the same y baseline.
-      '.ccq-menu-close {' +
-      '  background: transparent;' +
-      '  border: none;' +
-      '  color: rgba(255, 255, 255, 0.92);' +
-      '  font-size: 22px;' +
-      '  line-height: 1;' +
-      '  cursor: pointer;' +
-      '  width: 44px;' +
-      '  height: 44px;' +
-      '  display: flex;' +
-      '  align-items: center;' +
-      '  justify-content: center;' +
-      '  padding: 0;' +
-      '  margin: 0;' +
-      '  border-radius: 50%;' +
-      '  font-family: inherit;' +
-      '}' +
-      '.ccq-menu-close:hover, .ccq-menu-close:active, .ccq-menu-close:focus {' +
-      '  background: rgba(255, 255, 255, 0.10);' +
-      '  outline: none;' +
-      '}' +
-      '.ccq-menu-item {' +
-      '  padding: 16px 22px;' +
-      '  font-size: 16px;' +
-      '  font-weight: 700;' +
-      '  color: rgba(255, 255, 255, 0.95);' +
-      '  cursor: pointer;' +
-      '  display: flex;' +
-      '  align-items: center;' +
-      '  gap: 14px;' +
-      '  border: none;' +
-      '  background: transparent;' +
-      '  width: 100%;' +
-      '  text-align: left;' +
-      '  font-family: inherit;' +
-      '  border-left: 3px solid transparent;' +
-      '  transition: background-color 0.12s ease-out, border-color 0.12s ease-out;' +
-      '}' +
-      '.ccq-menu-item:hover, .ccq-menu-item:active, .ccq-menu-item:focus {' +
-      '  background: rgba(255, 255, 255, 0.10);' +
-      '  border-left-color: #fde725;' +
-      '  outline: none;' +
-      '}' +
-      '.ccq-menu-icon-glyph {' +
-      '  width: 24px;' +
-      '  text-align: center;' +
-      '  font-size: 20px;' +
-      '  flex: 0 0 24px;' +
-      '  opacity: 0.9;' +
-      '}';
-    document.head.appendChild(style);
-  }
-
-  function buildOverlay() {
-    var overlay = document.createElement('div');
-    overlay.id = 'ccq-menu-overlay';
-    overlay.className = 'ccq-menu-overlay';
-    overlay.setAttribute('role', 'dialog');
-    overlay.setAttribute('aria-label', 'Game menu');
-    overlay.innerHTML =
-      '<div class="ccq-menu-panel" role="navigation">' +
-      '  <div class="ccq-menu-header">' +
-      '    <span>Menu</span>' +
-      '    <button class="ccq-menu-close" data-action="close" aria-label="Close menu">✕</button>' +
-      '  </div>' +
-      '  <button class="ccq-menu-item" data-action="dashboard">' +
-      '    <span class="ccq-menu-icon-glyph">⌂</span>' +
-      '    <span>Home</span>' +
-      '  </button>' +
-      '  <button class="ccq-menu-item" data-action="back">' +
-      '    <span class="ccq-menu-icon-glyph">←</span>' +
-      '    <span>Back</span>' +
-      '  </button>' +
-      '  <button class="ccq-menu-item" data-action="exit">' +
-      '    <span class="ccq-menu-icon-glyph">⏻</span>' +
-      '    <span>Exit the game</span>' +
-      '  </button>' +
-      '  <button class="ccq-menu-item" data-action="restart">' +
-      '    <span class="ccq-menu-icon-glyph">↻</span>' +
-      '    <span>Play from beginning</span>' +
-      '  </button>' +
-      '</div>';
-
-    overlay.addEventListener('click', function (e) {
-      var item = e.target.closest('[data-action]');
-      var insidePanel = e.target.closest('.ccq-menu-panel');
-      var action = item ? item.getAttribute('data-action') : null;
-
-      // Tapped the dimmed backdrop (outside the panel) — dismiss.
-      if (!action && !insidePanel) {
-        closeMenu();
-        return;
-      }
-      if (!action) return;
-      e.preventDefault();
-      e.stopPropagation();
-
-      // Every action closes the drawer first so the slide-out
-      // animation runs before the page does its thing — keeps the
-      // transition feeling intentional rather than abrupt.
-      closeMenu();
-
-      if (action === 'dashboard' || action === 'exit') {
-        // Home and Exit both return to the Flutter dashboard. Kept
-        // as separate menu entries because participants think of
-        // "going home" and "exiting the game" as distinct ideas
-        // even though the underlying call is the same.
-        try {
-          goHome();
-        } catch (err) { console.error('[CCQ] goHome failed:', err); }
-      } else if (action === 'back') {
-        // SugarCube's history.backward — undoes the last passage
-        // navigation. No-ops silently if there's nothing to undo
-        // (e.g. fresh game launch) since `backward()` returns false.
-        try {
-          if (window.SugarCube && window.SugarCube.Engine
-              && typeof window.SugarCube.Engine.backward === 'function') {
-            window.SugarCube.Engine.backward();
-          }
-        } catch (err) { console.error('[CCQ] back failed:', err); }
-      } else if (action === 'restart') {
-        try {
-          if (window.SugarCube && window.SugarCube.Engine
-              && typeof window.SugarCube.Engine.restart === 'function') {
-            window.SugarCube.Engine.restart();
-          } else {
-            // Fallback for the very rare case where SugarCube isn't
-            // on the window namespace yet — reload the page so the
-            // player gets a clean start either way.
-            window.location.reload();
-          }
-        } catch (err) {
-          console.error('[CCQ] restart failed:', err);
-          window.location.reload();
-        }
-      }
-    });
-
-    return overlay;
-  }
-
-  function openMenu() {
-    console.log('[CCQ.menu] openMenu() called');
-    injectMenuStyles();
-    console.log('[CCQ.menu] styles injected');
-    var overlay = document.getElementById('ccq-menu-overlay');
-    if (!overlay) {
-      console.log('[CCQ.menu] no overlay yet — building');
-      overlay = buildOverlay();
-      if (!document.body) {
-        console.error('[CCQ.menu] document.body missing — cannot append overlay');
-        return;
-      }
-      document.body.appendChild(overlay);
-      console.log('[CCQ.menu] overlay appended to body');
-    } else {
-      console.log('[CCQ.menu] overlay already in DOM, reusing');
-    }
-    // Force a frame so the transition runs; without it the panel pops
-    // in instantly because the element was just inserted.
-    requestAnimationFrame(function () {
-      overlay.classList.add('ccq-open');
-      console.log('[CCQ.menu] .ccq-open class added — should be visible now');
-    });
-    try { telemetry('menu_opened', {passage: (window.SugarCube && SugarCube.State && SugarCube.State.passage) || ''}); } catch (e) {}
-  }
-
-  function closeMenu() {
-    var overlay = document.getElementById('ccq-menu-overlay');
-    if (overlay) overlay.classList.remove('ccq-open');
-  }
-
-  // Capture-phase delegation. Capture so per-game .menu-icon click
-  // handlers (if any are ever added) can't swallow the event before
-  // we see it. Also handles `.ccq-home-trigger` — a convention any
-  // in-game button can opt into to fire goHome directly without
-  // navigating through an intermediate "Central Hub" trampoline
-  // passage. Earlier the trampoline pattern caused a "Returning…"
-  // screen to occasionally hang when the bridge pop raced the
-  // SugarCube re-render; firing goHome from the click instead skips
-  // the race entirely.
-  // ⚠ DIAGNOSTIC LOGGING — temporarily verbose to debug "burger doesn't
-  // open menu" reports. Logs every click on `document` (capture phase),
-  // what element was hit, and which selector (if any) it matched.
-  // Once the issue is resolved these `console.log` lines should be
-  // removed or downgraded.
-  console.log('[CCQ.menu] click delegation attached on document (capture)');
-
-  document.addEventListener('click', function (e) {
-    // Match both `.menu-icon` (modern, what the bridge auto-injects)
-    // AND `.header .menu` (legacy — Quiet Minute and any not-yet-
-    // rebuilt compiled HTML still use this older class). Without the
-    // legacy match, players who tapped the visible burger on a stale
-    // build saw nothing happen because the click selector didn't fit
-    // the actual element class.
-    var t = e.target;
-    var tagInfo = t && t.tagName
-        ? (t.tagName + (t.className ? '.' + String(t.className).split(' ').join('.') : ''))
-        : '(no target)';
-    console.log('[CCQ.menu] click hit:', tagInfo);
-
-    var icon = t.closest('.menu-icon, .header .menu');
-    if (icon) {
-      console.log('[CCQ.menu] matched menu trigger, opening menu',
-                  icon.className || icon.tagName);
-      e.preventDefault();
-      e.stopPropagation();
-      openMenu();
-      return;
-    }
-    var homeTrigger = t.closest('.ccq-home-trigger');
-    if (homeTrigger) {
-      console.log('[CCQ.menu] matched .ccq-home-trigger, firing goHome()');
-      e.preventDefault();
-      e.stopPropagation();
-      try { goHome(); } catch (err) { console.error('[CCQ] home trigger:', err); }
-      return;
-    }
-  }, true);
-
-  // Auto-inject a `<span class="menu-icon">≡</span>` into every
-  // `.header` row that doesn't already have one. Three of the seven
-  // games (Bingo Bash, Dog Quest, Quiet Minute) bake the icon into
-  // their markup; the rest (Salt Sludge, DASH Diet, Daily Check-In,
-  // Post-Play Survey, Vascular Village) don't. Doing the injection
-  // here gives every game the burger control without 50+ per-passage
-  // edits across 5 .tw files. Uses MutationObserver so the icon shows
-  // up on each new passage SugarCube renders, not just the first one.
-  function ensureMenuIconInHeaders(root) {
-    if (!root || !root.querySelectorAll) return;
-    var headers = root.querySelectorAll('.header');
-    if (headers.length) {
-      console.log('[CCQ.menu] ensureMenuIconInHeaders found',
-                  headers.length, 'header element(s)');
-    }
-    for (var i = 0; i < headers.length; i++) {
-      var header = headers[i];
-      // Skip if a burger already exists — match BOTH the modern
-      // `.menu-icon` class AND the legacy `.menu` class (Quiet Minute
-      // and other pre-rebuild HTMLs use the older class). For existing
-      // ones we ATTACH the handler instead of injecting a new icon —
-      // belt-and-suspenders so the menu opens regardless of whether
-      // the document-level click delegation actually fires (some
-      // WebViews swallow capture-phase events on touch).
-      var existing = header.querySelector('.menu-icon, .menu');
-      if (existing) {
-        attachDirectClickHandler(existing);
-        console.log('[CCQ.menu] header already has burger:',
-                    existing.className || existing.tagName,
-                    '— attached direct handler');
-        continue;
-      }
-      var icon = document.createElement('span');
-      icon.className = 'menu-icon';
-      icon.textContent = '≡';
-      icon.setAttribute('role', 'button');
-      icon.setAttribute('aria-label', 'Open menu');
-      icon.title = 'Menu';
-      // Visual styling lives in the !important `.menu-icon` block in
-      // injectMenuStyles() so it overrides any per-game CSS that might
-      // hide or recolor the glyph (e.g. Dog Quest's old display:none
-      // rule). No inline styles needed here.
-      attachDirectClickHandler(icon);
-      header.appendChild(icon);
-      console.log('[CCQ.menu] injected fresh menu-icon + direct handler');
-    }
-  }
-
-  // Direct click + touch handler attached straight to the element.
-  // Belt-and-suspenders alongside the document-level delegation: some
-  // Android WebView builds fire `click` only on the originating element
-  // and don't bubble it to `document` capture-phase listeners reliably
-  // (especially for span/anchor tags inside flex headers). Attaching
-  // the handler directly on the element guarantees the menu opens.
-  // Idempotent via a `data-ccq-handler-attached` attribute so we don't
-  // stack multiple handlers if the same element is processed twice
-  // (e.g. by both initial scan AND a MutationObserver fire).
-  function attachDirectClickHandler(el) {
-    if (!el || el.dataset.ccqHandlerAttached === 'yes') return;
-    el.dataset.ccqHandlerAttached = 'yes';
-    var fire = function (e) {
-      console.log('[CCQ.menu] direct handler fired on',
-                  el.className || el.tagName, e.type);
-      try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
-      openMenu();
-    };
-    el.addEventListener('click', fire);
-    // Some Android WebView builds + screen-reader gestures only fire
-    // `touchend` cleanly. Bind that too as a fallback. Mark with
-    // `passive: false` so preventDefault() works (otherwise the WebView
-    // can fire a synthetic click that we'd then double-handle, but the
-    // `data-ccq-handler-attached` guard protects against that).
-    el.addEventListener('touchend', fire, {passive: false});
-  }
-
-  function setupHeaderInjection() {
-    // Make sure the `.menu-icon` styles are in the DOM BEFORE any icons
-    // get injected — otherwise the freshly-added icon paints with
-    // default styling (often black on a dark header → invisible) until
-    // something else triggers injectMenuStyles. Calling it here is
-    // idempotent thanks to the `getElementById('ccq-menu-styles')`
-    // short-circuit.
-    injectMenuStyles();
-    ensureMenuIconInHeaders(document);
-    if (typeof MutationObserver !== 'function') return;
-    var observer = new MutationObserver(function (mutations) {
-      for (var i = 0; i < mutations.length; i++) {
-        var added = mutations[i].addedNodes;
-        for (var j = 0; j < added.length; j++) {
-          var node = added[j];
-          if (node.nodeType !== 1) continue;
-          // Element itself might be a header, OR contain headers.
-          if (node.matches && node.matches('.header')) {
-            ensureMenuIconInHeaders(node.parentNode || document);
-          }
-          ensureMenuIconInHeaders(node);
-        }
-      }
-    });
-    observer.observe(document.body, {childList: true, subtree: true});
-  }
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', setupHeaderInjection);
-  } else {
-    setupHeaderInjection();
-  }
-
-  // Expose imperative entry points so games can trigger the menu from
-  // a custom widget if needed (e.g. a "More" button).
-  window.CCQ.openMenu = openMenu;
-  window.CCQ.closeMenu = closeMenu;
-})();
-</script>
-<!-- CardioCare Quest — viewport override (strips phone-frame chrome). -->
-<style>
-/* CardioCare Quest — viewport override.
- * Injected into every Tweego-compiled game HTML at build time so the game
- * content fills the device's WebView naturally instead of rendering as a
- * "phone-shaped card inside a phone". The .tw authors designed their
- * stylesheets for twinery.org's desktop preview, where a phone-shaped
- * frame makes sense. On real devices that frame is redundant chrome.
- *
- * `!important` everywhere because it has to win against the per-game
- * UserStylesheet that ships in each .tw. Covers the actual SugarCube
- * 2.x DOM (`<tw-story>`, `<tw-passage>`, `#passages`, `.passage`) plus
- * the per-game wrapper conventions (.phone, .app, .container) and the
- * legacy Twine 1 `#story` selector for safety.
- */
-
-html, body {
-  margin: 0 !important;
-  padding: 0 !important;
-  width: 100% !important;
-  min-height: 100vh !important;
-  /* Override per-game body backgrounds (most are light grey #e8e8e8
-     or similar) so any uncovered area shows the same dark navy as the
-     Flutter Scaffold's SafeArea inset, not a stranded light strip. */
-  background-color: #1a1b2e !important;
-}
-
-/* Hide SugarCube's default sidebar — most game stylesheets do this
-   already but we enforce it for any new ones. */
-#ui-bar { display: none !important; }
-
-/* SugarCube 2.x uses custom elements for the passage chain. Without
-   `display: block` they're inline by default in some browsers, which
-   adds extra leading/baseline space above the phone wrapper. Margin
-   + padding zeroed so nothing pushes the phone down from the body
-   top. */
-tw-story, tw-passage, tw-passagedata, #passages, #story, .passage {
-  display: block !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  width: 100% !important;
-  max-width: 100% !important;
-}
-
-/* The "phone frame" wrappers used by all games — flatten to fill the
-   actual viewport. Strips rounded corners, drop shadows, fixed heights.
-   `min-height: 100vh` ensures the phone covers the entire WebView so
-   no light body background shows above OR below it. */
-.phone, .app, .container {
-  border-radius: 0 !important;
-  box-shadow: none !important;
-  margin: 0 !important;
-  width: 100% !important;
-  max-width: 100% !important;
-  min-height: 100vh !important;
-}
-
-/* Status-bar safe inset for the in-game header.
- *
- * The Flutter host removed `SafeArea(top: true)` so the WebView fills
- * edge-to-edge — that gives the dark game header a continuous look
- * with the OS status bar (no stranded band of Scaffold colour above
- * it). Trade-off: the header content (title text + burger glyph) was
- * sitting at the games' default 16px top-padding, which on Android
- * emulators put the title baseline right against the system "9:53"
- * status text.
- *
- * Pad the top of every .header by the OS-reported safe-area inset
- * plus the games' usual 12px breathing room. `env(safe-area-inset-top)`
- * is supported on modern Android WebView and iOS WKWebView; the 24px
- * fallback covers older Android builds where env() returns 0. The
- * !important wins over per-game `padding: 16px 22px` rules.
- *
- * Net visual: header background extends behind the status bar (no
- * empty band), but title + burger sit safely below the system text. */
-/* SugarCube auto-decorates any anchor whose href doesn't resolve to a
- * known passage with `a.link-external::after { content: " ↗" }`. Our
- * `.ccq-home-trigger` buttons (Bingo Bash Home, DASH "Back to
- * CardioCareQuest", Quiet Minute Done) use `href="javascript:void(0)"`
- * which trips that detection — but they never leave the WebView, so
- * the ↗ is misleading + visually noisy. Drop the pseudo on any
- * trigger-classed anchor across all games. */
-a.ccq-home-trigger::after,
-a.ccq-home-trigger.link-external::after {
-  content: none !important;
-  display: none !important;
-}
-
-.header {
-  /* `env(safe-area-inset-top, 24px)` returns 0 on Android emulators
-     because env IS defined (just zero) so the 24px fallback never
-     kicks in — the resulting 0+12=12px was actually LESS than the
-     games' original 16px, making the title sit even closer to the
-     status bar.
-     `max()` floors the padding at 40px (covers Android status bars,
-     ~24-30dp) and lets iOS notch devices use their larger reported
-     inset + 12px content padding when bigger. */
-  padding-top:
-    max(40px, calc(env(safe-area-inset-top, 0px) + 12px))
-    !important;
-}
-</style>
 </head>
 <body>
 	<div id="init-screen">
@@ -1051,14 +120,18 @@ body {
   font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif;
   background-color: #f4f1d8;
   margin: 0;
-  padding: 1.5em 0;
+  /* No outer padding: the game fills the screen edge-to-edge on every
+     device instead of floating as a card on a cream border. */
+  padding: 0;
 }
 
 #ui-bar { display: none; }
 
 #story {
   margin: 0 auto;
-  max-width: 380px;
+  /* Fill the full width on phones (was a fixed 380px card, which left
+     cream strips on wider screens). */
+  max-width: 100%;
   padding: 0;
 }
 
@@ -1069,15 +142,21 @@ body {
   line-height: 1.5;
 }
 
-/* Phone frame — viridis purple-blue gradient */
+/* Full-screen frame — viridis purple-blue gradient */
 .phone {
   background: linear-gradient(180deg, #440154 0%, #3b528b 50%, #21918c 100%);
-  border-radius: 32px;
+  /* Edge-to-edge: no rounded corners / card shadow now that the gradient
+     fills the whole screen. */
+  border-radius: 0;
   overflow: hidden;
-  box-shadow: 0 8px 30px rgba(0,0,0,0.18);
   color: #ffffff;
   position: relative;
-  min-height: 660px;
+  /* Fill the viewport height on every device. dvh tracks the *visible*
+     viewport (handles the iOS status/nav bars); vh is the fallback for
+     any engine without dvh support. min-height (not height) lets tall
+     content still grow and scroll. */
+  min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -1315,6 +394,10 @@ body {
   cursor: pointer !important;
   border: 2px solid !important;
   box-sizing: border-box !important;
+  min-height: 48px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
 }
 .choice-btn.lowers,
 .phone a.choice-btn.lowers,
@@ -1579,13 +662,18 @@ body {
   text-decoration: none !important;
   font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif !important;
   box-sizing: border-box !important;
+  min-height: 48px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
 }
 
 /* Plain in-text links */
 .phone a.link-internal:not(.btn-primary):not(.btn-secondary):not(.choice-btn):not(.ingredient):not(.macro-link),
 .phone a.macro-link:not(.btn-primary):not(.btn-secondary):not(.choice-btn):not(.ingredient) {
   color: #fde725;
-}</style><script role="script" id="twine-user-script" type="text/twine-javascript">/* CardioCare Quest — auto passage telemetry.
+}</style><script role="script" id="twine-user-script" type="text/twine-javascript">/* twine-user-script #1: "UserScript" */
+/* CardioCare Quest — auto passage telemetry.
    Fires `passage_entered` for every passage entry via the FlutterBridge.
    Snapshots SugarCube state.variables so researchers see the player's
    path plus key in-game state. Best-effort; swallows errors. */
@@ -1651,6 +739,22 @@ $(document).on(":passagedisplay", function (ev) {
     }
   }
 
+  // Diet filter: hide meal-builder items the player does not eat, and only
+  // show the plant stand-ins (Lentils, Salted crackers) when a diet has
+  // removed a meat item, so the "I eat everything" grid stays unchanged.
+  var diet = (State.variables && State.variables.playerDiet) || "everything";
+  var allWraps = document.querySelectorAll(".ing-wrap");
+  for (var w = 0; w < allWraps.length; w++) {
+    var wr = allWraps[w];
+    var wDiet = wr.dataset.ingDiet || "";
+    var hide = false;
+    if (wDiet === "meat" && (diet === "vegetarian" || diet === "vegan")) hide = true;
+    if (wDiet === "dairy" && diet === "vegan") hide = true;
+    // Plant stand-ins only appear for the veg/vegan diets.
+    if (wDiet === "plant" && diet === "everything") hide = true;
+    wr.style.display = hide ? "none" : "";
+  }
+
   var wraps = document.querySelectorAll(".ing-wrap");
   for (var i = 0; i < wraps.length; i++) {
     var wrap = wraps[i];
@@ -1692,7 +796,293 @@ $(document).on(":passagedisplay", function (ev) {
       };
     })(wrap, name, emoji, fullLabel));
   }
-});</script><tw-passagedata pid="1" name="Story innit" tags="Important/Needed" position="100,100" size="100,100">/*
+});
+/* twine-user-script #2: "DashHelpers" */
+/*
+DASH Diet Game — food POOL + weighted, non-repeating picker.
+Convention: game logic lives here in a [script] passage's setup.*
+namespace rather than inline in passages (mirrors Salt Sludge's
+SaltHelpers). UPDATE6 (no repeat), UPDATE7 (self-terminating via
+null), UPDATE8 (weight the draw toward packaged foods).
+
+setup.dash.foods — every classifiable food. Each object:
+  { id, emoji, name, desc, correct: 'lowers'|'raises', explain, packaged }
+The emoji / name / desc / correct / explain content for the first six
+items is lifted verbatim from the old hardcoded Food Card 1..6 + the
+Food Result explain chain; the remaining packaged items were added so
+the packaged-weighting actually biases the draw.
+*/
+setup.dash = setup.dash || {};
+
+setup.dash.foods = [
+  {
+    id: "banana",
+    emoji: "🍌",
+    name: "Banana",
+    desc: "A common fruit. Sweet. Easy to find. You probably already know someone who eats one every morning.",
+    correct: "lowers",
+    explain: "Bananas are high in potassium, a mineral that helps your body remove extra salt. Less salt means less pressure on your blood vessels. A banana a day is a real heart-health tool.",
+    packaged: false
+  },
+  {
+    id: "noodles",
+    emoji: "🍜",
+    name: "Instant Noodles",
+    desc: "Quick to make. Inexpensive. A meal that shows up in most kitchens at some point.",
+    correct: "raises",
+    explain: "One packet of instant noodles has about two thirds of all the salt you should eat in a whole day. One packet, before anything else you eat.",
+    packaged: true
+  },
+  {
+    id: "darkchocolate",
+    emoji: "🍫",
+    name: "Dark Chocolate",
+    desc: "Not milk chocolate. Dark, seventy percent cacao or higher. A small square. Not a whole bar.",
+    correct: "lowers",
+    explain: "Dark chocolate has natural plant compounds that help blood vessels relax and open up. A small amount, around one square, can lower blood pressure a little. The key word is small.",
+    packaged: false
+  },
+  {
+    id: "bacon",
+    emoji: "🥓",
+    name: "Bacon",
+    desc: "Soaked in salt. Full of unhealthy fat. A food that appears on a lot of breakfast plates.",
+    correct: "raises",
+    explain: "Bacon is soaked in salt and full of unhealthy fat. The salt pulls extra water into your blood. The fat makes your blood vessels stiff. Together they make your heart work much harder.",
+    packaged: true,
+    diet: "meat"
+  },
+  {
+    id: "spinach",
+    emoji: "🥬",
+    name: "Spinach",
+    desc: "A leafy green. Eaten raw or cooked. Shows up in salads, soups, side dishes.",
+    correct: "lowers",
+    explain: "Spinach is high in potassium and magnesium, two minerals that help keep blood pressure healthy. One of the best foods you can eat for your heart.",
+    packaged: false
+  },
+  {
+    id: "cannedsoup",
+    emoji: "🥫",
+    name: "Canned Soup",
+    desc: "Warm. Convenient. A common meal for busy days or cold evenings.",
+    correct: "raises",
+    explain: "One bowl of canned soup often has a third to a half of a whole day's salt. And many cans hold two bowls. Checking the salt on food labels is one of the best things you can do for your blood pressure.",
+    packaged: true
+  },
+  {
+    id: "pretzels",
+    emoji: "🥨",
+    name: "Salted Pretzels",
+    desc: "A crunchy snack straight from the bag. Twisted, golden, coated in coarse salt.",
+    correct: "raises",
+    explain: "Those salt crystals on top are the giveaway. One handful of pretzels carries a lot of salt, and the bag rarely holds just one handful.",
+    packaged: true
+  },
+  {
+    id: "frozenpizza",
+    emoji: "🍕",
+    name: "Frozen Pizza",
+    desc: "Straight from the freezer to the oven. Cheese, salty toppings, a salted crust.",
+    correct: "raises",
+    explain: "Between the cheese, the packaged meat, and the dough, one frozen pizza can hold most of a whole day's salt in a single meal.",
+    packaged: true,
+    diet: "dairy"
+  },
+  {
+    id: "deliham",
+    emoji: "🍖",
+    name: "Deli Ham",
+    desc: "Sliced at the deli counter. Pink, thin, ready for a sandwich.",
+    correct: "raises",
+    explain: "Packaged deli meats are preserved with a lot of salt. A few slices carry a surprising amount of salt before the bread is even added.",
+    packaged: true,
+    diet: "meat"
+  },
+  {
+    id: "sweetpotato",
+    emoji: "🍠",
+    name: "Sweet Potato",
+    desc: "An orange root vegetable. Baked, roasted, or mashed. Naturally sweet.",
+    correct: "lowers",
+    explain: "Sweet potato is quietly one of the best blood pressure foods. Lots of potassium, very little salt. Your blood vessels love it.",
+    packaged: false
+  },
+  {
+    id: "beans",
+    emoji: "🫘",
+    name: "Beans",
+    desc: "Black beans, kidney beans, chickpeas. In stews, salads, and on toast.",
+    correct: "lowers",
+    explain: "Beans are full of potassium and fiber and have almost no salt when cooked from dry. They help your body handle salt and keep your heart steady.",
+    packaged: false
+  },
+  {
+    id: "oats",
+    emoji: "🥣",
+    name: "Oats",
+    desc: "Plain porridge oats. Cooked with milk or water for breakfast.",
+    correct: "lowers",
+    explain: "Plain oats are low in salt and high in fiber. That fiber helps lower blood pressure over time. Just watch the flavored packets, which often add sugar and salt.",
+    packaged: false
+  },
+  {
+    id: "salmon",
+    emoji: "🐟",
+    name: "Salmon",
+    desc: "A pink fish. Baked, grilled, or pan-cooked. A common dinner.",
+    correct: "lowers",
+    explain: "Salmon has healthy fats that help keep your blood vessels soft and flexible. Fresh fish is low in salt and one of the best foods for your heart.",
+    packaged: false,
+    diet: "meat"
+  },
+  {
+    id: "avocado",
+    emoji: "🥑",
+    name: "Avocado",
+    desc: "A green, creamy fruit. Mashed on toast or sliced into a salad.",
+    correct: "lowers",
+    explain: "Avocado is rich in potassium, even more than a banana. Potassium helps your body clear extra salt, which eases pressure on your blood vessels.",
+    packaged: false
+  },
+  {
+    id: "oranges",
+    emoji: "🍊",
+    name: "Oranges",
+    desc: "A sweet, juicy fruit you peel. Eaten as a snack or squeezed for juice.",
+    correct: "lowers",
+    explain: "Oranges are full of potassium and vitamin C. Whole oranges are best. They give you the potassium with the fiber and none of the added sugar of some juices.",
+    packaged: false
+  },
+  {
+    id: "yogurt",
+    emoji: "🥛",
+    name: "Plain Yogurt",
+    desc: "Plain, unsweetened yogurt. Eaten on its own or with fruit.",
+    correct: "lowers",
+    explain: "Plain low-fat yogurt gives you calcium, which helps keep blood pressure healthy. Choose plain over the sweetened cups, which pack in a lot of sugar.",
+    packaged: false,
+    diet: "dairy"
+  },
+  {
+    id: "tomato",
+    emoji: "🍅",
+    name: "Tomato",
+    desc: "A red fruit used like a vegetable. Fresh in salads and sandwiches.",
+    correct: "lowers",
+    explain: "Fresh tomatoes are low in salt and high in potassium. Just note that ketchup and canned tomato sauce are different, as they often have a lot of added salt.",
+    packaged: false
+  },
+  {
+    id: "soysauce",
+    emoji: "🍶",
+    name: "Soy Sauce",
+    desc: "A dark, salty liquid. Splashed over rice, noodles, and stir-fries.",
+    correct: "raises",
+    explain: "One tablespoon of soy sauce can hold almost half a day's worth of salt. A few splashes add up fast. Low-salt soy sauce is an easy swap that helps.",
+    packaged: true
+  },
+  {
+    id: "chips",
+    emoji: "🍟",
+    name: "Potato Chips",
+    desc: "Thin, crispy, salty slices from a bag. A snack that is hard to stop eating.",
+    correct: "raises",
+    explain: "Chips are coated in salt and easy to eat by the handful. One small bag can carry a big part of a day's salt before you notice.",
+    packaged: true
+  },
+  {
+    id: "pickles",
+    emoji: "🥒",
+    name: "Pickles",
+    desc: "Cucumbers soaked in salty brine. Crunchy and sour, often with a sandwich.",
+    correct: "raises",
+    explain: "Pickles sit in salty water for days, so they soak up a lot of salt. Even one large pickle can hold a big share of your daily limit.",
+    packaged: true
+  },
+  {
+    id: "cheese",
+    emoji: "🧀",
+    name: "Cheese",
+    desc: "A firm, tasty dairy food. Sliced on sandwiches or melted over meals.",
+    correct: "raises",
+    explain: "Cheese is saltier than most people expect, and it is easy to eat a lot. A little goes a long way, so smaller amounts are kinder to your blood pressure.",
+    packaged: true,
+    diet: "dairy"
+  },
+  {
+    id: "hotdog",
+    emoji: "🌭",
+    name: "Hot Dog",
+    desc: "A pink sausage in a soft bun. A common food at ball games and cookouts.",
+    correct: "raises",
+    explain: "Hot dogs are processed meat, preserved with a lot of salt. One hot dog, before the bun and toppings, already carries a big share of a day's salt.",
+    packaged: true,
+    diet: "meat"
+  },
+  {
+    id: "beets",
+    emoji: "🫜",
+    name: "Beets",
+    desc: "A deep red root vegetable. Roasted, boiled, or grated into a salad.",
+    correct: "lowers",
+    explain: "Beets have natural nitrates that help your blood vessels relax and open up. Studies show a cup of beets can gently lower blood pressure.",
+    packaged: false
+  }
+];
+
+/* True if a food fits the player's diet choice.
+   - "meat" foods (bacon, ham) are hidden for vegetarian and vegan.
+   - "dairy" foods (frozen pizza's cheese) are hidden for vegan.
+   - anything with no diet tag is a plant food, shown to everyone. */
+setup.dash.fitsDiet = function (f) {
+  var diet = State.variables.playerDiet || "everything";
+  if (diet === "vegan" && (f.diet === "meat" || f.diet === "dairy")) return false;
+  if (diet === "vegetarian" && f.diet === "meat") return false;
+  return true;
+};
+
+/* How many quiz foods this player will actually see, given their diet.
+   Used for the "Round X of N" labels so the count matches what they get. */
+setup.dash.eligibleCount = function () {
+  return setup.dash.foods.filter(setup.dash.fitsDiet).length;
+};
+
+/* Draw the next food:
+   - candidates = foods not yet in seenFoods (UPDATE6, no repeats) AND
+     that fit the player's diet choice (veg / vegan hide animal foods)
+   - none left  -> return null so Round Start ends the quiz (UPDATE7)
+   - otherwise weight packaged items 2.5x vs 1x for fresh (UPDATE8),
+     record the pick in seenFoods, stash it in $currentFood, return it. */
+setup.dash.pickFood = function () {
+  var seen = State.variables.seenFoods || [];
+  var candidates = setup.dash.foods.filter(function (f) {
+    return seen.indexOf(f.id) === -1 && setup.dash.fitsDiet(f);
+  });
+  if (candidates.length === 0) {
+    return null;
+  }
+  var weights = candidates.map(function (f) {
+    return f.packaged ? 2.5 : 1;
+  });
+  var total = 0;
+  for (var i = 0; i < weights.length; i++) {
+    total += weights[i];
+  }
+  var r = Math.random() * total;
+  var chosen = candidates[candidates.length - 1];
+  for (var j = 0; j < candidates.length; j++) {
+    r -= weights[j];
+    if (r <= 0) {
+      chosen = candidates[j];
+      break;
+    }
+  }
+  seen.push(chosen.id);
+  State.variables.seenFoods = seen;
+  State.variables.currentFood = chosen;
+  return chosen;
+};</script><tw-passagedata pid="1" name="Story innit" tags="Important/Needed" position="100,100" size="100,100">/*
 SYSTEM CODE: runs once at the very start.
 
 Variables:
@@ -1716,6 +1106,16 @@ You do not need to edit this.
 &lt;&lt;set $lastFood to &quot;&quot;&gt;&gt;
 &lt;&lt;set $lastCorrect to false&gt;&gt;
 &lt;&lt;set $meal to []&gt;&gt;
+/* Food-pool state (UPDATE6/7/8): seenFoods tracks which pool ids have
+   already been shown this play-through; currentFood is the object the
+   generic Food Card / Food Result render. Reset here so PLAY AGAIN
+   starts from a full, unshuffled-order pool. */
+&lt;&lt;set $seenFoods to []&gt;&gt;
+&lt;&lt;set $currentFood to null&gt;&gt;
+/* Diet choice (everything / vegetarian / vegan). Set on the Diet Choice
+   screen right after Welcome. Foods tagged diet:"meat"/"dairy" are hidden
+   for the matching diet so no one is shown food they do not eat. */
+&lt;&lt;set $playerDiet to &quot;everything&quot;&gt;&gt;
 /* One-shot guard so Meal Result&#39;s submitResponse fires exactly once
    per play-through. Reset on Story innit so PLAY AGAIN gets a fresh
    shot. See ::Meal Result for the submit body. */
@@ -1736,16 +1136,51 @@ Card 1 of 2 before gameplay starts.
 
 &lt;p class=&quot;narrative center&quot;&gt;Hey $playerName.&lt;/p&gt;
 
-&lt;p class=&quot;narrative&quot;&gt;DASH means Dietary Approaches to Stop Hypertension. A way of eating proven to lower blood pressure.&lt;/p&gt;
+&lt;p class=&quot;narrative&quot;&gt;DASH is a way of eating that is proven to lower high blood pressure.&lt;/p&gt;
 
 &lt;p class=&quot;narrative&quot;&gt;This game shows you which everyday foods help and which ones work against you.&lt;/p&gt;
 
 &lt;div class=&quot;spacer&quot;&gt;&lt;/div&gt;
 
-&lt;a class=&quot;btn-primary&quot; data-passage=&quot;How To Play&quot;&gt;HOW IT WORKS&lt;/a&gt;
+&lt;a class=&quot;btn-primary&quot; data-passage=&quot;Diet Choice&quot;&gt;NEXT&lt;/a&gt;
 
 &lt;/div&gt;
-&lt;/div&gt;</tw-passagedata><tw-passagedata pid="3" name="How To Play" tags="Important/Needed nobr" position="350,100" size="100,100">/*
+&lt;/div&gt;</tw-passagedata><tw-passagedata pid="11" name="Diet Choice" tags="Important/Needed nobr" position="225,225" size="100,100">/*
+DIET CHOICE: Ask once what the player eats. Sets $playerDiet, which
+setup.dash.fitsDiet() reads to hide meat/dairy foods for vegetarian /
+vegan players in both the quiz and the meal builder.
+*/
+
+&lt;div class=&quot;phone&quot;&gt;
+&lt;div class=&quot;header&quot;&gt;&lt;span&gt;DASH Game&lt;/span&gt;&lt;/div&gt;
+&lt;div class=&quot;content&quot;&gt;
+
+&lt;span class=&quot;hero-emoji&quot;&gt;🍽️&lt;/span&gt;
+
+&lt;h2 class=&quot;intro-title&quot;&gt;What do you eat?&lt;/h2&gt;
+
+&lt;p class=&quot;narrative center&quot;&gt;Pick one. We will only show you foods you actually eat.&lt;/p&gt;
+
+&lt;div class=&quot;spacer&quot;&gt;&lt;/div&gt;
+
+&lt;&lt;link &#39;🍗  I eat everything&#39;&gt;&gt;&lt;&lt;set $playerDiet to &quot;everything&quot;&gt;&gt;&lt;&lt;goto &quot;How To Play&quot;&gt;&gt;&lt;&lt;/link&gt;&gt;
+
+&lt;&lt;link &#39;🥗  Vegetarian (no meat)&#39;&gt;&gt;&lt;&lt;set $playerDiet to &quot;vegetarian&quot;&gt;&gt;&lt;&lt;goto &quot;How To Play&quot;&gt;&gt;&lt;&lt;/link&gt;&gt;
+
+&lt;&lt;link &#39;🌱  Vegan (no meat or dairy)&#39;&gt;&gt;&lt;&lt;set $playerDiet to &quot;vegan&quot;&gt;&gt;&lt;&lt;goto &quot;How To Play&quot;&gt;&gt;&lt;&lt;/link&gt;&gt;
+
+&lt;/div&gt;
+&lt;/div&gt;
+
+&lt;&lt;script&gt;&gt;
+setTimeout(function () {
+  var links = document.querySelectorAll(&#39;.content a.macro-link, .content a.link-internal&#39;);
+  for (var i = 0; i &lt; links.length; i++) {
+    links[i].classList.add(&#39;btn-primary&#39;);
+    links[i].style.marginBottom = &#39;12px&#39;;
+  }
+}, 0);
+&lt;&lt;/script&gt;&gt;</tw-passagedata><tw-passagedata pid="3" name="How To Play" tags="Important/Needed nobr" position="350,100" size="100,100">/*
 RULES in one screen.
 Card 2 of 2 before gameplay starts.
 */
@@ -1770,33 +1205,24 @@ Card 2 of 2 before gameplay starts.
 
 &lt;/div&gt;
 &lt;/div&gt;</tw-passagedata><tw-passagedata pid="4" name="Round Start" tags="Important/Needed nobr" position="475,100" size="100,100">/*
-START OF EACH FOOD CARD ROUND.
-Shows current round, score meters, and routes to the food card.
+ROUND ROUTER (UPDATE6/7/8).
+No longer a UI screen. Draws the next food from the weighted,
+non-repeating pool via setup.dash.pickFood(). When the pool is
+exhausted pickFood() returns null and we advance to the meal builder
+(the same phase the old Food Result advanced to after the last card).
+Otherwise we render the single generic Food Card for $currentFood.
+*/
+&lt;&lt;set _f to setup.dash.pickFood()&gt;&gt;
+&lt;&lt;if _f is null&gt;&gt;&lt;&lt;goto &quot;Meal Builder Intro&quot;&gt;&gt;&lt;&lt;else&gt;&gt;&lt;&lt;goto &quot;Food Card&quot;&gt;&gt;&lt;&lt;/if&gt;&gt;</tw-passagedata><tw-passagedata pid="5" name="Food Card" tags="Important/Needed nobr" position="600,100" size="100,100">/*
+GENERIC FOOD CARD (UPDATE6/7/8).
+Renders whatever setup.dash.pickFood() stashed in $currentFood. The two
+choices score against $currentFood.correct: a matching answer bumps
+$score and sets $lastCorrect true; a mismatch bumps $wrong and sets it
+false. Then on to Food Result. Replaces the old hardcoded Food Card 1..6.
 */
 
 &lt;div class=&quot;phone&quot;&gt;
-&lt;div class=&quot;header&quot;&gt;&lt;span&gt;DASH Game&lt;/span&gt;&lt;span class=&quot;round-label&quot;&gt;Round $round of 6&lt;/span&gt;&lt;/div&gt;
-
-&lt;div class=&quot;meters-wrap&quot;&gt;
-&lt;div class=&quot;meter-row&quot;&gt;&lt;div class=&quot;meter-label&quot;&gt;Correct&lt;/div&gt;&lt;div class=&quot;meter-bar&quot;&gt;&lt;div class=&quot;meter-bar-fill correct&quot; @style=&quot;&#39;width: &#39; + Math.min(100, ($score / 6) * 100) + &#39;%&#39;&quot;&gt;&lt;/div&gt;&lt;/div&gt;&lt;/div&gt;
-&lt;div class=&quot;meter-row&quot;&gt;&lt;div class=&quot;meter-label&quot;&gt;Wrong&lt;/div&gt;&lt;div class=&quot;meter-bar&quot;&gt;&lt;div class=&quot;meter-bar-fill wrong&quot; @style=&quot;&#39;width: &#39; + Math.min(100, ($wrong / 6) * 100) + &#39;%&#39;&quot;&gt;&lt;/div&gt;&lt;/div&gt;&lt;/div&gt;
-&lt;/div&gt;
-
-&lt;div class=&quot;content&quot;&gt;
-
-&lt;p class=&quot;round-status&quot;&gt;A food is coming. Think about what it does to blood pressure before you answer.&lt;/p&gt;
-
-&lt;div class=&quot;spacer&quot;&gt;&lt;/div&gt;
-
-&lt;&lt;if $round is 1&gt;&gt;&lt;a class=&quot;btn-primary&quot; data-passage=&quot;Food Card 1&quot;&gt;SHOW ME THE FOOD&lt;/a&gt;&lt;&lt;elseif $round is 2&gt;&gt;&lt;a class=&quot;btn-primary&quot; data-passage=&quot;Food Card 2&quot;&gt;SHOW ME THE FOOD&lt;/a&gt;&lt;&lt;elseif $round is 3&gt;&gt;&lt;a class=&quot;btn-primary&quot; data-passage=&quot;Food Card 3&quot;&gt;SHOW ME THE FOOD&lt;/a&gt;&lt;&lt;elseif $round is 4&gt;&gt;&lt;a class=&quot;btn-primary&quot; data-passage=&quot;Food Card 4&quot;&gt;SHOW ME THE FOOD&lt;/a&gt;&lt;&lt;elseif $round is 5&gt;&gt;&lt;a class=&quot;btn-primary&quot; data-passage=&quot;Food Card 5&quot;&gt;SHOW ME THE FOOD&lt;/a&gt;&lt;&lt;else&gt;&gt;&lt;a class=&quot;btn-primary&quot; data-passage=&quot;Food Card 6&quot;&gt;SHOW ME THE FOOD&lt;/a&gt;&lt;&lt;/if&gt;&gt;
-
-&lt;/div&gt;
-&lt;/div&gt;</tw-passagedata><tw-passagedata pid="5" name="Food Card 1" tags="Important/Needed nobr" position="600,100" size="100,100">/*
-FOOD CARD 1: Banana. Correct = Lowers BP.
-*/
-
-&lt;div class=&quot;phone&quot;&gt;
-&lt;div class=&quot;header&quot;&gt;&lt;span&gt;DASH Game&lt;/span&gt;&lt;span class=&quot;round-label&quot;&gt;Round 1 of 6&lt;/span&gt;&lt;/div&gt;
+&lt;div class=&quot;header&quot;&gt;&lt;span&gt;DASH Game&lt;/span&gt;&lt;span class=&quot;round-label&quot;&gt;Round $round of &lt;&lt;print setup.dash.eligibleCount()&gt;&gt;&lt;/span&gt;&lt;/div&gt;
 
 &lt;div class=&quot;meters-wrap&quot;&gt;
 &lt;div class=&quot;meter-row&quot;&gt;&lt;div class=&quot;meter-label&quot;&gt;Correct&lt;/div&gt;&lt;div class=&quot;meter-bar&quot;&gt;&lt;div class=&quot;meter-bar-fill correct&quot; @style=&quot;&#39;width: &#39; + Math.min(100, ($score / 6) * 100) + &#39;%&#39;&quot;&gt;&lt;/div&gt;&lt;/div&gt;&lt;/div&gt;
@@ -1806,9 +1232,9 @@ FOOD CARD 1: Banana. Correct = Lowers BP.
 &lt;div class=&quot;content&quot;&gt;
 
 &lt;div class=&quot;quiz-card&quot;&gt;
-&lt;span class=&quot;quiz-emoji&quot;&gt;🍌&lt;/span&gt;
-&lt;h2 class=&quot;quiz-name&quot;&gt;Banana&lt;/h2&gt;
-&lt;p class=&quot;quiz-desc&quot;&gt;A common fruit. Sweet. Easy to find. You probably already know someone who eats one every morning.&lt;/p&gt;
+&lt;span class=&quot;quiz-emoji&quot;&gt;&lt;&lt;print $currentFood.emoji&gt;&gt;&lt;/span&gt;
+&lt;h2 class=&quot;quiz-name&quot;&gt;&lt;&lt;print $currentFood.name&gt;&gt;&lt;/h2&gt;
+&lt;p class=&quot;quiz-desc&quot;&gt;&lt;&lt;print $currentFood.desc&gt;&gt;&lt;/p&gt;
 &lt;/div&gt;
 
 &lt;div class=&quot;question-prompt&quot;&gt;What does it do to blood pressure?&lt;/div&gt;
@@ -1816,16 +1242,26 @@ FOOD CARD 1: Banana. Correct = Lowers BP.
 &lt;div class=&quot;choice-row&quot;&gt;
 
 &lt;&lt;link &#39;&lt;span&gt;LOWERS BP&lt;/span&gt;&#39;&gt;&gt;
-&lt;&lt;set $lastFood to &quot;banana&quot;&gt;&gt;
+&lt;&lt;set $lastFood to $currentFood.id&gt;&gt;
+&lt;&lt;if $currentFood.correct is &quot;lowers&quot;&gt;&gt;
 &lt;&lt;set $lastCorrect to true&gt;&gt;
 &lt;&lt;set $score to $score + 1&gt;&gt;
+&lt;&lt;else&gt;&gt;
+&lt;&lt;set $lastCorrect to false&gt;&gt;
+&lt;&lt;set $wrong to $wrong + 1&gt;&gt;
+&lt;&lt;/if&gt;&gt;
 &lt;&lt;goto &quot;Food Result&quot;&gt;&gt;
 &lt;&lt;/link&gt;&gt;
 
 &lt;&lt;link &#39;&lt;span&gt;RAISES BP&lt;/span&gt;&#39;&gt;&gt;
-&lt;&lt;set $lastFood to &quot;banana&quot;&gt;&gt;
+&lt;&lt;set $lastFood to $currentFood.id&gt;&gt;
+&lt;&lt;if $currentFood.correct is &quot;raises&quot;&gt;&gt;
+&lt;&lt;set $lastCorrect to true&gt;&gt;
+&lt;&lt;set $score to $score + 1&gt;&gt;
+&lt;&lt;else&gt;&gt;
 &lt;&lt;set $lastCorrect to false&gt;&gt;
 &lt;&lt;set $wrong to $wrong + 1&gt;&gt;
+&lt;&lt;/if&gt;&gt;
 &lt;&lt;goto &quot;Food Result&quot;&gt;&gt;
 &lt;&lt;/link&gt;&gt;
 
@@ -1839,254 +1275,14 @@ setTimeout(function () {
   if (btns.length &gt;= 1) btns[0].classList.add(&#39;choice-btn&#39;, &#39;lowers&#39;);
   if (btns.length &gt;= 2) btns[1].classList.add(&#39;choice-btn&#39;, &#39;raises&#39;);
 }, 0);
-&lt;&lt;/script&gt;&gt;</tw-passagedata><tw-passagedata pid="6" name="Food Card 2" tags="Important/Needed nobr" position="725,100" size="100,100">/*
-FOOD CARD 2: Instant Noodles. Correct = Raises BP.
-*/
-
-&lt;div class=&quot;phone&quot;&gt;
-&lt;div class=&quot;header&quot;&gt;&lt;span&gt;DASH Game&lt;/span&gt;&lt;span class=&quot;round-label&quot;&gt;Round 2 of 6&lt;/span&gt;&lt;/div&gt;
-
-&lt;div class=&quot;meters-wrap&quot;&gt;
-&lt;div class=&quot;meter-row&quot;&gt;&lt;div class=&quot;meter-label&quot;&gt;Correct&lt;/div&gt;&lt;div class=&quot;meter-bar&quot;&gt;&lt;div class=&quot;meter-bar-fill correct&quot; @style=&quot;&#39;width: &#39; + Math.min(100, ($score / 6) * 100) + &#39;%&#39;&quot;&gt;&lt;/div&gt;&lt;/div&gt;&lt;/div&gt;
-&lt;div class=&quot;meter-row&quot;&gt;&lt;div class=&quot;meter-label&quot;&gt;Wrong&lt;/div&gt;&lt;div class=&quot;meter-bar&quot;&gt;&lt;div class=&quot;meter-bar-fill wrong&quot; @style=&quot;&#39;width: &#39; + Math.min(100, ($wrong / 6) * 100) + &#39;%&#39;&quot;&gt;&lt;/div&gt;&lt;/div&gt;&lt;/div&gt;
-&lt;/div&gt;
-
-&lt;div class=&quot;content&quot;&gt;
-
-&lt;div class=&quot;quiz-card&quot;&gt;
-&lt;span class=&quot;quiz-emoji&quot;&gt;🍜&lt;/span&gt;
-&lt;h2 class=&quot;quiz-name&quot;&gt;Instant Noodles&lt;/h2&gt;
-&lt;p class=&quot;quiz-desc&quot;&gt;Quick to make. Inexpensive. A meal that shows up in most kitchens at some point.&lt;/p&gt;
-&lt;/div&gt;
-
-&lt;div class=&quot;question-prompt&quot;&gt;What does it do to blood pressure?&lt;/div&gt;
-
-&lt;div class=&quot;choice-row&quot;&gt;
-
-&lt;&lt;link &#39;&lt;span&gt;LOWERS BP&lt;/span&gt;&#39;&gt;&gt;
-&lt;&lt;set $lastFood to &quot;noodles&quot;&gt;&gt;
-&lt;&lt;set $lastCorrect to false&gt;&gt;
-&lt;&lt;set $wrong to $wrong + 1&gt;&gt;
-&lt;&lt;goto &quot;Food Result&quot;&gt;&gt;
-&lt;&lt;/link&gt;&gt;
-
-&lt;&lt;link &#39;&lt;span&gt;RAISES BP&lt;/span&gt;&#39;&gt;&gt;
-&lt;&lt;set $lastFood to &quot;noodles&quot;&gt;&gt;
-&lt;&lt;set $lastCorrect to true&gt;&gt;
-&lt;&lt;set $score to $score + 1&gt;&gt;
-&lt;&lt;goto &quot;Food Result&quot;&gt;&gt;
-&lt;&lt;/link&gt;&gt;
-
-&lt;/div&gt;
-&lt;/div&gt;
-&lt;/div&gt;
-
-&lt;&lt;script&gt;&gt;
-setTimeout(function () {
-  var btns = document.querySelectorAll(&#39;.choice-row a.macro-link, .choice-row a.link-internal&#39;);
-  if (btns.length &gt;= 1) btns[0].classList.add(&#39;choice-btn&#39;, &#39;lowers&#39;);
-  if (btns.length &gt;= 2) btns[1].classList.add(&#39;choice-btn&#39;, &#39;raises&#39;);
-}, 0);
-&lt;&lt;/script&gt;&gt;</tw-passagedata><tw-passagedata pid="7" name="Food Card 3" tags="Important/Needed nobr" position="850,100" size="100,100">/*
-FOOD CARD 3: Dark Chocolate. Correct = Lowers BP.
-*/
-
-&lt;div class=&quot;phone&quot;&gt;
-&lt;div class=&quot;header&quot;&gt;&lt;span&gt;DASH Game&lt;/span&gt;&lt;span class=&quot;round-label&quot;&gt;Round 3 of 6&lt;/span&gt;&lt;/div&gt;
-
-&lt;div class=&quot;meters-wrap&quot;&gt;
-&lt;div class=&quot;meter-row&quot;&gt;&lt;div class=&quot;meter-label&quot;&gt;Correct&lt;/div&gt;&lt;div class=&quot;meter-bar&quot;&gt;&lt;div class=&quot;meter-bar-fill correct&quot; @style=&quot;&#39;width: &#39; + Math.min(100, ($score / 6) * 100) + &#39;%&#39;&quot;&gt;&lt;/div&gt;&lt;/div&gt;&lt;/div&gt;
-&lt;div class=&quot;meter-row&quot;&gt;&lt;div class=&quot;meter-label&quot;&gt;Wrong&lt;/div&gt;&lt;div class=&quot;meter-bar&quot;&gt;&lt;div class=&quot;meter-bar-fill wrong&quot; @style=&quot;&#39;width: &#39; + Math.min(100, ($wrong / 6) * 100) + &#39;%&#39;&quot;&gt;&lt;/div&gt;&lt;/div&gt;&lt;/div&gt;
-&lt;/div&gt;
-
-&lt;div class=&quot;content&quot;&gt;
-
-&lt;div class=&quot;quiz-card&quot;&gt;
-&lt;span class=&quot;quiz-emoji&quot;&gt;🍫&lt;/span&gt;
-&lt;h2 class=&quot;quiz-name&quot;&gt;Dark Chocolate&lt;/h2&gt;
-&lt;p class=&quot;quiz-desc&quot;&gt;Not milk chocolate. Dark, seventy percent cacao or higher. A small square. Not a whole bar.&lt;/p&gt;
-&lt;/div&gt;
-
-&lt;div class=&quot;question-prompt&quot;&gt;What does it do to blood pressure?&lt;/div&gt;
-
-&lt;div class=&quot;choice-row&quot;&gt;
-
-&lt;&lt;link &#39;&lt;span&gt;LOWERS BP&lt;/span&gt;&#39;&gt;&gt;
-&lt;&lt;set $lastFood to &quot;darkchocolate&quot;&gt;&gt;
-&lt;&lt;set $lastCorrect to true&gt;&gt;
-&lt;&lt;set $score to $score + 1&gt;&gt;
-&lt;&lt;goto &quot;Food Result&quot;&gt;&gt;
-&lt;&lt;/link&gt;&gt;
-
-&lt;&lt;link &#39;&lt;span&gt;RAISES BP&lt;/span&gt;&#39;&gt;&gt;
-&lt;&lt;set $lastFood to &quot;darkchocolate&quot;&gt;&gt;
-&lt;&lt;set $lastCorrect to false&gt;&gt;
-&lt;&lt;set $wrong to $wrong + 1&gt;&gt;
-&lt;&lt;goto &quot;Food Result&quot;&gt;&gt;
-&lt;&lt;/link&gt;&gt;
-
-&lt;/div&gt;
-&lt;/div&gt;
-&lt;/div&gt;
-
-&lt;&lt;script&gt;&gt;
-setTimeout(function () {
-  var btns = document.querySelectorAll(&#39;.choice-row a.macro-link, .choice-row a.link-internal&#39;);
-  if (btns.length &gt;= 1) btns[0].classList.add(&#39;choice-btn&#39;, &#39;lowers&#39;);
-  if (btns.length &gt;= 2) btns[1].classList.add(&#39;choice-btn&#39;, &#39;raises&#39;);
-}, 0);
-&lt;&lt;/script&gt;&gt;</tw-passagedata><tw-passagedata pid="8" name="Food Card 4" tags="Important/Needed nobr" position="975,100" size="100,100">/*
-FOOD CARD 4: Bacon. Correct = Raises BP.
-*/
-
-&lt;div class=&quot;phone&quot;&gt;
-&lt;div class=&quot;header&quot;&gt;&lt;span&gt;DASH Game&lt;/span&gt;&lt;span class=&quot;round-label&quot;&gt;Round 4 of 6&lt;/span&gt;&lt;/div&gt;
-
-&lt;div class=&quot;meters-wrap&quot;&gt;
-&lt;div class=&quot;meter-row&quot;&gt;&lt;div class=&quot;meter-label&quot;&gt;Correct&lt;/div&gt;&lt;div class=&quot;meter-bar&quot;&gt;&lt;div class=&quot;meter-bar-fill correct&quot; @style=&quot;&#39;width: &#39; + Math.min(100, ($score / 6) * 100) + &#39;%&#39;&quot;&gt;&lt;/div&gt;&lt;/div&gt;&lt;/div&gt;
-&lt;div class=&quot;meter-row&quot;&gt;&lt;div class=&quot;meter-label&quot;&gt;Wrong&lt;/div&gt;&lt;div class=&quot;meter-bar&quot;&gt;&lt;div class=&quot;meter-bar-fill wrong&quot; @style=&quot;&#39;width: &#39; + Math.min(100, ($wrong / 6) * 100) + &#39;%&#39;&quot;&gt;&lt;/div&gt;&lt;/div&gt;&lt;/div&gt;
-&lt;/div&gt;
-
-&lt;div class=&quot;content&quot;&gt;
-
-&lt;div class=&quot;quiz-card&quot;&gt;
-&lt;span class=&quot;quiz-emoji&quot;&gt;🥓&lt;/span&gt;
-&lt;h2 class=&quot;quiz-name&quot;&gt;Bacon&lt;/h2&gt;
-&lt;p class=&quot;quiz-desc&quot;&gt;Cured in salt. High in saturated fat. A food that appears on a lot of breakfast plates.&lt;/p&gt;
-&lt;/div&gt;
-
-&lt;div class=&quot;question-prompt&quot;&gt;What does it do to blood pressure?&lt;/div&gt;
-
-&lt;div class=&quot;choice-row&quot;&gt;
-
-&lt;&lt;link &#39;&lt;span&gt;LOWERS BP&lt;/span&gt;&#39;&gt;&gt;
-&lt;&lt;set $lastFood to &quot;bacon&quot;&gt;&gt;
-&lt;&lt;set $lastCorrect to false&gt;&gt;
-&lt;&lt;set $wrong to $wrong + 1&gt;&gt;
-&lt;&lt;goto &quot;Food Result&quot;&gt;&gt;
-&lt;&lt;/link&gt;&gt;
-
-&lt;&lt;link &#39;&lt;span&gt;RAISES BP&lt;/span&gt;&#39;&gt;&gt;
-&lt;&lt;set $lastFood to &quot;bacon&quot;&gt;&gt;
-&lt;&lt;set $lastCorrect to true&gt;&gt;
-&lt;&lt;set $score to $score + 1&gt;&gt;
-&lt;&lt;goto &quot;Food Result&quot;&gt;&gt;
-&lt;&lt;/link&gt;&gt;
-
-&lt;/div&gt;
-&lt;/div&gt;
-&lt;/div&gt;
-
-&lt;&lt;script&gt;&gt;
-setTimeout(function () {
-  var btns = document.querySelectorAll(&#39;.choice-row a.macro-link, .choice-row a.link-internal&#39;);
-  if (btns.length &gt;= 1) btns[0].classList.add(&#39;choice-btn&#39;, &#39;lowers&#39;);
-  if (btns.length &gt;= 2) btns[1].classList.add(&#39;choice-btn&#39;, &#39;raises&#39;);
-}, 0);
-&lt;&lt;/script&gt;&gt;</tw-passagedata><tw-passagedata pid="9" name="Food Card 5" tags="Important/Needed nobr" position="1100,100" size="100,100">/*
-FOOD CARD 5: Spinach. Correct = Lowers BP.
-*/
-
-&lt;div class=&quot;phone&quot;&gt;
-&lt;div class=&quot;header&quot;&gt;&lt;span&gt;DASH Game&lt;/span&gt;&lt;span class=&quot;round-label&quot;&gt;Round 5 of 6&lt;/span&gt;&lt;/div&gt;
-
-&lt;div class=&quot;meters-wrap&quot;&gt;
-&lt;div class=&quot;meter-row&quot;&gt;&lt;div class=&quot;meter-label&quot;&gt;Correct&lt;/div&gt;&lt;div class=&quot;meter-bar&quot;&gt;&lt;div class=&quot;meter-bar-fill correct&quot; @style=&quot;&#39;width: &#39; + Math.min(100, ($score / 6) * 100) + &#39;%&#39;&quot;&gt;&lt;/div&gt;&lt;/div&gt;&lt;/div&gt;
-&lt;div class=&quot;meter-row&quot;&gt;&lt;div class=&quot;meter-label&quot;&gt;Wrong&lt;/div&gt;&lt;div class=&quot;meter-bar&quot;&gt;&lt;div class=&quot;meter-bar-fill wrong&quot; @style=&quot;&#39;width: &#39; + Math.min(100, ($wrong / 6) * 100) + &#39;%&#39;&quot;&gt;&lt;/div&gt;&lt;/div&gt;&lt;/div&gt;
-&lt;/div&gt;
-
-&lt;div class=&quot;content&quot;&gt;
-
-&lt;div class=&quot;quiz-card&quot;&gt;
-&lt;span class=&quot;quiz-emoji&quot;&gt;🥬&lt;/span&gt;
-&lt;h2 class=&quot;quiz-name&quot;&gt;Spinach&lt;/h2&gt;
-&lt;p class=&quot;quiz-desc&quot;&gt;A leafy green. Eaten raw or cooked. Shows up in salads, soups, side dishes.&lt;/p&gt;
-&lt;/div&gt;
-
-&lt;div class=&quot;question-prompt&quot;&gt;What does it do to blood pressure?&lt;/div&gt;
-
-&lt;div class=&quot;choice-row&quot;&gt;
-
-&lt;&lt;link &#39;&lt;span&gt;LOWERS BP&lt;/span&gt;&#39;&gt;&gt;
-&lt;&lt;set $lastFood to &quot;spinach&quot;&gt;&gt;
-&lt;&lt;set $lastCorrect to true&gt;&gt;
-&lt;&lt;set $score to $score + 1&gt;&gt;
-&lt;&lt;goto &quot;Food Result&quot;&gt;&gt;
-&lt;&lt;/link&gt;&gt;
-
-&lt;&lt;link &#39;&lt;span&gt;RAISES BP&lt;/span&gt;&#39;&gt;&gt;
-&lt;&lt;set $lastFood to &quot;spinach&quot;&gt;&gt;
-&lt;&lt;set $lastCorrect to false&gt;&gt;
-&lt;&lt;set $wrong to $wrong + 1&gt;&gt;
-&lt;&lt;goto &quot;Food Result&quot;&gt;&gt;
-&lt;&lt;/link&gt;&gt;
-
-&lt;/div&gt;
-&lt;/div&gt;
-&lt;/div&gt;
-
-&lt;&lt;script&gt;&gt;
-setTimeout(function () {
-  var btns = document.querySelectorAll(&#39;.choice-row a.macro-link, .choice-row a.link-internal&#39;);
-  if (btns.length &gt;= 1) btns[0].classList.add(&#39;choice-btn&#39;, &#39;lowers&#39;);
-  if (btns.length &gt;= 2) btns[1].classList.add(&#39;choice-btn&#39;, &#39;raises&#39;);
-}, 0);
-&lt;&lt;/script&gt;&gt;</tw-passagedata><tw-passagedata pid="10" name="Food Card 6" tags="Important/Needed nobr" position="1225,100" size="100,100">/*
-FOOD CARD 6: Canned Soup. Correct = Raises BP.
-*/
-
-&lt;div class=&quot;phone&quot;&gt;
-&lt;div class=&quot;header&quot;&gt;&lt;span&gt;DASH Game&lt;/span&gt;&lt;span class=&quot;round-label&quot;&gt;Round 6 of 6&lt;/span&gt;&lt;/div&gt;
-
-&lt;div class=&quot;meters-wrap&quot;&gt;
-&lt;div class=&quot;meter-row&quot;&gt;&lt;div class=&quot;meter-label&quot;&gt;Correct&lt;/div&gt;&lt;div class=&quot;meter-bar&quot;&gt;&lt;div class=&quot;meter-bar-fill correct&quot; @style=&quot;&#39;width: &#39; + Math.min(100, ($score / 6) * 100) + &#39;%&#39;&quot;&gt;&lt;/div&gt;&lt;/div&gt;&lt;/div&gt;
-&lt;div class=&quot;meter-row&quot;&gt;&lt;div class=&quot;meter-label&quot;&gt;Wrong&lt;/div&gt;&lt;div class=&quot;meter-bar&quot;&gt;&lt;div class=&quot;meter-bar-fill wrong&quot; @style=&quot;&#39;width: &#39; + Math.min(100, ($wrong / 6) * 100) + &#39;%&#39;&quot;&gt;&lt;/div&gt;&lt;/div&gt;&lt;/div&gt;
-&lt;/div&gt;
-
-&lt;div class=&quot;content&quot;&gt;
-
-&lt;div class=&quot;quiz-card&quot;&gt;
-&lt;span class=&quot;quiz-emoji&quot;&gt;🥫&lt;/span&gt;
-&lt;h2 class=&quot;quiz-name&quot;&gt;Canned Soup&lt;/h2&gt;
-&lt;p class=&quot;quiz-desc&quot;&gt;Warm. Convenient. A common meal for busy days or cold evenings.&lt;/p&gt;
-&lt;/div&gt;
-
-&lt;div class=&quot;question-prompt&quot;&gt;What does it do to blood pressure?&lt;/div&gt;
-
-&lt;div class=&quot;choice-row&quot;&gt;
-
-&lt;&lt;link &#39;&lt;span&gt;LOWERS BP&lt;/span&gt;&#39;&gt;&gt;
-&lt;&lt;set $lastFood to &quot;cannedsoup&quot;&gt;&gt;
-&lt;&lt;set $lastCorrect to false&gt;&gt;
-&lt;&lt;set $wrong to $wrong + 1&gt;&gt;
-&lt;&lt;goto &quot;Food Result&quot;&gt;&gt;
-&lt;&lt;/link&gt;&gt;
-
-&lt;&lt;link &#39;&lt;span&gt;RAISES BP&lt;/span&gt;&#39;&gt;&gt;
-&lt;&lt;set $lastFood to &quot;cannedsoup&quot;&gt;&gt;
-&lt;&lt;set $lastCorrect to true&gt;&gt;
-&lt;&lt;set $score to $score + 1&gt;&gt;
-&lt;&lt;goto &quot;Food Result&quot;&gt;&gt;
-&lt;&lt;/link&gt;&gt;
-
-&lt;/div&gt;
-&lt;/div&gt;
-&lt;/div&gt;
-
-&lt;&lt;script&gt;&gt;
-setTimeout(function () {
-  var btns = document.querySelectorAll(&#39;.choice-row a.macro-link, .choice-row a.link-internal&#39;);
-  if (btns.length &gt;= 1) btns[0].classList.add(&#39;choice-btn&#39;, &#39;lowers&#39;);
-  if (btns.length &gt;= 2) btns[1].classList.add(&#39;choice-btn&#39;, &#39;raises&#39;);
-}, 0);
-&lt;&lt;/script&gt;&gt;</tw-passagedata><tw-passagedata pid="11" name="Food Result" tags="Important/Needed nobr" position="100,225" size="100,100">/*
+&lt;&lt;/script&gt;&gt;</tw-passagedata><tw-passagedata pid="6" name="Food Result" tags="Important/Needed nobr" position="725,100" size="100,100">/*
 RESULT OF EACH FOOD CARD.
 Tells the player whether they were right and explains why.
 Moves to next round or meal builder after round 6.
 */
 
 &lt;div class=&quot;phone&quot;&gt;
-&lt;div class=&quot;header&quot;&gt;&lt;span&gt;DASH Game&lt;/span&gt;&lt;span class=&quot;round-label&quot;&gt;Round $round of 6&lt;/span&gt;&lt;/div&gt;
+&lt;div class=&quot;header&quot;&gt;&lt;span&gt;DASH Game&lt;/span&gt;&lt;span class=&quot;round-label&quot;&gt;Round $round of &lt;&lt;print setup.dash.eligibleCount()&gt;&gt;&lt;/span&gt;&lt;/div&gt;
 
 &lt;div class=&quot;meters-wrap&quot;&gt;
 &lt;div class=&quot;meter-row&quot;&gt;&lt;div class=&quot;meter-label&quot;&gt;Correct&lt;/div&gt;&lt;div class=&quot;meter-bar&quot;&gt;&lt;div class=&quot;meter-bar-fill correct&quot; @style=&quot;&#39;width: &#39; + Math.min(100, ($score / 6) * 100) + &#39;%&#39;&quot;&gt;&lt;/div&gt;&lt;/div&gt;&lt;/div&gt;
@@ -2096,29 +1292,24 @@ Moves to next round or meal builder after round 6.
 &lt;div class=&quot;content&quot;&gt;
 
 &lt;div class=&quot;result-card&quot;&gt;
-&lt;&lt;if $lastFood is &quot;banana&quot;&gt;&gt;&lt;span class=&quot;result-emoji&quot;&gt;🍌&lt;/span&gt;&lt;&lt;elseif $lastFood is &quot;noodles&quot;&gt;&gt;&lt;span class=&quot;result-emoji&quot;&gt;🍜&lt;/span&gt;&lt;&lt;elseif $lastFood is &quot;darkchocolate&quot;&gt;&gt;&lt;span class=&quot;result-emoji&quot;&gt;🍫&lt;/span&gt;&lt;&lt;elseif $lastFood is &quot;bacon&quot;&gt;&gt;&lt;span class=&quot;result-emoji&quot;&gt;🥓&lt;/span&gt;&lt;&lt;elseif $lastFood is &quot;spinach&quot;&gt;&gt;&lt;span class=&quot;result-emoji&quot;&gt;🥬&lt;/span&gt;&lt;&lt;else&gt;&gt;&lt;span class=&quot;result-emoji&quot;&gt;🥫&lt;/span&gt;&lt;&lt;/if&gt;&gt;
+&lt;span class=&quot;result-emoji&quot;&gt;&lt;&lt;print $currentFood.emoji&gt;&gt;&lt;/span&gt;
 
 &lt;&lt;if $lastCorrect is true&gt;&gt;&lt;div class=&quot;result-verdict correct&quot;&gt;Correct&lt;/div&gt;&lt;&lt;else&gt;&gt;&lt;div class=&quot;result-verdict wrong&quot;&gt;Not quite&lt;/div&gt;&lt;&lt;/if&gt;&gt;
 
-&lt;p class=&quot;result-explain&quot;&gt;&lt;&lt;if $lastFood is &quot;banana&quot;&gt;&gt;Bananas are high in potassium, which helps your kidneys flush excess sodium out. Less sodium means less pressure on your artery walls. A banana a day is a real cardiovascular tool.&lt;&lt;elseif $lastFood is &quot;noodles&quot;&gt;&gt;One packet of instant noodles can contain 1500 milligrams of sodium. The recommended daily limit is 2300. One packet gets you halfway there before anything else.&lt;&lt;elseif $lastFood is &quot;darkchocolate&quot;&gt;&gt;Dark chocolate contains flavonoids that help blood vessels relax and widen. A small amount, around one square, can produce a measurable drop in blood pressure. The key word is small.&lt;&lt;elseif $lastFood is &quot;bacon&quot;&gt;&gt;Bacon is cured in salt and high in saturated fat. Sodium increases blood volume. Saturated fat stiffens artery walls. Together they are a real cardiovascular load.&lt;&lt;elseif $lastFood is &quot;spinach&quot;&gt;&gt;Spinach is high in potassium and magnesium, two minerals that directly support healthy blood pressure. One of the most nutrient-dense foods for the heart.&lt;&lt;else&gt;&gt;One serving of canned soup often contains 800 to 1200 milligrams of sodium. Many cans hold two servings. Checking labels on canned food is one of the best things you can do for blood pressure.&lt;&lt;/if&gt;&gt;&lt;/p&gt;
+&lt;p class=&quot;result-explain&quot;&gt;&lt;&lt;print $currentFood.explain&gt;&gt;&lt;/p&gt;
 &lt;/div&gt;
 
-&lt;&lt;if $round lt 6&gt;&gt;
+&lt;!-- Termination is decided by the pool, not by $round: Round Start&#39;s
+     pickFood() returns null once every food has been seen and routes to
+     Meal Builder Intro. So Food Result always just advances the round
+     counter and hands back to Round Start for the next draw.
+     Per-round &quot;BACK TO CARDIOCAREQUEST&quot; stays removed — the burger
+     menu (≡) already exposes &quot;Go to dashboard&quot; on every screen. --&gt;
 &lt;&lt;set $round to $round + 1&gt;&gt;
 &lt;a class=&quot;btn-primary&quot; data-passage=&quot;Round Start&quot;&gt;NEXT FOOD&lt;/a&gt;
-&lt;!-- Per-round &quot;BACK TO CARDIOCAREQUEST&quot; removed — the burger menu (≡)
-     in the header already exposes &quot;Go to dashboard&quot; on every screen,
-     so showing a second exit button after every food card was both
-     redundant and visually noisy. Exit-to-dashboard is now offered
-     only at the FINAL Result screen + the Meal Result screen, where
-     the player has actually finished the game. --&gt;
-&lt;&lt;else&gt;&gt;
-&lt;a class=&quot;btn-primary&quot; data-passage=&quot;Meal Builder Intro&quot;&gt;NOW BUILD A MEAL&lt;/a&gt;
-&lt;&lt;set $round to $round + 1&gt;&gt;
-&lt;&lt;/if&gt;&gt;
 
 &lt;/div&gt;
-&lt;/div&gt;</tw-passagedata><tw-passagedata pid="12" name="Meal Builder Intro" tags="Important/Needed nobr" position="225,225" size="100,100">/*
+&lt;/div&gt;</tw-passagedata><tw-passagedata pid="7" name="Meal Builder Intro" tags="Important/Needed nobr" position="850,100" size="100,100">/*
 TRANSITION: Cards done. Introduce meal building.
 */
 
@@ -2130,7 +1321,7 @@ TRANSITION: Cards done. Introduce meal building.
 
 &lt;h2 class=&quot;intro-title&quot;&gt;Build a Meal&lt;/h2&gt;
 
-&lt;p class=&quot;narrative center&quot;&gt;You scored $score out of 6 on the cards.&lt;/p&gt;
+&lt;p class=&quot;narrative center&quot;&gt;You scored $score out of &lt;&lt;print setup.dash.eligibleCount()&gt;&gt; on the cards.&lt;/p&gt;
 
 &lt;p class=&quot;narrative&quot;&gt;Now pick ingredients to build a meal. Tap each one to add it. The score bar fills as you choose.&lt;/p&gt;
 
@@ -2141,7 +1332,7 @@ TRANSITION: Cards done. Introduce meal building.
 &lt;a class=&quot;btn-primary&quot; data-passage=&quot;Meal Builder&quot;&gt;START BUILDING&lt;/a&gt;
 
 &lt;/div&gt;
-&lt;/div&gt;</tw-passagedata><tw-passagedata pid="13" name="Meal Builder" tags="Important/Needed nobr" position="350,225" size="100,100">/*
+&lt;/div&gt;</tw-passagedata><tw-passagedata pid="8" name="Meal Builder" tags="Important/Needed nobr" position="975,100" size="100,100">/*
 MEAL BUILDER: Player picks ingredients.
 Each &lt;&lt;linkreplace&gt;&gt; can be triggered once.
 Score bar reflects $mealScore.
@@ -2165,7 +1356,7 @@ Score bar reflects $mealScore.
      who fat-fingered an item couldn&#39;t remove it. --&gt;
 &lt;div class=&quot;section-label&quot;&gt;Proteins&lt;/div&gt;
 &lt;div class=&quot;ingredients-grid&quot;&gt;
-&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Brown rice&quot; data-ing-emoji=&quot;🍚&quot; data-ing-score=&quot;10&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;🍚&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Brown rice&lt;/span&gt;&lt;/span&gt;&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Beans&quot; data-ing-emoji=&quot;🍲&quot; data-ing-score=&quot;15&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;🍲&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Beans&lt;/span&gt;&lt;/span&gt;&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Bacon&quot; data-ing-emoji=&quot;🥓&quot; data-ing-score=&quot;-15&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;🥓&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Bacon&lt;/span&gt;&lt;/span&gt;&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Yogurt&quot; data-ing-emoji=&quot;🥛&quot; data-ing-score=&quot;10&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;🥛&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Yogurt&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Brown rice&quot; data-ing-emoji=&quot;🍚&quot; data-ing-score=&quot;10&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;🍚&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Brown rice&lt;/span&gt;&lt;/span&gt;&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Beans&quot; data-ing-emoji=&quot;🍲&quot; data-ing-score=&quot;15&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;🍲&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Beans&lt;/span&gt;&lt;/span&gt;&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Bacon&quot; data-ing-emoji=&quot;🥓&quot; data-ing-score=&quot;-15&quot; data-ing-diet=&quot;meat&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;🥓&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Bacon&lt;/span&gt;&lt;/span&gt;&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Yogurt&quot; data-ing-emoji=&quot;🥛&quot; data-ing-score=&quot;10&quot; data-ing-diet=&quot;dairy&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;🥛&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Yogurt&lt;/span&gt;&lt;/span&gt;&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Lentils&quot; data-ing-emoji=&quot;🫘&quot; data-ing-score=&quot;15&quot; data-ing-diet=&quot;plant&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;🫘&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Lentils&lt;/span&gt;&lt;/span&gt;
 &lt;/div&gt;
 
 &lt;div class=&quot;section-label&quot;&gt;Vegetables and Fruit&lt;/div&gt;
@@ -2175,13 +1366,13 @@ Score bar reflects $mealScore.
 
 &lt;div class=&quot;section-label&quot;&gt;Extras&lt;/div&gt;
 &lt;div class=&quot;ingredients-grid&quot;&gt;
-&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Dark chocolate&quot; data-ing-emoji=&quot;🍫&quot; data-ing-score=&quot;5&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;🍫&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Dark chocolate&lt;/span&gt;&lt;/span&gt;&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Instant noodles&quot; data-ing-emoji=&quot;🍜&quot; data-ing-score=&quot;-20&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;🍜&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Instant noodles&lt;/span&gt;&lt;/span&gt;&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Water&quot; data-ing-emoji=&quot;💧&quot; data-ing-score=&quot;5&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;💧&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Water&lt;/span&gt;&lt;/span&gt;&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Hot dog&quot; data-ing-emoji=&quot;🌭&quot; data-ing-score=&quot;-15&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;🌭&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Hot dog&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Dark chocolate&quot; data-ing-emoji=&quot;🍫&quot; data-ing-score=&quot;5&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;🍫&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Dark chocolate&lt;/span&gt;&lt;/span&gt;&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Instant noodles&quot; data-ing-emoji=&quot;🍜&quot; data-ing-score=&quot;-20&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;🍜&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Instant noodles&lt;/span&gt;&lt;/span&gt;&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Water&quot; data-ing-emoji=&quot;💧&quot; data-ing-score=&quot;5&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;💧&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Water&lt;/span&gt;&lt;/span&gt;&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Hot dog&quot; data-ing-emoji=&quot;🌭&quot; data-ing-score=&quot;-15&quot; data-ing-diet=&quot;meat&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;🌭&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Hot dog&lt;/span&gt;&lt;/span&gt;&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Salted crackers&quot; data-ing-emoji=&quot;🍘&quot; data-ing-score=&quot;-10&quot; data-ing-diet=&quot;plant&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;🍘&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Salted crackers&lt;/span&gt;&lt;/span&gt;
 &lt;/div&gt;
 
 &lt;a class=&quot;btn-primary&quot; data-passage=&quot;Meal Result&quot;&gt;SEE MY MEAL RESULT&lt;/a&gt;
 
 &lt;/div&gt;
-&lt;/div&gt;</tw-passagedata><tw-passagedata pid="14" name="Meal Result" tags="Important/Needed nobr" position="475,225" size="100,100">/*
+&lt;/div&gt;</tw-passagedata><tw-passagedata pid="9" name="Meal Result" tags="Important/Needed nobr" position="1100,100" size="100,100">/*
 MEAL RESULT: Shows what meal does to BP.
 Personalized message based on $mealScore.
 Lists what player picked.
@@ -2216,6 +1407,10 @@ session flag so PLAY AGAIN doesn&#39;t double-credit.
     }
   } catch (e) { /* swallow */ }
 &gt;&gt;
+&lt;!-- UPDATE12: chain the control Daily Check-In off the END of this game.
+     Inside the same submit-once guard so it launches exactly once per
+     play-through (PLAY AGAIN resets $submittedThisSession in Story innit). --&gt;
+&lt;&lt;run try { if (window.CCQ &amp;&amp; window.CCQ.launchGame) window.CCQ.launchGame(&quot;control_daily_checkin&quot;); } catch (e) {} &gt;&gt;
 &lt;&lt;/if&gt;&gt;
 
 &lt;div class=&quot;phone&quot;&gt;
@@ -2233,29 +1428,28 @@ session flag so PLAY AGAIN doesn&#39;t double-credit.
 
 &lt;&lt;if $mealScore gte 30&gt;&gt;
 &lt;div class=&quot;meal-verdict strong&quot;&gt;Strong DASH meal&lt;/div&gt;
-&lt;p class=&quot;meal-explain&quot;&gt;Your ingredient choices are high in potassium, fiber, and minerals that actively support lower blood pressure. A meal like this, eaten regularly, produces measurable results over weeks.&lt;/p&gt;
+&lt;p class=&quot;meal-explain&quot;&gt;Your choices are packed with the potassium, fiber, and minerals that help lower blood pressure. Eating meals like this often makes a real difference over a few weeks.&lt;/p&gt;
 &lt;&lt;elseif $mealScore gte 10&gt;&gt;
-&lt;div class=&quot;meal-verdict moderate&quot;&gt;Moderate DASH meal&lt;/div&gt;
-&lt;p class=&quot;meal-explain&quot;&gt;Some strong choices in there. Swapping one high-sodium ingredient for a potassium-rich one would shift this meal a lot in the right direction.&lt;/p&gt;
+&lt;div class=&quot;meal-verdict moderate&quot;&gt;Good meal&lt;/div&gt;
+&lt;p class=&quot;meal-explain&quot;&gt;Some good picks in there. Trading one salty item for a healthy one would move this meal a lot in the right direction.&lt;/p&gt;
 &lt;&lt;elseif $mealScore gte 0&gt;&gt;
 &lt;div class=&quot;meal-verdict mixed&quot;&gt;Mixed meal&lt;/div&gt;
-&lt;p class=&quot;meal-explain&quot;&gt;The DASH-friendly choices are being offset by the high-sodium ones. Small swaps make a real difference here.&lt;/p&gt;
+&lt;p class=&quot;meal-explain&quot;&gt;Your healthy picks are being cancelled out by the salty ones. Small swaps make a real difference here.&lt;/p&gt;
 &lt;&lt;else&gt;&gt;
 &lt;div class=&quot;meal-verdict weak&quot;&gt;Working against you&lt;/div&gt;
-&lt;p class=&quot;meal-explain&quot;&gt;This meal is working against your blood pressure. The sodium load is high and the potassium is low. Try replacing one ingredient and see what changes.&lt;/p&gt;
+&lt;p class=&quot;meal-explain&quot;&gt;This meal puts pressure on your heart. It has too much salt and not enough potassium. Try replacing one item and see what changes.&lt;/p&gt;
 &lt;&lt;/if&gt;&gt;
 &lt;/div&gt;
 
 &lt;div class=&quot;spacer&quot;&gt;&lt;/div&gt;
 
-&lt;a class=&quot;btn-primary&quot; data-passage=&quot;Story innit&quot;&gt;PLAY AGAIN&lt;/a&gt;
-&lt;!-- Direct goHome via the ccq-home-trigger class — the bridge
-     intercepts the click and fires CCQ.goHome() without trampolining
-     through the (now unused) Central Hub passage. --&gt;
-&lt;a class=&quot;btn-secondary ccq-home-trigger&quot; href=&quot;javascript:void(0)&quot;&gt;BACK TO CARDIOCAREQUEST&lt;/a&gt;
+&lt;!-- Single exit button. Direct goHome via the ccq-home-trigger class — the
+     bridge intercepts the click and fires CCQ.goHome() to pop the WebView
+     route back to the dashboard. --&gt;
+&lt;a class=&quot;btn-primary ccq-home-trigger&quot; href=&quot;javascript:void(0)&quot;&gt;BACK TO CARDIOCARE QUEST&lt;/a&gt;
 
 &lt;/div&gt;
-&lt;/div&gt;</tw-passagedata><tw-passagedata pid="15" name="Central Hub" tags="Important/Needed nobr" position="600,225" size="100,100">/*
+&lt;/div&gt;</tw-passagedata><tw-passagedata pid="10" name="Central Hub" tags="Important/Needed nobr" position="1225,100" size="100,100">/*
 EXIT HATCH. Hit when the player taps &quot;BACK TO CARDIOCAREQUEST&quot; on
 either the Final Result or Meal Result screens. Fires CCQ.goHome() so
 the Flutter host pops the WebView route back to the dashboard.

@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
 
+// AppColors - the app's color palette in one place.
+//
+// Instead of writing raw color codes all over the app, we name them here once
+// and reuse them. Colors are chosen to be calm and easy on the eyes for older
+// users with high blood pressure.
 class AppColors {
   // ─── PRIMARY PALETTE: Accessible & Calming (for elderly hypertension users) ───
   
@@ -55,9 +60,10 @@ class AppColors {
   );
 }
 
-// Helper function for color progression (updated for new palette)
+// Pick a color based on how far along you are (e.g. a progress bar).
+// Early steps are dark green, later steps shift toward gold/success.
 Color getProgressColor(int step, int total) {
-  final double t = step / total;
+  final double t = step / total; // 0.0 = start, 1.0 = finished.
   if (t < 0.25) return AppColors.primaryDark;
   if (t < 0.50) return AppColors.primary;
   if (t < 0.75) return AppColors.secondary;

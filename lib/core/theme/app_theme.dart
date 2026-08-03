@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
 import 'app_colors.dart';
 
+// AppTheme - the app's overall look: fonts, button shapes, card style, colors.
+//
+// Set once here and Flutter applies it everywhere, so every screen looks
+// consistent without repeating style code on each widget.
 class AppTheme {
+  // The one theme the app uses. Uses our AppColors and a high-readability font.
   static ThemeData get lightTheme {
     return ThemeData(
       useMaterial3: true,
@@ -10,7 +15,7 @@ class AppTheme {
 
       // Typography: Atkinson Hyperlegible throughout. Designed by the
       // Braille Institute specifically to maximise legibility for
-      // readers with low vision — distinct letterforms (especially
+      // readers with low vision - distinct letterforms (especially
       // I/l/1, O/0, b/d, p/q) reduce the misreads our elderly +
       // visually-impaired participants are most likely to make.
       // Hierarchy comes from weight + size; the four TTF files are

@@ -1,6 +1,11 @@
-import 'package:flutter/material.dart';
-import '../../../../core/theme/app_colors.dart';
+// A single to-do row for a daily task. Tap it to tick it on/off. When
+// done it turns green with a check; when not, it shows an empty circle
+// and a little arrow. The colour swap animates smoothly.
 
+import 'package:flutter/material.dart';
+import '../../../core/theme/app_colors.dart';
+
+// One tappable task row. Pass the text, whether it's done, and a toggle.
 class DailyTaskCard extends StatelessWidget {
   final String task;
   final bool completed;
@@ -13,6 +18,7 @@ class DailyTaskCard extends StatelessWidget {
     required this.onToggle,
   });
 
+  // Draw the row and animate the colours/icon between done and not-done.
   @override
   Widget build(BuildContext context) {
     return GestureDetector(

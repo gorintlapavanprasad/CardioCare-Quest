@@ -1,41 +1,29 @@
-// Aggregates anonymous cohort signals for the Community Statistics
-// page.
+// The number-crunching behind the Community Stats page.
 //
-// **Data-source contract** — see /FIRESTORE_ARCHITECTURE.md for the
-// full schema. Briefly: every meaningful action that earns a
-// participant points ALSO writes a row to the top-level `events`
-// collection with `event`, `userId`, `timestamp`, plus event-
-// specific fields. That's the canonical timeline.
+// What it does: reads what everyone in the group has been doing and boils
+// it down to group totals and averages - how many people were active, how
+// many games were played, average blood pressure, pills taken, and so on.
 //
-// Earlier versions of this service queried `collectionGroup('gameLogs')`,
-// which only catches Vascular Village quest credits and Pill Path
-// taps — every other game (Bingo Bash, DASH Diet, Salt Sludge, Daily
-// Check-In, Quiet Minute, Quiet Landscape) submits via SurveyHooks
-// and never lands in gameLogs. The result was a Community Stats page
-// that read all zeros even when participants had finished games.
-// Rewritten to query `events` directly so all completions are
-// captured.
+// Where the numbers come from: every action that earns points also writes
+// a row to the shared `events` list (with the action name, who did it, and
+// when). We read that one list and tally it up here.
 //
-// Why one query instead of three (one per metric):
-//   * Top-level `events` is cheap to query by `timestamp >= window`.
-//   * 7 days × 150 participants × ~10 events/day ≈ 10.5k docs worst
-//     case — still fine to filter client-side. If the cohort grows
-//     past ~500 participants this should be moved into a Cloud
-//     Function aggregating into a single `community_stats/today` doc
-//     read by the screen.
-//   * Single query = single round-trip = single error path.
+// Privacy - this is the important part: nothing about a single person ever
+// leaves here. We only return group aggregates (counts, averages, sums,
+// ranges). No names, no user ids, no one person's readings. So the page
+// can't reveal who did what, even in a small group.
 //
-// Privacy: this is a 15-to-150-participant research dry-run, so
-// individual data could deanonymise. Every value returned here is
-// an aggregate (count / avg / sum / range). The page never receives
-// individual userIds, names, or readings.
+// Note: one simple "events since last week" read, then we sort it out in
+// code. That's fine for a small study group; if it ever grows to hundreds
+// of people this should move to a server-side summary instead.
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../core/constants/firestore_paths.dart';
 import '../games/game_stories.dart';
 
-/// Immutable snapshot of cohort-wide signals at a point in time.
+// A plain bag of the finished group numbers, ready for the page to show.
+// (Read-only - once made, it doesn't change.)
 class CommunityStats {
   /// Number of participant `userData/{uid}` docs the service saw.
   final int cohortSize;
@@ -97,6 +85,7 @@ class CommunityStats {
     required this.fetchedAt,
   });
 
+  // An all-zeros version, used when there's no group data yet.
   factory CommunityStats.empty(int windowDays) => CommunityStats(
         cohortSize: 0,
         activeToday: 0,
@@ -120,6 +109,7 @@ class CommunityStats {
       );
 }
 
+// The worker that does the reading and tallying. One shared instance.
 class CommunityStatsService {
   CommunityStatsService._(this._db);
 
@@ -128,14 +118,10 @@ class CommunityStatsService {
 
   final FirebaseFirestore _db;
 
-  /// Fetch a fresh aggregate snapshot.
-  ///
-  /// Two reads:
-  ///   1. `userData` collection — cohort size + sum of `points` +
-  ///      per-user "last active" markers for the active-today calc.
-  ///   2. `events` collection where `timestamp >= now - windowDays` —
-  ///      every metric on the page derives from this single query,
-  ///      filtered client-side by `event` discriminator.
+  // Do the whole job: read the data, count everything up, and hand back
+  // one CommunityStats. Two reads - first the list of people (for group
+  // size, total points, who's active today), then the week's events (for
+  // everything else). windowDays = how many days back to look.
   Future<CommunityStats> fetch({int windowDays = 7}) async {
     final now = DateTime.now();
     final windowStart = now.subtract(Duration(days: windowDays));
@@ -149,6 +135,7 @@ class CommunityStatsService {
       return CommunityStats.empty(windowDays);
     }
 
+    // Walk every person: add up their points and count who was active today.
     int totalPoints = 0;
     int activeToday = 0;
     for (final doc in userDocs.docs) {
@@ -160,15 +147,11 @@ class CommunityStatsService {
       }
     }
 
-    // ─── Read 2: events collection over the window ───────────────
-    // We don't add a `where('event', whereIn: [...])` server-side
-    // because it'd lock us out of any future event types we add
-    // (every new event type would require code change AND maybe an
-    // index). Instead we filter client-side after a simple
-    // timestamp range query — at 150 participants × ~10 events/day
-    // × 7 days = 10.5k docs at worst, well within Firestore's
-    // single-query budget. Move to a Cloud Function aggregator if
-    // the cohort grows past ~500.
+    // ─── Read 2: this week's events ──────────────────────────────
+    // Grab ALL events from the last `windowDays`, then sort them out by
+    // type in code below. We pull everything (not just certain types) so
+    // new kinds of events show up automatically without code changes.
+    // Counters we fill in as we go through the events:
     int bpCount = 0;
     int sysSum = 0, diaSum = 0;
     int? sysMin, sysMax, diaMin, diaMax;
@@ -185,6 +168,7 @@ class CommunityStatsService {
               isGreaterThanOrEqualTo: Timestamp.fromDate(windowStart))
           .get();
 
+      // Look at each event and bump the right counters based on its type.
       for (final doc in eventsSnap.docs) {
         final data = doc.data();
         final eventType = data['event'] as String?;
@@ -192,6 +176,8 @@ class CommunityStatsService {
         if (eventType == null) continue;
 
         switch (eventType) {
+          // A blood-pressure reading: add to the total and track the
+          // running average and the lowest/highest seen.
           case 'bp_reading_logged':
             final sys = (data['systolic'] as num?)?.toInt();
             final dia = (data['diastolic'] as num?)?.toInt();
@@ -205,13 +191,9 @@ class CommunityStatsService {
             diaMax = (diaMax == null || dia > diaMax) ? dia : diaMax;
             break;
 
+          // A finished survey-style game (most games submit this way).
+          // Count it as one play and tag it to its game and category.
           case 'survey_response_submitted':
-            // Whole-game submits — Bingo Bash, DASH Diet, Salt
-            // Sludge, Daily Check-In, Quiet Minute, Quiet
-            // Landscape, post-play survey. The `surveyId` field
-            // IS the catalog game id (except `post_play_v1` which
-            // is the post-play survey, intentionally not in the
-            // catalog).
             final countAsCompletion =
                 data['countAsCompletion'] as bool? ?? true;
             if (!countAsCompletion) break;
@@ -226,23 +208,13 @@ class CommunityStatsService {
             }
             break;
 
+          // A single quest finished (e.g. a Vascular Village quest or a
+          // Pill Path tap). Each of these counts as its own play.
           case 'game_quest_completed':
-            // Per-quest credits — Vascular Village quests, Pill
-            // Path daily taps. We DON'T filter on
-            // countAsCompletion here because for these games each
-            // quest IS a meaningful play — the flag just controls
-            // whether the user-level surveysCompleted counter
-            // bumps, not whether the play "happened".
             final gameId = data['gameId'] as String?;
             if (gameId == null || gameId.isEmpty) break;
-            // Skip Pill Path correction events for the engagement
-            // tally — re-tapping self/helper or hitting "I haven't
-            // taken it" via the Edit Today flow shouldn't inflate
-            // "plays this week" or "most-played game". A correction
-            // is identified by either questId='pill_undone' or by
-            // data.correction === true on a re-tap. The original
-            // pill_taken event for the day is kept; only the
-            // correction trail is filtered out.
+            // Skip "undo/fix" taps (like un-marking a pill) so correcting
+            // a mistake doesn't wrongly inflate the play counts.
             final questId = data['questId'] as String?;
             final innerData = data['data'] as Map<String, dynamic>?;
             final isCorrection = questId == 'pill_undone' ||
@@ -255,9 +227,9 @@ class CommunityStatsService {
               playsByCategory[story.category] =
                   (playsByCategory[story.category] ?? 0) + 1;
             }
-            // Pill Path is the canonical medication tracker. Each
-            // tap is one pill-taken signal; filter to today for
-            // the "% cohort took pill today" stat.
+            // Pill Path taps are our pill-taken signal. Count them all
+            // for the week, and note today's ones (by person) for the
+            // "how many took a pill today" stat.
             if (gameId == 'pill_path') {
               pillsLoggedThisWeek += 1;
               if (ts != null && !ts.isBefore(todayStart)) {
@@ -270,13 +242,9 @@ class CommunityStatsService {
             break;
 
           default:
-            // Movement-quest completion events use a dynamic name
-            // shape `${gameId}_completed` (e.g. `dog_quest_completed`).
-            // Without this branch, Dog Quest plays would be invisible
-            // to the cohort engagement bars even though MovementHooks
-            // writes the event row faithfully. We treat any
-            // *_completed event with a known gameId as a play of that
-            // game.
+            // Movement games send an event named like "<game>_completed"
+            // (e.g. "dog_quest_completed"). Catch any of those whose game
+            // we recognize and count it as one play, so they aren't missed.
             if (eventType.endsWith('_completed') &&
                 eventType != 'game_quest_completed' &&
                 eventType != 'trivia_completed') {
@@ -295,10 +263,9 @@ class CommunityStatsService {
         }
       }
     } catch (_) {
-      // Firestore index missing or permissions error. The page
-      // surfaces "no data yet" rather than a stack trace — the
-      // userData reads above still went through, so at least the
-      // cohort size + total points sections render.
+      // If the events read fails (e.g. permissions), don't crash - just
+      // zero out these numbers. The group size and total points from the
+      // first read still show, so the page isn't totally blank.
       bpCount = 0;
       sysSum = 0;
       diaSum = 0;
@@ -310,7 +277,7 @@ class CommunityStatsService {
       pillUsersToday.clear();
     }
 
-    // Top-played game for the engagement headline.
+    // Find the single most-played game to headline the engagement card.
     String? topGameId;
     int topGamePlays = 0;
     playsByGame.forEach((id, plays) {
@@ -320,6 +287,7 @@ class CommunityStatsService {
       }
     });
 
+    // Pack all the tallied numbers into one result for the page.
     return CommunityStats(
       cohortSize: cohortSize,
       activeToday: activeToday,
@@ -345,14 +313,14 @@ class CommunityStatsService {
 
   // ── helpers ────────────────────────────────────────────────────
 
+  // Turn a date into a plain "YYYY-MM-DD" string (no time part).
   static String _ymd(DateTime d) {
     final iso = d.toIso8601String();
     return iso.split('T').first;
   }
 
-  /// True when any of the user's last-touched markers indicates an
-  /// activity today. See FIRESTORE_ARCHITECTURE.md for which hook
-  /// sets which marker.
+  // True if this person did anything today. We check a few "last did X"
+  // markers: logged a value today, or played/surveyed within the last 24h.
   static bool _isActiveToday(
     Map<String, dynamic> userData,
     String today,

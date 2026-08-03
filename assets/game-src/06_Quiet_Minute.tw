@@ -26,6 +26,7 @@ try {
 <</script>>
 <<set $todaySys to "">>
 <<set $todayDia to "">>
+<<set $bpError to false>>
 
 
 :: Story Stylesheet [stylesheet]
@@ -686,16 +687,17 @@ after just 30 seconds and the celebration shouldn't claim two minutes.
 <div class="content">
 <h2 class="title">How does it read?</h2>
 <p class="subtitle">Take your blood pressure now. Enter the numbers from your cuff.</p>
+<<if $bpError>><p class="subtitle" style="color:#d04020">That reading looks outside the usual range — please check and re-enter.</p><</if>>
 <div class="spacer"></div>
 <div class="input-row">
   <div class="input-card">
     <div class="label">Systolic</div>
-    <input type="text" inputmode="numeric" pattern="[0-9]*" id="qm-sys">
+    <input type="text" inputmode="numeric" pattern="[0-9]*" id="qm-sys" value="<<if $todaySys gt 0>>$todaySys<</if>>">
     <div class="unit">mmHg, top</div>
   </div>
   <div class="input-card">
     <div class="label">Diastolic</div>
-    <input type="text" inputmode="numeric" pattern="[0-9]*" id="qm-dia">
+    <input type="text" inputmode="numeric" pattern="[0-9]*" id="qm-dia" value="<<if $todayDia gt 0>>$todayDia<</if>>">
     <div class="unit">mmHg, bottom</div>
   </div>
 </div>
@@ -736,8 +738,9 @@ happened. Wrapping the persistence + bridge call in the `<<else>>`
 branch keeps invalid readings out of the dataset.
 */
 <<if $todaySys lt 60 or $todaySys gt 250 or $todayDia lt 30 or $todayDia gt 160>>
-  <<goto "InvalidEntry">>
+  <<set $bpError to true>><<goto "Entry">>
 <<else>>
+  <<set $bpError to false>>
   <<script>>
   try {
     var hist = State.variables.history || [];

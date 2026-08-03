@@ -1,7 +1,12 @@
-import 'package:flutter/material.dart';
-import '../../../../core/theme/app_colors.dart';
+// The "well done!" popup shown after finishing something. A spinning
+// sparkle badge and a message. It pops in with a little bounce + fade
+// to feel rewarding.
 
-void showCelebrationModal(BuildContext context, {required String message, required int pointsGained}) {
+import 'package:flutter/material.dart';
+import '../../../core/theme/app_colors.dart';
+
+// Show the celebration popup. Pass the message to show.
+void showCelebrationModal(BuildContext context, {required String message}) {
   showGeneralDialog(
     context: context,
     barrierDismissible: true,
@@ -18,7 +23,7 @@ void showCelebrationModal(BuildContext context, {required String message, requir
             backgroundColor: Colors.transparent,
             contentPadding: EdgeInsets.zero,
             elevation: 0,
-            content: _CelebrationModalContent(message: message, pointsGained: pointsGained),
+            content: _CelebrationModalContent(message: message),
           ),
         ),
       );
@@ -26,11 +31,12 @@ void showCelebrationModal(BuildContext context, {required String message, requir
   );
 }
 
+// The actual card inside the popup. It's stateful only so the sparkle
+// badge can keep spinning on its own.
 class _CelebrationModalContent extends StatefulWidget {
   final String message;
-  final int pointsGained;
 
-  const _CelebrationModalContent({required this.message, required this.pointsGained});
+  const _CelebrationModalContent({required this.message});
   @override
   State<_CelebrationModalContent> createState() => _CelebrationModalContentState();
 }
@@ -38,18 +44,21 @@ class _CelebrationModalContent extends StatefulWidget {
 class _CelebrationModalContentState extends State<_CelebrationModalContent> with SingleTickerProviderStateMixin {
   late AnimationController _spinController;
 
+  // Start the badge spinning (loops forever) when the popup appears.
   @override
   void initState() {
     super.initState();
     _spinController = AnimationController(vsync: this, duration: const Duration(seconds: 4))..repeat();
   }
 
+  // Stop the spinner when the popup goes away, so it doesn't leak.
   @override
   void dispose() {
     _spinController.dispose();
     super.dispose();
   }
 
+  // Lay out the card: spinning badge and message.
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -125,33 +134,6 @@ class _CelebrationModalContentState extends State<_CelebrationModalContent> with
               const Text(
                 "You're making great progress!",
                 style: TextStyle(color: AppColors.subtitle, fontSize: 14, fontWeight: FontWeight.w500),
-              ),
-              const SizedBox(height: 32),
-              
-              // ─── NEW: POINTS PILL (Clean & High Contrast) ───
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.add_task_rounded, color: AppColors.primary, size: 22),
-                    const SizedBox(width: 10),
-                    Text(
-                      "${widget.pointsGained} POINTS GAINED",
-                      style: const TextStyle(
-                        fontSize: 16, 
-                        fontWeight: FontWeight.w900, 
-                        color: AppColors.primary,
-                        letterSpacing: 1.1,
-                      )
-                    ),
-                  ],
-                ),
               ),
             ],
           ),

@@ -5,11 +5,17 @@ import 'package:cardio_care_quest/core/services/activity_logs.dart';
 import 'package:cardio_care_quest/core/services/offline_queue.dart';
 import 'package:cardio_care_quest/core/theme/app_colors.dart';
 
+// SyncBadge - a little pill in the corner that shows if data is saved to the cloud.
+//
+// Green = everything synced. Amber with a number = that many items still waiting
+// (usually because there's no internet). Tap it for details, long-press to force
+// a sync. Handy for a researcher to know it's safe to take the device offline.
+
 /// Badge surfacing the combined offline-queue state to the researcher running
 /// the workshop station. It aggregates two queues:
 ///
-///  * [LoggingService] — telemetry events (Hive box `event_queue`).
-///  * [OfflineQueue]   — research-grade Firestore writes (BP, exercise, meal,
+///  * [LoggingService] - telemetry events (Hive box `event_queue`).
+///  * [OfflineQueue]   - research-grade Firestore writes (BP, exercise, meal,
 ///                       medication, quest completions, surveys, etc.).
 ///
 /// Visual states:
@@ -22,9 +28,12 @@ import 'package:cardio_care_quest/core/theme/app_colors.dart';
 class SyncBadge extends StatelessWidget {
   const SyncBadge({super.key});
 
+  // The two things that hold unsent data: telemetry events and Firestore writes.
   LoggingService get _logger => GetIt.instance<LoggingService>();
   OfflineQueue get _queue => GetIt.instance<OfflineQueue>();
 
+  // Watches both queues' counts and "is syncing" flags, and rebuilds the badge
+  // whenever any of them changes, so the number is always up to date.
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<int>(
@@ -56,6 +65,8 @@ class SyncBadge extends StatelessWidget {
     );
   }
 
+  // Draws the actual pill: picks the icon + color for the current state, then
+  // shows a spinner (while syncing) or an icon, plus the pending count.
   Widget _buildContent(
     BuildContext context, {
     required int total,
@@ -66,6 +77,7 @@ class SyncBadge extends StatelessWidget {
     final IconData icon;
     final Color color;
 
+    // Choose look by state: syncing -> spinner, all-clear -> green, else amber.
     if (syncing) {
       icon = Icons.sync;
       color = AppColors.viridis2;
@@ -132,6 +144,7 @@ class SyncBadge extends StatelessWidget {
     );
   }
 
+  // Tap handler: pops up a short message explaining the current sync status.
   void _showStatus(
     BuildContext context, {
     required int total,
@@ -142,7 +155,7 @@ class SyncBadge extends StatelessWidget {
     final String message;
     if (syncing) {
       message = 'Syncing $total item(s) to Firebase ($writes writes, '
-          '$events events)…';
+          '$events events)...';
     } else if (total == 0) {
       message = 'Everything is synced. Safe to take device offline.';
     } else {
@@ -158,10 +171,11 @@ class SyncBadge extends StatelessWidget {
     );
   }
 
+  // Long-press handler: tells both queues to try sending everything right now.
   Future<void> _triggerManualSync(BuildContext context) async {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('Forcing sync on both queues…'),
+        content: Text('Forcing sync on both queues...'),
         duration: Duration(seconds: 2),
       ),
     );

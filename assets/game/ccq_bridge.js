@@ -786,6 +786,30 @@
     el.addEventListener('touchend', fire, {passive: false});
   }
 
+  // Attach a DIRECT click + touchend handler to every `.ccq-home-trigger`
+  // ("Back to CardioCare Quest" style buttons) so they fire goHome() even
+  // when the document-level capture-phase delegation above doesn't reach
+  // them. iOS WKWebView in particular does not reliably deliver capture-
+  // phase `click` events on anchor tags, so a game's exit button that
+  // relied on delegation alone did nothing on iPhone. Same belt-and-
+  // suspenders pattern the burger menu uses. Idempotent via a data flag so
+  // re-scans (SugarCube re-renders each passage) don't stack handlers.
+  function attachHomeTriggerHandlers(root) {
+    if (!root || !root.querySelectorAll) return;
+    var triggers = root.querySelectorAll('.ccq-home-trigger');
+    for (var i = 0; i < triggers.length; i++) {
+      var el = triggers[i];
+      if (el.dataset.ccqHomeAttached === 'yes') continue;
+      el.dataset.ccqHomeAttached = 'yes';
+      var fire = function (e) {
+        try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
+        try { goHome(); } catch (err) { console.error('[CCQ] home trigger:', err); }
+      };
+      el.addEventListener('click', fire);
+      el.addEventListener('touchend', fire, {passive: false});
+    }
+  }
+
   function setupHeaderInjection() {
     // Make sure the `.menu-icon` styles are in the DOM BEFORE any icons
     // get injected — otherwise the freshly-added icon paints with
@@ -795,6 +819,7 @@
     // short-circuit.
     injectMenuStyles();
     ensureMenuIconInHeaders(document);
+    attachHomeTriggerHandlers(document);
     if (typeof MutationObserver !== 'function') return;
     var observer = new MutationObserver(function (mutations) {
       for (var i = 0; i < mutations.length; i++) {
@@ -807,6 +832,8 @@
             ensureMenuIconInHeaders(node.parentNode || document);
           }
           ensureMenuIconInHeaders(node);
+          // New passage may contain a "Back to CardioCare Quest" button.
+          attachHomeTriggerHandlers(node);
         }
       }
     });

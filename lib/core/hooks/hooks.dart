@@ -1,18 +1,15 @@
-/// CardioCare Quest hooks library.
-///
-/// Single import for all hook helpers used by Twine games and feature
-/// screens. Documentation lives in each individual file and in
-/// `lib/core/hooks/README.md`.
-///
-/// Usage:
-///   import 'package:cardio_care_quest/core/hooks/hooks.dart';
-///   await DailyLogHooks.logBP(uid: '...', systolic: 120, diastolic: 80, mood: 3);
+// One-stop import for all the "hooks" - the little helper classes that save
+// game and health data. Import this one file and you get all of them, instead
+// of importing each hook file separately.
 library;
 
+// ---- All the hook files, re-exported from here ----
+export 'caregiver_hooks.dart';
 export 'daily_log_hooks.dart';
 export 'game_log_hooks.dart';
 export 'health_hooks.dart';
 export 'movement_hooks.dart';
+export 'pair_hooks.dart';
 export 'points_hooks.dart';
 export 'profile_hooks.dart';
 export 'survey_hooks.dart';

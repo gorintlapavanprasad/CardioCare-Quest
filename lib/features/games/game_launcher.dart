@@ -1,9 +1,7 @@
-// Shared game-launch routing.
+// One place that opens the right game screen when you tap "Play".
 //
-// Both the Game Catalog (via GameDetailDialog's Play button) and the
-// dashboard's Favourites strip (via direct tap, no dialog) need to push
-// the right Twine host route for a given GameStory id. Pulling that
-// switch into one place keeps the two call sites in sync.
+// Both the game catalog and the dashboard's favourites use this, so keeping
+// the "which game id opens which screen" list here means they never disagree.
 
 import 'package:flutter/material.dart';
 
@@ -12,6 +10,8 @@ import 'bingo_bash_game.dart';
 import 'control_game.dart';
 import 'dash_diet_twine_game.dart';
 import 'dog_quest.dart';
+import 'game_completion_signal.dart';
+import 'game_feedback.dart';
 import 'game_stories.dart';
 import 'pill_path.dart';
 import 'quiet_landscape.dart';
@@ -19,11 +19,11 @@ import 'quiet_minute.dart';
 import 'salt_sludge.dart';
 import 'vascular_village_game.dart';
 
-/// Push the correct gameplay screen for [game]. Falls back to
-/// [ComingSoonScreen] for any id that hasn't been wired up yet so a
-/// missing route can't crash the dry-run.
+// Opens the screen for the given game. If a game id isn't hooked up yet,
+// it shows a friendly "Coming Soon" page instead of crashing.
 void launchGameStory(BuildContext context, GameStory game) {
   Widget? screen;
+  // Pick the matching game screen based on the game's id.
   switch (game.id) {
     case 'dog_quest':
       // 500m default for the catalog launch; in-game scene 2 lets the
@@ -57,10 +57,34 @@ void launchGameStory(BuildContext context, GameStory game) {
       screen = const QuietLandscapeGame();
       break;
   }
-  Navigator.push(
-    context,
+  // Grab the navigator now so we can still use it after the game closes,
+  // even though the little preview popup's context is gone by then.
+  final navigator = Navigator.of(context);
+
+  // Actually open the chosen screen; fall back to "Coming Soon" if none matched.
+  navigator
+      .push(
     MaterialPageRoute(
       builder: (_) => screen ?? ComingSoonScreen(featureName: game.title),
     ),
-  );
+  )
+      .then((_) {
+    // When the game closes, ask the four short questions - but only if the
+    // player actually finished the game and it has feedback questions set up.
+    // consume() always clears this game's signal so nothing lingers.
+    final completed = GameCompletionSignal.consume(game.id);
+    final hasQuestions = gameFeedbackQuestions.containsKey(game.id);
+    debugPrint('GameFeedback: ${game.id} closed - '
+        'completed=$completed hasQuestions=$hasQuestions');
+    if (completed && hasQuestions) {
+      navigator.push(
+        MaterialPageRoute(
+          builder: (_) => GameFeedbackScreen(
+            gameId: game.id,
+            gameTitle: game.title,
+          ),
+        ),
+      );
+    }
+  });
 }

@@ -4,6 +4,11 @@ import 'package:cardio_care_quest/core/theme/app_colors.dart';
 import 'package:cardio_care_quest/core/providers/user_data_manager.dart';
 import 'package:cardio_care_quest/core/hooks/hooks.dart';
 
+// Movement Log screen - the user picks an activity (walking, cycling, etc.),
+// types how many minutes they did, and saves it. Saving gives points and
+// closes the screen.
+
+// The screen widget. Its live state is in the class below.
 class ExerciseLogScreen extends StatefulWidget {
   const ExerciseLogScreen({super.key});
 
@@ -11,11 +16,14 @@ class ExerciseLogScreen extends StatefulWidget {
   State<ExerciseLogScreen> createState() => _ExerciseLogScreenState();
 }
 
+// Holds the screen's state: which activity is picked, the minutes box,
+// and whether we've saved yet.
 class _ExerciseLogScreenState extends State<ExerciseLogScreen> {
   String? _selectedActivity;
   final TextEditingController _timeController = TextEditingController();
   bool _isSaved = false;
 
+  // The activity choices shown as a grid of tappable cards.
   final List<Map<String, dynamic>> _activities = [
     {'name': 'Walking', 'icon': Icons.directions_walk},
     {'name': 'Housework', 'icon': Icons.cleaning_services},
@@ -25,12 +33,14 @@ class _ExerciseLogScreenState extends State<ExerciseLogScreen> {
     {'name': 'Other', 'icon': Icons.accessibility_new},
   ];
 
+  // Watch the minutes box so the Save button can turn on/off as they type.
   @override
   void initState() {
     super.initState();
     _timeController.addListener(_onTimeChanged);
   }
 
+  // Clean up the listener and text box when the screen closes.
   @override
   void dispose() {
     _timeController.removeListener(_onTimeChanged);
@@ -38,10 +48,13 @@ class _ExerciseLogScreenState extends State<ExerciseLogScreen> {
     super.dispose();
   }
 
+  // Redraw whenever the minutes box changes (so the button state updates).
   void _onTimeChanged() {
     setState(() {});
   }
 
+  // Save the workout. Needs an activity picked and minutes typed, then
+  // stores it, gives points, and closes the screen.
   Future<void> _saveExercise() async {
     final uid = Provider.of<UserDataProvider>(context, listen: false).uid;
     if (uid.isEmpty) return;
@@ -63,7 +76,7 @@ class _ExerciseLogScreenState extends State<ExerciseLogScreen> {
       );
 
       if (mounted) {
-        // Optimistic local update — see bp_log_screen for rationale.
+        // Optimistic local update - see bp_log_screen for rationale.
         PointsHooks.applyIncrements(context, {
           'points': 50,
           'exercisesLogged': 1,
@@ -78,6 +91,7 @@ class _ExerciseLogScreenState extends State<ExerciseLogScreen> {
     }
   }
 
+  // Build the page frame; the actual content is in _buildLogView.
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -91,6 +105,8 @@ class _ExerciseLogScreenState extends State<ExerciseLogScreen> {
     );
   }
 
+  // The whole scrolling form: activity grid, minutes box, a heart tip,
+  // and the Save button.
   Widget _buildLogView() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24.0),
@@ -102,6 +118,7 @@ class _ExerciseLogScreenState extends State<ExerciseLogScreen> {
             style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.title),
           ),
           const SizedBox(height: 24),
+          // Grid of activity cards. Tapping one highlights it as the choice.
           GridView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),

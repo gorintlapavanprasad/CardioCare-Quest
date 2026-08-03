@@ -1,10 +1,16 @@
+// A simple placeholder page for features that aren't built yet.
+// Shows a sparkle icon and "<feature> is coming soon". Reused for any
+// spot that needs a friendly "not ready yet" screen.
+
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
 
+// The placeholder screen. Pass in the name of the feature to show.
 class ComingSoonScreen extends StatelessWidget {
   final String featureName;
   const ComingSoonScreen({super.key, required this.featureName});
 
+  // Center a sparkle icon, the "<feature> is coming soon" line, and a note.
   @override
   Widget build(BuildContext context) {
     return Scaffold(

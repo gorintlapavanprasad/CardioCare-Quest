@@ -1,3 +1,9 @@
+// activity_logs.dart - keeps a simple list of "things that happened" (events)
+// and sends them up to the cloud (Firestore).
+//
+// Events are saved on the phone first (in a Hive box), then uploaded. If there's
+// no internet, they wait on the phone and get sent later. So logging never fails.
+
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -8,6 +14,7 @@ import 'package:uuid/uuid.dart';
 
 import 'package:cardio_care_quest/core/constants/firestore_paths.dart';
 
+// One logged event: what happened (name), extra details (params), and when.
 class LogEvent {
   final String id;
   final String name;
@@ -21,6 +28,7 @@ class LogEvent {
     required this.occurredAt,
   });
 
+  // Turn this event into a plain map so it can be saved/uploaded.
   Map<String, dynamic> toMap() => {
         'id': id,
         'name': name,
@@ -28,6 +36,7 @@ class LogEvent {
         'occurredAt': occurredAt.toIso8601String(),
       };
 
+  // Rebuild an event from a saved map (the reverse of toMap).
   factory LogEvent.fromMap(Map<dynamic, dynamic> map) {
     return LogEvent(
       id: map['id'] as String,
@@ -38,12 +47,14 @@ class LogEvent {
   }
 }
 
+// LoggingService - the thing the app calls to record events. It stores them
+// on the phone and keeps trying to upload them to the cloud.
 class LoggingService {
   static const String _boxName = 'event_queue';
-  static const int _maxQueueSize = 500;
-  static const int _batchSize = 100;
+  static const int _maxQueueSize = 500; // keep at most 500 waiting events
+  static const int _batchSize = 100; // upload in chunks of 100
 
-  /// Safety-net retry interval — see OfflineQueue for rationale.
+  /// Safety-net retry interval - see OfflineQueue for rationale.
   static const Duration _retryInterval = Duration(seconds: 15);
 
   final FirebaseFirestore _firestore;
@@ -64,6 +75,7 @@ class LoggingService {
   LoggingService({FirebaseFirestore? firestore})
       : _firestore = firestore ?? FirebaseFirestore.instance;
 
+  // Set up storage and start listening for internet so we can upload. Call once.
   Future<void> init() async {
     await Hive.initFlutter();
     _box = await Hive.openBox(_boxName);
@@ -76,7 +88,7 @@ class LoggingService {
       }
     });
 
-    // Periodic safety-net — connectivity events are sometimes missed on the
+    // Periodic safety-net - connectivity events are sometimes missed on the
     // Android emulator (and occasionally on real devices) when toggling
     // airplane mode. The badge would otherwise sit at a non-zero count until
     // the user manually long-pressed it. This keeps the queue draining.
@@ -92,22 +104,26 @@ class LoggingService {
     debugPrint('LoggingService initialized');
   }
 
+  // Stop the retry timer. Call when shutting the service down.
   void dispose() {
     _retryTimer?.cancel();
     _retryTimer = null;
   }
 
+  // Update the "how many are waiting" number for the UI badge.
   void _refreshPendingCount() {
     if (!_box.isOpen) return;
     pendingCount.value = _box.length;
   }
 
+  // Record one event: save it on the phone, then try to upload right away.
   Future<void> logEvent(
     String name, {
     Map<String, dynamic>? parameters,
     String? phone,
     String? userId,
   }) async {
+    // If the queue is full, drop the oldest event to make room.
     if (_box.length >= _maxQueueSize) {
       final oldestKey = _box.keys.first;
       await _box.delete(oldestKey);
@@ -130,6 +146,8 @@ class LoggingService {
     await syncToFirestore();
   }
 
+  // Upload all waiting events to the cloud, in chunks. Deletes each chunk from
+  // the phone once it's safely uploaded. Skips out if already running or empty.
   Future<void> syncToFirestore() async {
     if (_isSyncing || _box.isEmpty) return;
     _isSyncing = true;
@@ -161,6 +179,7 @@ class LoggingService {
         _refreshPendingCount();
       }
     } catch (e) {
+      // Upload failed (probably offline). Leave events on the phone and retry later.
       debugPrint('Activity log sync failed: $e');
     } finally {
       _isSyncing = false;
@@ -169,11 +188,13 @@ class LoggingService {
     }
   }
 
+  // Return every event still waiting on the phone (for debugging/inspection).
   Future<List<dynamic>> getAllLogs() async {
     if (!_box.isOpen) return [];
     return _box.values.toList();
   }
 
+  // Throw away all waiting events on the phone.
   Future<void> clearLogs() async {
     if (_box.isOpen) {
       await _box.clear();
@@ -181,6 +202,7 @@ class LoggingService {
     }
   }
 
+  // True if the phone has some kind of internet connection right now.
   bool _hasConnection(Object result) {
     if (result is ConnectivityResult) {
       return result != ConnectivityResult.none;

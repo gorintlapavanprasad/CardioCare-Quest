@@ -72,3 +72,6 @@ ios/Runner.xcodeproj/xcuserdata/
 # Firebase service account keys (never commit)
 *-service-account.json
 serviceAccountKey.json
+
+# Microsoft Office temp/lock files
+~$*

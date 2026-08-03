@@ -565,6 +565,23 @@ $(document).on(':passagedisplay', function () {
     if (marked[i]) cell.classList.add('marked');
   });
 
+  /* Cross-game auto-mark: if Pill Path recorded a medication taken
+     today (shared, date-keyed `ccq_shared_habits` record), auto-mark
+     this board's "Take meds" cell so the two games stay in sync. */
+  try {
+    var today = new Date().toISOString().slice(0, 10);
+    var sharedRaw = window.localStorage.getItem("ccq_shared_habits");
+    var sharedObj = sharedRaw ? JSON.parse(sharedRaw) : null;
+    if (sharedObj && sharedObj[today] && sharedObj[today].medTaken) {
+      var goals = State.variables.goals || [];
+      var medIdx = goals.indexOf("Take meds");
+      if (medIdx >= 0) {
+        State.variables.marked[medIdx] = true;
+        if (cells[medIdx]) cells[medIdx].classList.add('marked');
+      }
+    }
+  } catch (e) { /* best-effort cross-game sync */ }
+
   /* Helper: check all 12 bingo lines and update banner.
      Returns the winning line indices if any, or null otherwise.
      The click handler uses the return value to decide whether to

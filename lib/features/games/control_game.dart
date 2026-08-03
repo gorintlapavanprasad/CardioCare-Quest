@@ -2,16 +2,12 @@ import 'package:flutter/material.dart';
 
 import 'package:cardio_care_quest/core/widgets/twine_questionnaire_host.dart';
 
-/// Daily Check-In — the **control game** condition for the comparison arm
-/// of the study (work-plan goal #8). Same `TwineQuestionnaireHost` plumbing
-/// any future survey-style Twine page can reuse: drop in an HTML file, wrap
-/// it here, point the catalog at the wrapper.
-///
-/// Distinct from [DogQuestGame] in two ways:
-///   * No GPS / movement tracking. The host is the lightweight
-///     [TwineQuestionnaireHost] sibling, not the full [TwineGameHost].
-///   * Submissions land in `surveys/control_daily_checkin/responses/{auto}`
-///     via `SurveyHooks.submitResponse`, NOT in `Movement Data`.
+// Daily Check-In - a plain "how was your day" survey. It's the boring
+// "control" game the study compares the fun games against.
+// Just a few questions in an HTML page, no GPS. Answers get saved as
+// survey responses.
+
+// Shows the Daily Check-In survey by loading its HTML in the web-view host.
 class ControlGame extends StatelessWidget {
   const ControlGame({super.key});
 
@@ -21,9 +17,7 @@ class ControlGame extends StatelessWidget {
       surveyId: 'control_daily_checkin',
       title: 'Daily Check-In',
       htmlAsset: 'assets/game/control_game.html',
-      // Token reward only — the control condition should not feel
-      // gamified. Matches `pointsEarned` baked into the HTML's
-      // CCQ.submitResponse payload.
+      // Give only a tiny 10 points - this one isn't meant to feel like a game.
       defaultPointsPerResponse: 10,
     );
   }

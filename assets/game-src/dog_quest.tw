@@ -1117,7 +1117,11 @@ The DOM ids (#progress-bar-fill, #progress-percent-text,
         <span class="progress-percent" id="progress-percent-text">0%</span>
       </div>
       <div class="progress-right">
-        <span class="number" id="progress-remaining-text">--</span>
+        <!-- UPDATE4: suppress distance until the host reports a real GPS fix.
+             updateGameProgress() overwrites this with the true remaining
+             metres on the first accepted fix; until then show a locating
+             state instead of a confident "--"/0m. -->
+        <span class="number" id="progress-remaining-text">Locating GPS…</span>
         <span class="label">Distance remaining</span>
       </div>
     </div>
@@ -1131,6 +1135,18 @@ The DOM ids (#progress-bar-fill, #progress-percent-text,
       <li>Helps maintain healthy weight</li>
     </ul>
   </div>
+
+  /* On-device "I'm done for now" — ends the walk early and credits a
+     PARTIAL walk. The host's _endGame scales points by distance walked /
+     target (UPDATE4), so stopping short pays proportionally rather than
+     nothing. A full walk still auto-completes via the GPS watchdog. */
+  <<if typeof window.CCQ !== "undefined">>
+  <div class="finish-early" style="margin-top:12px; text-align:center;">
+    <<link "I'm done for now">>
+      <<run if (window.CCQ && typeof window.CCQ.finishQuest === "function") { window.CCQ.finishQuest(); }>>
+    <</link>>
+  </div>
+  <</if>>
 
   /* Preview-only manual completion. Hidden on device — there, the host's
      GPS watchdog fires `onQuestFinished` once distance hits the target. */
