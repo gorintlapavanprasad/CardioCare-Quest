@@ -564,13 +564,13 @@ class _HeartHealthCard extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           _RangeRow(
-            label: 'Top number range',
+            label: 'Systolic range',
             min: stats.sysMin,
             max: stats.sysMax,
           ),
           const SizedBox(height: 6),
           _RangeRow(
-            label: 'Bottom number range',
+            label: 'Diastolic range',
             min: stats.diaMin,
             max: stats.diaMax,
           ),
