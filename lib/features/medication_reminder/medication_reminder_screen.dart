@@ -116,7 +116,7 @@ class _MedicationReminderScreenState extends State<MedicationReminderScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const Text(
-              'Did you take your medication today?',
+              'Did you take your pill today?',
               style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: AppColors.title, height: 1.3),
               textAlign: TextAlign.center,
             ),
@@ -194,7 +194,7 @@ class _MedicationReminderScreenState extends State<MedicationReminderScreen> {
               ),
               const SizedBox(height: 16),
               const Text(
-                'Excellent! Taking your medicine protects your heart.',
+                'Great job! Taking your pill keeps your heart strong.',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: AppColors.subtitle, fontSize: 16),
               )
@@ -212,13 +212,13 @@ class _MedicationReminderScreenState extends State<MedicationReminderScreen> {
                 Icon(Icons.info_outline, color: AppColors.primary, size: 48),
                 SizedBox(height: 16),
                 Text(
-                  "That is okay.",
+                  "It's OK.",
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.primaryDark),
                 ),
                 SizedBox(height: 12),
                 Text(
-                  "It happens to the best of us. Setting an alarm on your phone or keeping your pills by your toothbrush can help you remember tomorrow.",
+                  "It happens. Try setting a phone alarm or putting your pills by your toothbrush to help you remember.",
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 16, color: AppColors.primary, height: 1.5),
                 ),

@@ -87,7 +87,7 @@ class _BuildGameScreenState extends State<BuildGameScreen> {
 
     if (uid.isEmpty) {
       messenger.showSnackBar(const SnackBar(
-        content: Text('Sign in first, then come back here.'),
+        content: Text('Please sign in first, then try again.'),
       ));
       setState(() => _saving = false);
       return;
@@ -104,7 +104,7 @@ class _BuildGameScreenState extends State<BuildGameScreen> {
         final opts = draft.collectOptions();
         if (prompt.isEmpty) {
           messenger.showSnackBar(SnackBar(
-            content: Text('Question ${i + 1} needs a prompt.'),
+            content: Text('Question ${i + 1} is missing its text.'),
           ));
           setState(() => _saving = false);
           return;
@@ -112,7 +112,7 @@ class _BuildGameScreenState extends State<BuildGameScreen> {
         if (opts.length < 2) {
           messenger.showSnackBar(SnackBar(
             content: Text(
-                'Question ${i + 1} needs at least two answer choices.'),
+                'Question ${i + 1} needs 2 or more answers.'),
           ));
           setState(() => _saving = false);
           return;
@@ -206,7 +206,7 @@ class _BuildGameScreenState extends State<BuildGameScreen> {
             children: [
               const _Hint(
                 text:
-                    'Build a personal goal that fits your day. Pick a category, name the goal, and choose how many points it should be worth. Tap your goal on the dashboard each time you do it to earn the points.',
+                    'Make your own game. Pick a name, a type, and how many points it is worth. Then tap it on your home screen each time you do it.',
               ),
               const SizedBox(height: 24),
               _SectionLabel('What do you want to do?'),
@@ -292,14 +292,14 @@ class _BuildGameScreenState extends State<BuildGameScreen> {
                   ),
                 const SizedBox(height: 24),
               ],
-              _SectionLabel('Which area is this about?'),
+              _SectionLabel('What is this game about?'),
               const SizedBox(height: 8),
               _CategoryPicker(
                 selected: _category,
                 onChanged: (cat) => setState(() => _category = cat),
               ),
               const SizedBox(height: 24),
-              _SectionLabel('Points to earn each time you do it'),
+              _SectionLabel('Points for each time you finish it'),
               const SizedBox(height: 8),
               _PointsPicker(
                 selected: _pointsReward,
