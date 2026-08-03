@@ -156,9 +156,9 @@ class _HomeTabState extends State<HomeTab> {
     await showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Location Services Required'),
+        title: const Text('Location is turned off'),
         content: const Text(
-          'Location services are turned off. Please enable location services so movement quests and the game can work properly.',
+          'Location is turned off on your phone. Please turn it on so the walking games can work.',
         ),
         actions: [
           TextButton(
@@ -175,9 +175,9 @@ class _HomeTabState extends State<HomeTab> {
     await showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Location Permission Needed'),
+        title: const Text('Allow location?'),
         content: const Text(
-          'This app uses location for movement tracking and game quests. Please allow location access to proceed.',
+          'The walking games need to know where you are. Please tap Allow when your phone asks.',
         ),
         actions: [
           TextButton(
@@ -194,9 +194,9 @@ class _HomeTabState extends State<HomeTab> {
     await showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Location Permission Permanently Denied'),
+        title: const Text('Location is blocked'),
         content: const Text(
-          'Location permission is permanently denied. Please open app settings and allow location access so movement quests can complete.',
+          'The walking games are blocked. Please open your phone Settings, find this app, and turn on location.',
         ),
         actions: [
           TextButton(
@@ -292,7 +292,7 @@ class _HomeTabState extends State<HomeTab> {
                       // the bottom so fresh vitals are handy without
                       // scrolling back up. Only this person sees their data.
                       const SizedBox(height: 32),
-                      _buildSectionTitle("Watch & Health"),
+                      _buildSectionTitle("Your Watch"),
                       _buildHealthStatsCard(context),
                       // ---- CAREGIVER (play together) ----
                       const SizedBox(height: 32),
@@ -373,8 +373,8 @@ class _HomeTabState extends State<HomeTab> {
                     ),
                     SizedBox(height: 4),
                     Text(
-                      'Set text size and pace together, then track help and '
-                      'notes during play.',
+                      'Choose the text size and speed together, then play '
+                      'and take notes.',
                       style: TextStyle(
                         fontSize: 13,
                         color: AppColors.subtitle,

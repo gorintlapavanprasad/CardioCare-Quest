@@ -72,7 +72,7 @@ class _JointSetupScreenState extends State<JointSetupScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Set up together'),
+        title: const Text('Get ready to play together'),
         backgroundColor: Colors.transparent,
         elevation: 0,
       ),
@@ -116,8 +116,8 @@ class _JointSetupScreenState extends State<JointSetupScreen> {
                 fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.title)),
         const SizedBox(height: 8),
         const Text(
-          'Optional - a label for the caregiver so their notes and help '
-          'markers are recorded. e.g. "Daughter", "Nurse".',
+          'Put a name for who is helping, like "Daughter" or "Nurse". '
+          'This is optional.',
           style: TextStyle(fontSize: 16, color: AppColors.subtitle),
         ),
         const SizedBox(height: 24),
@@ -193,16 +193,16 @@ class _JointSetupScreenState extends State<JointSetupScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Set the pace',
+        const Text('Choose game speed',
             style: TextStyle(
                 fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.title)),
         const SizedBox(height: 8),
-        const Text('How much time to allow during games.',
+        const Text('How fast or slow should the games go?',
             style: TextStyle(fontSize: 16, color: AppColors.subtitle)),
         const SizedBox(height: 24),
-        _paceTile(SessionPace.relaxed, 'Relaxed', 'More time on every step'),
-        _paceTile(SessionPace.standard, 'Standard', 'The usual timing'),
-        _paceTile(SessionPace.brisk, 'Brisk', 'A quicker rhythm'),
+        _paceTile(SessionPace.relaxed, 'Relaxed', 'Slow, with lots of time'),
+        _paceTile(SessionPace.standard, 'Standard', 'Normal speed'),
+        _paceTile(SessionPace.brisk, 'Brisk', 'Fast, a quick pace'),
       ],
     );
   }
@@ -283,7 +283,7 @@ class _JointSetupScreenState extends State<JointSetupScreen> {
                   height: 18,
                   child: CircularProgressIndicator(
                       strokeWidth: 2, color: Colors.white))
-              : Text(isLast ? 'Hand to participant' : 'Next'),
+              : Text(isLast ? 'Give phone to them' : 'Next'),
         ),
       ],
     );

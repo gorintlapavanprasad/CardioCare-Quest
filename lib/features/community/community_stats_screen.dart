@@ -142,8 +142,8 @@ class _ErrorState extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         Text(
-          'Pull down to try again. If this keeps happening, the cohort '
-          'database may not have shared aggregate access enabled yet.\n\n'
+          'Drag down to try again. If it keeps not working, please '
+          'tell the study team.\n\n'
           'Details: $message',
           textAlign: TextAlign.center,
           style: const TextStyle(
@@ -172,7 +172,7 @@ class _EmptyState extends StatelessWidget {
         Icon(Icons.people_outline, size: 64, color: AppColors.subtitle),
         SizedBox(height: 16),
         Text(
-          'No cohort activity yet',
+          'Nothing here yet',
           textAlign: TextAlign.center,
           style: TextStyle(
             fontSize: 18,
@@ -182,9 +182,9 @@ class _EmptyState extends StatelessWidget {
         ),
         SizedBox(height: 8),
         Text(
-          'Once participants begin logging readings and playing games, '
-          'this page will summarise what the group is doing - without '
-          'sharing any individual results.',
+          'Once people log their blood pressure and play games, you '
+          'will see group numbers here. No one sees anyone else\'s '
+          'private data.',
           textAlign: TextAlign.center,
           style: TextStyle(
             fontSize: 13,
@@ -225,7 +225,7 @@ class _StatsBody extends StatelessWidget {
         _HeartHealthCard(stats: stats),
         const SizedBox(height: 24),
 
-        _SectionTitle('Medication Adherence'),
+        _SectionTitle('Taking Pills'),
         _MedicationCard(stats: stats),
         const SizedBox(height: 24),
 
@@ -386,7 +386,7 @@ class _CohortPulseCard extends StatelessWidget {
               big: '${stats.activeToday}',
               small: ' / ${stats.cohortSize}',
               label: 'ACTIVE TODAY',
-              hint: 'Participants with activity in the last 24h',
+              hint: 'People active in the last 24 hours',
               icon: Icons.bolt_outlined,
             ),
           ),
@@ -498,7 +498,7 @@ class _HeartHealthCard extends StatelessWidget {
         icon: Icons.monitor_heart_outlined,
         headline: '-',
         label: 'AVG COHORT BP',
-        sub: 'No readings logged in the last ${stats.windowDays} days yet.',
+        sub: 'No blood pressure readings in the last ${stats.windowDays} days.',
         iconColor: AppColors.primary,
       );
     }
@@ -564,13 +564,13 @@ class _HeartHealthCard extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           _RangeRow(
-            label: 'Systolic range',
+            label: 'Top number range',
             min: stats.sysMin,
             max: stats.sysMax,
           ),
           const SizedBox(height: 6),
           _RangeRow(
-            label: 'Diastolic range',
+            label: 'Bottom number range',
             min: stats.diaMin,
             max: stats.diaMax,
           ),
@@ -727,7 +727,7 @@ class _GameEngagementCard extends StatelessWidget {
         icon: Icons.sports_esports_outlined,
         headline: '-',
         label: 'PLAYS THIS WEEK',
-        sub: 'No game completions logged in the last ${stats.windowDays} days yet.',
+        sub: 'No games finished in the last ${stats.windowDays} days.',
       );
     }
 

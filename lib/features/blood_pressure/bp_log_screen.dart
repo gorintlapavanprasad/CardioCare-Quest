@@ -106,7 +106,7 @@ class _BPLogScreenState extends State<BPLogScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Log Your Reading'),
+        title: const Text('Enter Your Blood Pressure'),
         centerTitle: true,
       ),
       body: SingleChildScrollView(
@@ -131,7 +131,7 @@ class _BPLogScreenState extends State<BPLogScreen> {
   Widget _buildInputSection() {
     return Row(
       children: [
-        Expanded(child: _buildNumericField(_systolicController, 'Systolic')),
+        Expanded(child: _buildNumericField(_systolicController, 'Top number')),
         const Padding(
           padding: EdgeInsets.symmetric(horizontal: 8.0),
           child: Text(
@@ -143,7 +143,7 @@ class _BPLogScreenState extends State<BPLogScreen> {
             ),
           ),
         ),
-        Expanded(child: _buildNumericField(_diastolicController, 'Diastolic')),
+        Expanded(child: _buildNumericField(_diastolicController, 'Bottom number')),
       ],
     );
   }
@@ -224,7 +224,7 @@ class _BPLogScreenState extends State<BPLogScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          'Your 7-Day Trend',
+          'Your numbers over 7 days',
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 16),

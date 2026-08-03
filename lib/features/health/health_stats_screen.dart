@@ -236,7 +236,7 @@ class _PermissionsDeniedState extends StatelessWidget {
             size: 72, color: AppColors.subtitle),
         const SizedBox(height: 20),
         const Text(
-          'Watch access not granted',
+          'Watch is blocked',
           textAlign: TextAlign.center,
           style: TextStyle(
             fontSize: 20,
@@ -246,12 +246,11 @@ class _PermissionsDeniedState extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         const Text(
-          'CardioCare Quest needs permission to read health data '
-          'from your Apple Watch. Tap "Allow access" below to open '
-          'the system dialog. If the dialog doesn\'t appear, you '
-          'previously denied access and need to enable it manually:\n\n'
-          'iPhone Settings → Privacy & Security → Health → '
-          'CardioCare Quest → turn on the categories you want shared.',
+          'We need to read the heart rate and steps from your Apple '
+          'Watch. Tap "Allow access" below and a screen will pop up, '
+          'then tap yes. If nothing pops up, turn it on by hand:\n\n'
+          'iPhone Settings, then Privacy & Security, then Health, '
+          'then CardioCare Quest, and turn on what you want to share.',
           textAlign: TextAlign.center,
           style: TextStyle(
             fontSize: 13.5,
@@ -314,12 +313,10 @@ class _NotConnectedState extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         const Text(
-          'We can reach the Health app, but no Apple Watch readings '
-          'are coming through right now. Common causes:\n\n'
-          '• Watch is off-wrist\n'
-          '• Watch isn\'t paired with this iPhone\n'
-          '• Watch hasn\'t synced recently - try opening the Health '
-          'app to force a sync',
+          'Your watch is not sending data right now. Please check:\n\n'
+          '• Is the watch on your wrist?\n'
+          '• Is the watch connected to this iPhone?\n'
+          '• Try opening the Health app on your phone',
           textAlign: TextAlign.center,
           style: TextStyle(
             fontSize: 13.5,
@@ -368,7 +365,7 @@ class _NotConnectedState extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         const Text(
-          'Pull down anywhere on this page to retry as well.',
+          'You can also drag down on this page to check again.',
           textAlign: TextAlign.center,
           style: TextStyle(
             fontSize: 11,
@@ -472,8 +469,8 @@ class _LiveBadge extends StatelessWidget {
           Expanded(
             child: Text(
               isFresh
-                  ? 'LIVE - updated $ageLabel'
-                  : 'STALE - last sample $ageLabel',
+                  ? 'Up to date, checked $ageLabel'
+                  : 'Older, last checked $ageLabel',
               style: const TextStyle(
                 fontSize: 12.5,
                 color: AppColors.title,

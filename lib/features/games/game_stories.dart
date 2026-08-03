@@ -109,7 +109,7 @@ When you complete a quest, your streak and progress grow. If you miss a day, you
 Each movement counts. Choose the distance that is safe and realistic for you right now.
       ''',
       medicalContext:
-          'When your body moves, your heart rate rises gently. Your blood vessels expand to deliver oxygen to your muscles. Practiced regularly, that expansion helps vessels stay flexible. Flexible vessels mean lower resistance. Lower resistance means lower pressure.',
+          'When you walk, your heart works a little harder and your blood vessels open up. Walking often keeps them soft and stretchy, and that helps keep your blood pressure down.',
       benefits: [
         'Reduces blood pressure naturally',
         'Strengthens heart muscle',
@@ -134,7 +134,7 @@ Who said learning can't be fun? Bingo Bash is a game of chance that tests your k
 Each square you mark off is a step towards a better understanding of your cardiovascular system. Play with friends, family, or on your own!
       ''',
       medicalContext:
-          'Gamification of health education has been shown to increase engagement and knowledge retention. This game focuses on key concepts of hypertension management in an accessible format.',
+          'Playing a game makes it easier to learn and remember. This game helps you understand high blood pressure in a simple, friendly way.',
       benefits: [
         'Learn about hypertension',
         'Reinforce healthy habits',
@@ -158,7 +158,7 @@ The DASH diet is a proven way to help control high blood pressure. This game wil
 Learn to make smart food choices, create balanced meals, and build a heart-healthy eating plan that you can stick with.
       ''',
       medicalContext:
-          'The DASH (Dietary Approaches to Stop Hypertension) diet is a flexible and balanced eating plan that is promoted by the National Heart, Lung, and Blood Institute to do exactly that: stop hypertension.',
+          'DASH is a healthy way of eating that doctors recommend. Choosing these foods helps bring your blood pressure down.',
       benefits: [
         'Learn the DASH diet',
         'Make healthier food choices',
@@ -182,7 +182,7 @@ Watch what really happens inside your arteries when you eat. Each day you choose
 Five days. Five meals. One artery.
       ''',
       medicalContext:
-          'Sodium pulls water into the bloodstream, raising volume and pressure on artery walls; potassium helps the kidneys flush sodium back out. Salt Sludge dramatizes this trade-off using everyday foods so the mechanism is concrete instead of abstract.',
+          'Salt pulls extra water into your blood, which raises your blood pressure. Foods with potassium help your body get rid of that salt. This game shows you which everyday foods help and which ones hurt.',
       benefits: [
         'See how foods affect arteries',
         'Learn which foods clear sodium',
@@ -208,7 +208,7 @@ A few short questions about how you are feeling today, what you ate, and how wel
 There are no right or wrong answers. Your responses help the research team understand how the program is working for you.
       ''',
       medicalContext:
-          'A daily self-report check-in is a common research instrument for tracking adherence, mood, and self-care behaviors over time without requiring active participation in a structured game.',
+          'A quick daily check-in helps the study see how you are doing over time. It takes only a moment and there is no game to play.',
       benefits: [
         'Quick to complete',
         'Helps the research team',
@@ -232,7 +232,7 @@ Your cardiovascular system is like a village, with your heart as the central hub
 Make choices about diet, exercise, and stress management to help your village thrive and see the immediate impact on your villagers' happiness and health.
       ''',
       medicalContext:
-          'This game uses a city-building metaphor to explain the complex interplay of factors that contribute to cardiovascular health. It simplifies concepts like cholesterol, blood pressure, and inflammation into relatable game mechanics.',
+          'Your heart health is like a small village. In this game you make choices about food, exercise, and calm to keep the village healthy and happy.',
       benefits: [
         'Understand complex health concepts',
         'See impact of lifestyle choices',
@@ -263,7 +263,7 @@ Sit somewhere quiet. Breathe slowly for two minutes. Then take your blood pressu
 Your reading is most accurate when you are calm.
       ''',
       medicalContext:
-          'Clinical guidelines recommend resting quietly for several minutes before measuring blood pressure. Activity, stress, and recent caffeine can all push systolic readings up by 10-20 mmHg. The two-minute breathing exercise helps return your heart rate and pressure to a steadier baseline so the reading better reflects your everyday state.',
+          'It helps to sit quietly for a few minutes before you check your blood pressure. Moving around, stress, or coffee can make the numbers jump up. Breathing slowly for two minutes calms your body so your reading is more true.',
       benefits: [
         'More accurate BP readings',
         'A short calming pause',
@@ -294,7 +294,7 @@ Each day you take your medicine, you tap a pill on your path. After seven days t
 The path builds even on days you missed - those days simply stay empty. The point is honest tracking, not a perfect streak.
       ''',
       medicalContext:
-          'Daily adherence to blood-pressure medication is the single largest controllable factor in long-term hypertension outcomes. Tracking adherence - including caregiver assistance - gives the care team a realistic view of how the regimen is working in real life rather than in clinic.',
+          'Taking your blood pressure pill every day is one of the best things you can do for your heart. Keeping track, including days when someone helps you, shows your care team how things are really going.',
       benefits: [
         'Build a daily medication habit',
         'Track honest adherence',
@@ -325,7 +325,7 @@ The path builds even on days you missed - those days simply stay empty. The poin
 Sixteen slow breaths over a calm landscape. The scene shifts as you breathe - clouds drift, light moves. When the sequence ends you record your cuff reading.
       ''',
       medicalContext:
-          'Slow paced breathing engages the parasympathetic nervous system, lowering heart rate and softening vessel tone. Practicing this before a measurement returns the reading closer to your true resting baseline rather than capturing a stressed spike.',
+          'Slow, deep breathing calms your body and lowers your heart rate. Doing this before you check your blood pressure gives you a calmer, truer reading.',
       benefits: [
         'Longer settle before reading',
         'Calmer baseline',
