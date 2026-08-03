@@ -131,7 +131,7 @@ class _BPLogScreenState extends State<BPLogScreen> {
   Widget _buildInputSection() {
     return Row(
       children: [
-        Expanded(child: _buildNumericField(_systolicController, 'Top number')),
+        Expanded(child: _buildNumericField(_systolicController, 'Systolic')),
         const Padding(
           padding: EdgeInsets.symmetric(horizontal: 8.0),
           child: Text(
@@ -143,7 +143,7 @@ class _BPLogScreenState extends State<BPLogScreen> {
             ),
           ),
         ),
-        Expanded(child: _buildNumericField(_diastolicController, 'Bottom number')),
+        Expanded(child: _buildNumericField(_diastolicController, 'Diastolic')),
       ],
     );
   }
