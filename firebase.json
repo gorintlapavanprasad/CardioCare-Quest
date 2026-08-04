@@ -6,18 +6,18 @@
     "platforms": {
       "android": {
         "default": {
-          "projectId": "cardiocarequest",
-          "appId": "1:759389210814:android:bcb72438d62ef8863976ef",
+          "projectId": "cardiocare-quest",
+          "appId": "1:74239338720:android:580315f73834ec3bce8885",
           "fileOutput": "android/app/google-services.json"
         }
       },
       "dart": {
         "lib/firebase_options.dart": {
-          "projectId": "cardiocarequest",
+          "projectId": "cardiocare-quest",
           "configurations": {
-            "android": "1:759389210814:android:bcb72438d62ef8863976ef",
-            "ios": "1:759389210814:ios:780a030c236bd49a3976ef",
-            "macos": "1:759389210814:ios:780a030c236bd49a3976ef"
+            "android": "1:74239338720:android:580315f73834ec3bce8885",
+            "ios": "1:74239338720:ios:990464b48bef9a56ce8885",
+            "macos": "1:74239338720:ios:990464b48bef9a56ce8885"
           }
         }
       }
