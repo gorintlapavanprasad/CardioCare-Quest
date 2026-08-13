@@ -44,7 +44,7 @@ class SessionData {
 final GeoCollectionReference<Map<String, dynamic>> geoCollection =
     GeoCollectionReference(
       firestore.FirebaseFirestore.instance.collection(
-        FirestorePaths.dataPoints,
+        FirestorePaths.movementPoints,
       ),
     );
 

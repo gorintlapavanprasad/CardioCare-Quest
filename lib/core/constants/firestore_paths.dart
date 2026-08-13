@@ -3,16 +3,35 @@
 // Firestore stores data in named "collections". We keep every name here as a
 // constant so we spell them the same way everywhere and can't make typos.
 class FirestorePaths {
+  /// Research events only - one immutable row per real study action
+  /// (bp_reading_logged, exercise_logged, meal_logged, medication_logged,
+  /// trivia_completed, survey_response_submitted, game_quest_completed).
+  /// App/operational telemetry lives in [telemetry] instead, so this
+  /// collection stays a clean, researcher-facing record.
   static const events = 'events';
-  static const dataPoints = 'data_points';
-  static const movementData = 'Movement Data';
+
+  /// App/operational telemetry (game_opened, game_closed, webview_error,
+  /// permission_denied, etc.). Kept OUT of [events] so researchers analysing
+  /// study outcomes aren't wading through UI noise. Written only by
+  /// LoggingService (TelemetryHooks); nothing in-app reads it.
+  static const telemetry = 'telemetry';
+
+  /// Cross-user geo heatmap points, one per GPS ping. Stays a TOP-LEVEL
+  /// collection (not nested under a participant) because it's read by a
+  /// GeoCollectionReference radius query that aggregates every participant's
+  /// points for the community map. Each doc carries `userId` for attribution.
+  static const movementPoints = 'movementPoints';
+
+  /// Per-participant walking sessions. Nested under the participant
+  /// (`userData/{uid}/movementData/{sessionId}`) so all of one person's data
+  /// lives in one place and deleting a participant removes their walks too.
+  static const movementData = 'movementData';
   static const userData = 'userData';
   static const surveys = 'surveys';
   static const responses = 'responses';
 
-  static const locationData = 'LocationData';
-  static const checkData = 'CheckData';
-  static const likertData = 'LikertData';
+  static const locationData = 'locationData';
+  static const checkData = 'checkData';
   static const gameStates = 'gameStates';
   static const dailyLogs = 'dailyLogs';
 

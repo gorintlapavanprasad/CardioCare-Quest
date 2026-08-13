@@ -1353,7 +1353,7 @@ setTimeout(function () {
 
 &lt;div class=&quot;spacer&quot;&gt;&lt;/div&gt;
 
-&lt;a class=&quot;btn-primary&quot; id=&quot;alloc-finish&quot; style=&quot;display: none;&quot; data-passage=&quot;Reallocate Result&quot;&gt;FINISH QUEST&lt;/a&gt;
+&lt;a class=&quot;btn-primary&quot; id=&quot;alloc-finish&quot; style=&quot;display: none !important;&quot; data-passage=&quot;Reallocate Result&quot;&gt;FINISH QUEST&lt;/a&gt;
 &lt;a class=&quot;btn-secondary&quot; data-passage=&quot;Hub&quot;&gt;BACK TO VILLAGE&lt;/a&gt;
 
 &lt;/div&gt;
@@ -1375,7 +1375,7 @@ setTimeout(function () {
       t.textContent = &#39;✓ &#39; + label;
       matched++;
       if (status) status.textContent = (matched === 3) ? &#39;All three matched. Nice work.&#39; : (matched + &#39; of 3 matched&#39;);
-      if (matched === 3 &amp;&amp; finish) finish.style.display = &#39;block&#39;;
+      if (matched === 3 &amp;&amp; finish) finish.style.setProperty(&#39;display&#39;, &#39;block&#39;, &#39;important&#39;);
     });
   });
 }, 0);
@@ -1427,7 +1427,7 @@ setTimeout(function () {
 
 &lt;div class=&quot;spacer&quot;&gt;&lt;/div&gt;
 
-&lt;a class=&quot;btn-primary&quot; id=&quot;heart-finish&quot; style=&quot;display: none;&quot; data-passage=&quot;Pump Result&quot;&gt;FINISH QUEST&lt;/a&gt;
+&lt;a class=&quot;btn-primary&quot; id=&quot;heart-finish&quot; style=&quot;display: none !important;&quot; data-passage=&quot;Pump Result&quot;&gt;FINISH QUEST&lt;/a&gt;
 &lt;a class=&quot;btn-secondary&quot; data-passage=&quot;Hub&quot;&gt;BACK TO VILLAGE&lt;/a&gt;
 
 &lt;/div&gt;
@@ -1468,7 +1468,7 @@ setTimeout(function () {
       var quality = (variance &lt; 200) ? &quot;steady&quot; : (variance &lt; 400) ? &quot;decent&quot; : &quot;shaky&quot;;
       State.variables.heartQuality = quality;
       if (rhythm) rhythm.textContent = &#39;Done. Rhythm was &#39; + quality + &#39;.&#39;;
-      if (finish) finish.style.display = &#39;block&#39;;
+      if (finish) finish.style.setProperty(&#39;display&#39;, &#39;block&#39;, &#39;important&#39;);
     }
   });
 }, 0);
@@ -1535,7 +1535,7 @@ setTimeout(function () {
 
 &lt;div class=&quot;spacer&quot;&gt;&lt;/div&gt;
 
-&lt;a class=&quot;btn-primary&quot; id=&quot;plaque-finish&quot; style=&quot;display: none;&quot; data-passage=&quot;Clear Result&quot;&gt;FINISH QUEST&lt;/a&gt;
+&lt;a class=&quot;btn-primary&quot; id=&quot;plaque-finish&quot; style=&quot;display: none !important;&quot; data-passage=&quot;Clear Result&quot;&gt;FINISH QUEST&lt;/a&gt;
 &lt;a class=&quot;btn-secondary&quot; data-passage=&quot;Hub&quot;&gt;BACK TO VILLAGE&lt;/a&gt;
 
 &lt;/div&gt;
@@ -1557,7 +1557,7 @@ setTimeout(function () {
       c.textContent = &#39;✓&#39;;
       cleared++;
       if (counter) counter.textContent = cleared;
-      if (cleared === 8 &amp;&amp; finish) finish.style.display = &#39;block&#39;;
+      if (cleared === 8 &amp;&amp; finish) finish.style.setProperty(&#39;display&#39;, &#39;block&#39;, &#39;important&#39;);
     });
   });
 }, 0);

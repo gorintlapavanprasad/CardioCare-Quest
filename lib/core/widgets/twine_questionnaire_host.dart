@@ -119,6 +119,13 @@ class _TwineQuestionnaireHostState extends State<TwineQuestionnaireHost> {
   // no matter which way out the player used.
   bool _exited = false;
 
+  // True while the game's HTML is still loading. Drives a loading spinner
+  // overlay so the player sees "Loading game..." instead of a blank white
+  // screen during the ~half-second it takes the WebView to parse the large
+  // (500-700 KB) Twine page and run the bridge/style injection. Flipped to
+  // false in onPageFinished once the page + injections are ready.
+  bool _loading = true;
+
   // Did any answer this visit earn points? Used at exit to decide whether we
   // still owe the player a "survey completed" tick.
   bool _anyPointsEarned = false;
@@ -219,10 +226,18 @@ class _TwineQuestionnaireHostState extends State<TwineQuestionnaireHost> {
           onPageFinished: (_) async {
             await _controller.runJavaScript(kCcqGameStyleInjectionJs);
             await _injectBridge();
+            // Page + injections are ready - hide the loading spinner.
+            if (mounted) setState(() => _loading = false);
           },
           onWebResourceError: (error) {
             debugPrint('❌ ${widget.surveyId} WebView Error: '
                 '${error.description}');
+            // Don't leave the player stuck on a spinner if the page failed
+            // to load - drop the overlay so the (blank/error) WebView and the
+            // Home button are visible and they can back out.
+            if ((error.isForMainFrame ?? false) && mounted) {
+              setState(() => _loading = false);
+            }
             // Report to Firestore so a failed game load isn't invisible
             // to researchers. errorType + description lets us
             // distinguish 404s from JS crashes from CORS-style failures.
@@ -986,6 +1001,33 @@ class _TwineQuestionnaireHostState extends State<TwineQuestionnaireHost> {
           fit: StackFit.expand,
           children: [
             Positioned.fill(child: WebViewWidget(controller: _controller)),
+            // Loading overlay: a friendly spinner on a white background while
+            // the game's HTML loads, so the player isn't staring at a blank
+            // screen wondering if the tap registered. Removed the moment
+            // onPageFinished fires (or a load error drops it early).
+            if (_loading)
+              const Positioned.fill(
+                child: ColoredBox(
+                  color: Colors.white,
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        CircularProgressIndicator(color: Color(0xFF4A1D6C)),
+                        SizedBox(height: 16),
+                        Text(
+                          'Loading game...',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF4A1D6C),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
             // Top-left, inside the safe area so it clears the status bar.
             // Align keeps the button its natural small size - without it,
             // StackFit.expand stretches this non-positioned child to fill

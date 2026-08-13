@@ -205,6 +205,13 @@ class _TwineGameHostState extends State<TwineGameHost> {
   /// the movement [_sessionId] (per-walk, lives in MovementHooks writes).
   late final String _hostSessionId;
 
+  // True while the game's HTML is still loading. Drives a loading spinner
+  // overlay so the player sees "Loading game..." instead of a blank white
+  // screen during the ~half-second it takes the WebView to parse the large
+  // Twine page and run the bridge/style injection. Flipped to false in
+  // onPageFinished (or early on a main-frame load error).
+  bool _loading = true;
+
   // When this visit started, so we can record how long they played.
   /// Wall-clock start of this host session - pairs with `_hostSessionId`
   /// to compute the per-play duration written into the gameSessions
@@ -293,9 +300,16 @@ class _TwineGameHostState extends State<TwineGameHost> {
             await _controller.runJavaScript(kCcqGameStyleInjectionJs);
             await _injectBridge();
             _loadGameState();
+            // Page + injections are ready - hide the loading spinner.
+            if (mounted) setState(() => _loading = false);
           },
           onWebResourceError: (error) {
             debugPrint('❌ ${widget.gameId} WebView Error: ${error.description}');
+            // Don't leave the player stuck on a spinner if the page failed to
+            // load - drop the overlay so the Home button is reachable.
+            if ((error.isForMainFrame ?? false) && mounted) {
+              setState(() => _loading = false);
+            }
             // Report to Firestore so a failed movement-game load isn't
             // invisible to researchers. Mirrors the questionnaire host.
             // Uses _hostSessionId (always set since initState) rather than
@@ -1099,6 +1113,32 @@ class _TwineGameHostState extends State<TwineGameHost> {
           fit: StackFit.expand,
           children: [
             Positioned.fill(child: WebViewWidget(controller: _controller)),
+            // Loading overlay: a spinner on white while the game's HTML loads,
+            // so the player isn't staring at a blank screen. Removed the
+            // moment onPageFinished fires (or a load error drops it early).
+            if (_loading)
+              const Positioned.fill(
+                child: ColoredBox(
+                  color: Colors.white,
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        CircularProgressIndicator(color: Color(0xFF4A1D6C)),
+                        SizedBox(height: 16),
+                        Text(
+                          'Loading game...',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF4A1D6C),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
             // Flutter-drawn Home button, matching the questionnaire host so
             // movement games (e.g. Dog Quest) also have a always-visible way
             // back to the dashboard, even before the in-WebView header/menu

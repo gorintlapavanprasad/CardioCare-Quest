@@ -86,7 +86,11 @@ class OfflineQueue {
       }
     });
 
-    await syncToFirestore();
+    // Kick off an initial sync, but DON'T await it: startup must never block on
+    // a network round-trip. If there are leftover pending batches, awaiting here
+    // freezes app launch on the splash screen until the upload resolves. Fire it
+    // in the background (same pattern as enqueueBatch) so the UI shows right away.
+    unawaited(syncToFirestore());
     debugPrint('OfflineQueue initialized (${_box.length} pending)');
   }
 

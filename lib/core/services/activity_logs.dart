@@ -166,7 +166,7 @@ class LoggingService {
 
           final event = LogEvent.fromMap(rawMap as Map<dynamic, dynamic>);
           final docRef =
-              _firestore.collection(FirestorePaths.events).doc(event.id);
+              _firestore.collection(FirestorePaths.telemetry).doc(event.id);
 
           batch.set(docRef, {
             ...event.toMap(),

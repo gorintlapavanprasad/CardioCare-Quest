@@ -9,6 +9,8 @@
 // when they've made some. The BP-logging game is left out on purpose
 // (it's reached from the dashboard's blood-pressure card instead).
 
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -35,11 +37,45 @@ class _GameCatalogScreenState extends State<GameCatalogScreen> {
   late final Map<GameCategory, List<GameStory>> _byCategory;
   late final List<GameCategory> _categories;
 
+  // The order the tiles were shown in on the LAST visit to this screen,
+  // remembered across visits (static). With only 5 tiles a plain shuffle
+  // often lands on the same-looking order, making the reshuffle feel like
+  // it "isn't working". We compare against this and reshuffle until the new
+  // order actually differs, so every visit is visibly rearranged.
+  static List<GameCategory>? _lastOrder;
+  static final Random _rng = Random();
+
   @override
   void initState() {
     super.initState();
     _byCategory = GameCatalog.getCatalogGamesByCategory();
-    _categories = _byCategory.keys.toList()..shuffle();
+    _categories = _freshShuffledOrder(_byCategory.keys.toList());
+    _lastOrder = List<GameCategory>.from(_categories);
+  }
+
+  // Return a shuffled copy of [cats] that differs from the previous visit's
+  // order. Guards against the plain-shuffle "looks the same" problem for the
+  // small (5-item) list. Bails after a few tries so a 1-item list (which can
+  // never differ) can't loop forever.
+  List<GameCategory> _freshShuffledOrder(List<GameCategory> cats) {
+    if (cats.length < 2) return cats;
+    final order = List<GameCategory>.from(cats);
+    for (var attempt = 0; attempt < 8; attempt++) {
+      order.shuffle(_rng);
+      final prev = _lastOrder;
+      // Accept the first order that isn't identical to last time's.
+      if (prev == null || !_sameOrder(order, prev)) return order;
+    }
+    return order;
+  }
+
+  // True when two category lists are in the exact same order.
+  bool _sameOrder(List<GameCategory> a, List<GameCategory> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
   }
 
   // Build a tile per category, plus a "Your Goals" tile once the user

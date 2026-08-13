@@ -752,7 +752,14 @@ $(document).on(":passagedisplay", function (ev) {
     if (wDiet === "dairy" && diet === "vegan") hide = true;
     // Plant stand-ins only appear for the veg/vegan diets.
     if (wDiet === "plant" && diet === "everything") hide = true;
-    wr.style.display = hide ? "none" : "";
+    // Must use "important" priority: the stylesheet rule
+    // `.ingredients-grid .ing-wrap { display: flex !important; }` would
+    // otherwise override a plain inline display:none and keep the item visible.
+    if (hide) {
+      wr.style.setProperty("display", "none", "important");
+    } else {
+      wr.style.removeProperty("display");
+    }
   }
 
   var wraps = document.querySelectorAll(".ing-wrap");

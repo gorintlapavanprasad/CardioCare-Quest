@@ -48,17 +48,20 @@ abstract class MovementHooks {
   }) {
     final firestore = FirebaseFirestore.instance;
     final locationDocId = firestore
+        .collection(FirestorePaths.userData)
+        .doc(uid)
         .collection(FirestorePaths.movementData)
         .doc(sessionId)
         .collection(FirestorePaths.locationData)
         .doc()
         .id;
     final geoDocId =
-        firestore.collection(FirestorePaths.dataPoints).doc().id;
+        firestore.collection(FirestorePaths.movementPoints).doc().id;
     final geohash = geohashFor(position.latitude, position.longitude);
 
     return _queue.enqueueBatch([
       PendingOp.set(
+        '${FirestorePaths.userData}/$uid/'
         '${FirestorePaths.movementData}/$sessionId',
         {
           'sessionId': sessionId,
@@ -74,10 +77,11 @@ abstract class MovementHooks {
         merge: true,
       ),
       PendingOp.set(
+        '${FirestorePaths.userData}/$uid/'
         '${FirestorePaths.movementData}/$sessionId/'
         '${FirestorePaths.locationData}/$locationDocId',
         {
-          'datetime': OfflineFieldValue.nowTimestamp(),
+          'timestamp': OfflineFieldValue.nowTimestamp(),
           'game': gameId,
           'geopoint':
               OfflineFieldValue.geopoint(position.latitude, position.longitude),
@@ -92,7 +96,7 @@ abstract class MovementHooks {
         },
       ),
       PendingOp.set(
-        '${FirestorePaths.dataPoints}/$geoDocId',
+        '${FirestorePaths.movementPoints}/$geoDocId',
         {
           'location': {
             'geopoint': OfflineFieldValue.geopoint(
@@ -138,6 +142,8 @@ abstract class MovementHooks {
   }) {
     final firestore = FirebaseFirestore.instance;
     final checkDocId = firestore
+        .collection(FirestorePaths.userData)
+        .doc(uid)
         .collection(FirestorePaths.movementData)
         .doc(sessionId)
         .collection(FirestorePaths.checkData)
@@ -159,6 +165,7 @@ abstract class MovementHooks {
         'lastPlayedAt': OfflineFieldValue.nowTimestamp(),
       }),
       PendingOp.set(
+        '${FirestorePaths.userData}/$uid/'
         '${FirestorePaths.movementData}/$sessionId',
         {
           'sessionId': sessionId,
@@ -176,6 +183,7 @@ abstract class MovementHooks {
         merge: true,
       ),
       PendingOp.set(
+        '${FirestorePaths.userData}/$uid/'
         '${FirestorePaths.movementData}/$sessionId/'
         '${FirestorePaths.checkData}/$checkDocId',
         {
@@ -291,7 +299,8 @@ abstract class MovementHooks {
   // Count how many walks of this game the user finished this week (since
   // Monday). Shown on quest screens.
   //
-  // We ask the database only by user, then filter by game and date here on the
+  // Reads the participant's own movement sessions (now nested under
+  // userData/{uid}/movementData), then filters by game and date here on the
   // phone - that way we don't need a special database index. Uses cache offline.
   static Future<int> fetchWeeklyQuestCount({
     required String uid,
@@ -303,8 +312,9 @@ abstract class MovementHooks {
           .subtract(Duration(days: now.weekday - DateTime.monday));
 
       final snap = await FirebaseFirestore.instance
+          .collection(FirestorePaths.userData)
+          .doc(uid)
           .collection(FirestorePaths.movementData)
-          .where('userId', isEqualTo: uid)
           .get();
 
       var count = 0;
