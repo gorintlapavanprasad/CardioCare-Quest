@@ -6,23 +6,16 @@ import 'package:cardio_care_quest/core/constants/firestore_paths.dart';
 import 'package:cardio_care_quest/core/services/health_service.dart';
 import 'package:cardio_care_quest/core/services/offline_queue.dart';
 
-// HealthHooks - saves a snapshot of watch/phone health data (heart rate, steps,
-// etc. from Apple Watch / Wear OS) to the cloud.
-//
-// Why separate from the BP log: we only ask for BP once a day, but research
-// wants vitals after EVERY game ends. So this runs on every game-end no matter
-// what. Saves through OfflineQueue so it works offline and survives app close.
-//
-// Note: we always write a doc even when there's no watch data - it records
-// "hasWearableData: false" so a game-end still counts and "no data" is clearly
-// different from "no record at all".
+// HealthHooks - saves a health data snapshot (heart rate, steps, etc.) after
+// each game ends. Separate from the BP log because we only ask for BP once a day
+// but research wants vitals after every game. Always saves a doc even with no
+// watch data, so "no data" is clearly different from "no record at all".
 abstract class HealthHooks {
   static OfflineQueue get _queue => GetIt.instance<OfflineQueue>();
   static const _uuid = Uuid();
 
-  // Grab the latest health snapshot and save it. Best-effort: if the watch
-  // gives us nothing, we still save the doc (just with metadata) so the
-  // game-end is countable.
+  // Grab the latest health snapshot and save it. If the watch has nothing,
+  // we still save the doc so the game-end is counted.
   static Future<void> logSnapshot({
     required String uid,
     required String gameId,
@@ -33,8 +26,7 @@ abstract class HealthHooks {
     try {
       final snapshot = await HealthService.instance.captureSnapshot();
 
-      // Drop the snapshot's own text date and use a proper timestamp instead,
-      // so we can sort snapshots by time in the database.
+      // Remove the text date from the snapshot; we add a real timestamp below.
       final snap = snapshot.toFirestore()..remove('collectedAt');
 
       final docId = _uuid.v4();

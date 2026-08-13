@@ -31,8 +31,7 @@ void showCelebrationModal(BuildContext context, {required String message}) {
   );
 }
 
-// The actual card inside the popup. It's stateful only so the sparkle
-// badge can keep spinning on its own.
+// Stateful only so the spinning badge can animate.
 class _CelebrationModalContent extends StatefulWidget {
   final String message;
 
@@ -51,14 +50,12 @@ class _CelebrationModalContentState extends State<_CelebrationModalContent> with
     _spinController = AnimationController(vsync: this, duration: const Duration(seconds: 4))..repeat();
   }
 
-  // Stop the spinner when the popup goes away, so it doesn't leak.
   @override
   void dispose() {
     _spinController.dispose();
     super.dispose();
   }
 
-  // Lay out the card: spinning badge and message.
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -68,7 +65,6 @@ class _CelebrationModalContentState extends State<_CelebrationModalContent> with
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.98),
         borderRadius: BorderRadius.circular(32),
-        // Matching your dashboard card border style
         border: Border.all(color: AppColors.viridis2.withValues(alpha: 0.2)),
         boxShadow: [
           BoxShadow(
@@ -81,12 +77,10 @@ class _CelebrationModalContentState extends State<_CelebrationModalContent> with
       child: Stack(
         clipBehavior: Clip.none,
         children: [
-          // Close Button - Cleaned up
        Positioned(
             top: 4, // Moved inside the container
             right: 4, 
             child: IconButton(
-              // Changed to dark grey for visibility
               icon: const Icon(Icons.close_rounded, color: AppColors.placeholder, size: 24),
               onPressed: () => Navigator.of(context).pop(),
             ),
@@ -94,14 +88,12 @@ class _CelebrationModalContentState extends State<_CelebrationModalContent> with
           Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // ─── NEW: SUCCESS ICON WITH DASHBOARD GRADIENT ───
               RotationTransition(
                 turns: _spinController,
                 child: Container(
                   width: 88, height: 88,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    // Switched to Viridis 2/3 (Teal/Green) for a "Success" feel
                     gradient: const LinearGradient(
                       colors: [AppColors.viridis3, AppColors.viridis2],
                       begin: Alignment.topLeft,

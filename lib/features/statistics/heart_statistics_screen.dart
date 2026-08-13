@@ -7,16 +7,12 @@ import 'package:intl/intl.dart';
 import 'package:cardio_care_quest/core/theme/app_colors.dart';
 import 'package:cardio_care_quest/core/constants/firestore_paths.dart';
 
-// Heart Statistics screen - one big line chart of the user's blood pressure
-// over time (systolic and diastolic). Pure view: it only reads and draws,
-// it never saves anything.
+// Heart Statistics - line chart of blood pressure over time. Read-only view.
 
-// The screen. Reads the readings and shows the chart (or an empty message).
 class HeartStatisticsScreen extends StatelessWidget {
   const HeartStatisticsScreen({super.key});
 
-  // Live feed of the user's daily logs, oldest first so the chart reads
-  // left-to-right in time order.
+  // Live feed of daily logs, oldest first so the chart reads left-to-right.
   Stream<QuerySnapshot> _getReadingsStream(BuildContext context) {
     final uid = Provider.of<UserDataProvider>(context, listen: false).uid;
     if (uid.isEmpty) return const Stream.empty();
@@ -29,8 +25,7 @@ class HeartStatisticsScreen extends StatelessWidget {
         .snapshots();
   }
 
-  // Build the page: spinner while loading, empty message if no data,
-  // else the title, legend, and chart.
+  // Shows a spinner, empty state, or the chart depending on data state.
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -78,7 +73,7 @@ class HeartStatisticsScreen extends StatelessWidget {
     );
   }
 
-  // Shown when there are no readings yet - nudges the user to log some BP.
+  // Shown when there are no readings yet.
   Widget _buildEmptyState() {
     return Center(
       child: Column(
@@ -100,7 +95,7 @@ class HeartStatisticsScreen extends StatelessWidget {
     );
   }
 
-  // The little color key telling which line is systolic vs diastolic.
+  // Color key for systolic vs diastolic.
   Widget _buildLegend() {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -112,7 +107,7 @@ class HeartStatisticsScreen extends StatelessWidget {
     );
   }
 
-  // One colored dot + its label for the legend.
+  // One legend item: colored dot + label.
   Widget _legendItem(String label, Color color) {
     return Row(
       children: [
@@ -123,10 +118,9 @@ class HeartStatisticsScreen extends StatelessWidget {
     );
   }
 
-  // The white card holding the chart. Turns each reading into two dots
-  // (systolic + diastolic) and draws the axes and lines.
+  // White card holding the chart. Each reading becomes two dots (sys + dia).
   Widget _buildChartCard(List<QueryDocumentSnapshot> readings) {
-    // One dot per reading: x = its position in the list, y = the number.
+    // x = position in the list, y = the BP value.
     final spotsSys = <FlSpot>[];
     final spotsDia = <FlSpot>[];
 
@@ -136,7 +130,7 @@ class HeartStatisticsScreen extends StatelessWidget {
       spotsDia.add(FlSpot(i.toDouble(), (data['diastolic'] as int).toDouble()));
     }
 
-    // Short date label (like "Mar 5") for the bottom axis, with safe fallbacks.
+    // Short date label (e.g. "Mar 5") for the bottom axis.
     String formatReadingDate(int index) {
       if (index < 0 || index >= readings.length) return '';
       final data = readings[index].data() as Map<String, dynamic>;
@@ -185,7 +179,7 @@ class HeartStatisticsScreen extends StatelessWidget {
                 reservedSize: 30,
                 interval: 1,
                 getTitlesWidget: (value, meta) {
-                  // Only show label every few points if there are many readings to avoid crowding
+                  // Skip labels when there are lots of readings to avoid crowding.
                   if (value % (readings.length > 7 ? 2 : 1) != 0) return const Text('');
                   return Padding(
                     padding: const EdgeInsets.only(top: 8.0),
@@ -223,7 +217,7 @@ class HeartStatisticsScreen extends StatelessWidget {
     );
   }
 
-  // Style for one line: curved, colored, with dots and a soft fill below.
+  // One chart line: curved, colored, with dots and a faint fill below.
   LineChartBarData _createLineData(List<FlSpot> spots, Color color) {
     return LineChartBarData(
       spots: spots,
@@ -248,8 +242,7 @@ class HeartStatisticsScreen extends StatelessWidget {
   }
 }
 
- // Draws the small circle marker on each point of the line (a white dot
- // with a colored ring). The chart library needs this custom painter.
+// White dot with a colored ring on each chart point. Required by fl_chart.
  class CirclePainter extends FlDotPainter {
   final double radius;
   final Color color;
@@ -263,7 +256,7 @@ class HeartStatisticsScreen extends StatelessWidget {
     required this.strokeWidth
   });
 
-  // 1. ADDED: Required by newer versions of fl_chart
+  // Required by fl_chart for the dot color.
   @override
   Color get mainColor => color; 
 
@@ -284,7 +277,7 @@ class HeartStatisticsScreen extends StatelessWidget {
   @override
   List<Object?> get props => [radius, color, strokeColor, strokeWidth];
 
-  // 2. ADDED: Required by newer versions of fl_chart for animations
+  // Required by fl_chart for animations.
   @override
   FlDotPainter lerp(FlDotPainter a, FlDotPainter b, double t) {
     return this; 

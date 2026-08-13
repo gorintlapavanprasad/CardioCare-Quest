@@ -1,23 +1,9 @@
-// One shared stylesheet injected into EVERY in-app Twine game WebView so all
-// games render the same way on any device:
-//   * Full-bleed - no floating "phone card" on a cream border, no rounded
-//     corners, no fixed 380px width.
-//   * Full viewport height via dvh (tracks the visible viewport, so it fits
-//     every phone regardless of status/nav-bar insets) with a vh fallback.
-//   * Larger text + emoji for readability (the audience skews older).
-//
-// It is applied on page load from both game hosts (twine_questionnaire_host
-// and twine_game_host). Using `!important` plus a single injected <style> in
-// <head> means it wins over each game's own CSS and survives SugarCube
-// passage swaps, which only replace the passage body and never touch <head>.
-//
-// The games all come from the same design system, so they share these class
-// names (.phone, .hero-emoji, .quiz-emoji, .narrative, .food-emoji, ...);
-// targeting them here restyles all games at once from one place.
+// Shared stylesheet injected into every Twine game WebView. Makes all games
+// full-bleed, correct height on every phone, and uses larger text and emoji.
+// Applied from both game hosts on every onPageFinished; the id guard makes it
+// safe to inject more than once.
 
-/// JavaScript that appends the shared CCQ game stylesheet. Idempotent - it
-/// no-ops if the style element is already present, so it's safe to run on
-/// every `onPageFinished`.
+// JavaScript that injects the shared CCQ stylesheet. Skips if already present.
 const String kCcqGameStyleInjectionJs = '''
 (function () {
   try {

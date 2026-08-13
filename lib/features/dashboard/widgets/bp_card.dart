@@ -82,7 +82,7 @@ class BPCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 16),
-          // FIX: Removed Baseline dependency so it renders safely on all devices
+          // CrossAxisAlignment.end used instead of Baseline for safe rendering.
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [

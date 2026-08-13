@@ -1,8 +1,5 @@
-// CustomGamesSection - the "Your Goals" row on the dashboard.
-//
-// Shows the user's own games as little cards, newest first. Tap a card
-// to play it; tap the × (or long-press) to delete it. If the user isn't
-// signed in or has no games yet, the whole row just hides itself.
+// "Your Goals" row on the dashboard. Tap a card to play, tap × to delete.
+// Hidden when the user isn't signed in or has no games.
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -14,12 +11,7 @@ import 'custom_game.dart';
 import 'custom_game_player.dart';
 import 'custom_games_repository.dart';
 
-// The only tracking done here is the delete event. Points/answers get
-// tracked while playing, over in CustomGamePlayer.
-
-// ---- THE WHOLE ROW ----
-
-// The "Your Goals" row: header plus a side-scrolling list of game cards.
+// Delete events are tracked here. Points/answers are tracked in CustomGamePlayer.
 class CustomGamesSection extends StatelessWidget {
   const CustomGamesSection({super.key});
 
@@ -62,7 +54,7 @@ class CustomGamesSection extends StatelessWidget {
   }
 }
 
-// The "Your Goals (3)" title with a count next to it.
+// "Your Goals (N)" heading.
 class _Header extends StatelessWidget {
   final int count;
   const _Header({required this.count});
@@ -98,9 +90,7 @@ class _Header extends StatelessWidget {
   }
 }
 
-// ---- ONE GAME CARD ----
-
-// One card in the row. Tap to play, tap the × (or long-press) to delete.
+// One game card. Tap to play, × or long-press to delete.
 class _CustomGameTile extends StatelessWidget {
   final CustomGame game;
   final String uid;
@@ -109,10 +99,8 @@ class _CustomGameTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // A Stack lets us float a little × button on top of the card. We show
-    // an obvious × because older users won't guess to long-press. The ×
-    // has its own tap area, so tapping it deletes and does NOT also open
-    // the game.
+    // Stack floats the × on top of the card. The × has its own tap area
+    // so tapping it deletes rather than opening the game.
     return Stack(
       clipBehavior: Clip.none,
       children: [
@@ -120,7 +108,6 @@ class _CustomGameTile extends StatelessWidget {
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
           child: InkWell(
-            // Tap the card: open and play this game.
             onTap: () => Navigator.push(
               context,
               MaterialPageRoute(
@@ -185,7 +172,7 @@ class _CustomGameTile extends StatelessWidget {
                   ),
                 ),
               ),
-              // Only show "Done Nx" once it's been finished at least once.
+              // Only shown after at least one completion.
               if (game.completedCount > 0)
                 Padding(
                   padding: const EdgeInsets.only(top: 4),
@@ -203,9 +190,7 @@ class _CustomGameTile extends StatelessWidget {
         ),
           ),
         ),
-        // The little ✕ delete button in the top-right corner. It sits
-        // just outside the card edge so it doesn't cover the text, and it
-        // has its own tap area so tapping it deletes instead of playing.
+        // Delete button floated just outside the top-right corner.
         Positioned(
           top: -6,
           right: -6,
@@ -238,9 +223,7 @@ class _CustomGameTile extends StatelessWidget {
     );
   }
 
-  // ---- DELETE FLOW ----
-
-  // The little pop-up sheet from a long-press. Only choice: delete.
+  // Bottom sheet shown on long-press, with a delete option.
   void _showDeleteSheet(BuildContext context) {
     showModalBottomSheet<void>(
       context: context,
@@ -308,7 +291,7 @@ class _CustomGameTile extends StatelessWidget {
     );
   }
 
-  // Ask "are you sure?", then delete if they say yes. Earned points stay.
+  // Confirmation dialog before deleting. Earned points are kept.
   Future<void> _confirmDelete(BuildContext context) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -335,7 +318,7 @@ class _CustomGameTile extends StatelessWidget {
 
     try {
       await CustomGamesRepository.instance.delete(uid: uid, gameId: game.id);
-      // Note the delete for the researchers (no personal info).
+      // Log the deletion for research (no personal info).
       // ignore: unawaited_futures
       TelemetryHooks.logEvent(
         'custom_game_deleted',
@@ -356,8 +339,7 @@ class _CustomGameTile extends StatelessWidget {
   }
 }
 
-// A big row button used inside the delete sheet. Turns red for the
-// "delete" action so it clearly looks risky.
+// Row button used in the delete sheet. Red when destructive.
 class _SheetButton extends StatelessWidget {
   final IconData icon;
   final String label;

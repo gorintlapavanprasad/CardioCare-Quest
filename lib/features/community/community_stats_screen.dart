@@ -1,15 +1,7 @@
-// Community Statistics - the group dashboard.
-//
-// Shows how the whole group is doing as cards of totals and averages:
-// who's active, games played, average blood pressure, pills taken, and a
-// group score. The actual number-crunching happens in
-// community_stats_service.dart; this file is just the display.
-//
-// Privacy: every number here is a group total or average. There's no list
-// of individuals and no ranking, so no single person can be picked out.
-//
-// How it loads: fetches once when opened, and again on pull-to-refresh.
-// Time-based cards cover the last 7 days.
+// Community Statistics - group dashboard showing totals and averages.
+// Number-crunching is in community_stats_service.dart; this file is display only.
+// All numbers are group-level. No individual results are shown.
+// Fetches once on open, refreshes on pull-down. Time window is 7 days.
 
 import 'package:flutter/material.dart';
 
@@ -25,10 +17,7 @@ class CommunityStatsScreen extends StatefulWidget {
   State<CommunityStatsScreen> createState() => _CommunityStatsScreenState();
 }
 
-// Holds the in-progress fetch of the group stats and refreshes it.
 class _CommunityStatsScreenState extends State<CommunityStatsScreen> {
-  // The pending fetch of the numbers. The page shows a spinner until it's
-  // done. On pull-to-refresh we swap in a new one so the spinner reappears.
   Future<CommunityStats>? _statsFuture;
 
   // Kick off the first fetch when the screen opens.
@@ -38,7 +27,7 @@ class _CommunityStatsScreenState extends State<CommunityStatsScreen> {
     _statsFuture = CommunityStatsService.instance.fetch();
   }
 
-  // Pull-to-refresh: start a fresh fetch and wait for it.
+  // Pull-to-refresh.
   Future<void> _refresh() async {
     setState(() {
       _statsFuture = CommunityStatsService.instance.fetch();
@@ -46,8 +35,6 @@ class _CommunityStatsScreenState extends State<CommunityStatsScreen> {
     await _statsFuture;
   }
 
-  // Build the page: spinner while loading, error/empty fallbacks, else
-  // the stats body. Wrapped in pull-to-refresh.
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -55,11 +42,7 @@ class _CommunityStatsScreenState extends State<CommunityStatsScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.title,
         foregroundColor: Colors.white,
-        // Explicit iconTheme + titleTextStyle - see the matching
-        // note in health_stats_screen.dart. The global appBarTheme
-        // configures dark icons / dark title for the dashboard's
-        // white AppBar; on this dark AppBar we need to override
-        // both back to white or the back arrow + title disappear.
+        // Override to white icons/title - global theme uses dark for white AppBars.
         iconTheme: const IconThemeData(color: Colors.white),
         titleTextStyle: const TextStyle(
           fontFamily: 'Atkinson Hyperlegible',
@@ -96,14 +79,12 @@ class _CommunityStatsScreenState extends State<CommunityStatsScreen> {
 
 // ───────────── States ─────────────
 
-// Spinner shown while the numbers are still being fetched.
 class _LoadingState extends StatelessWidget {
   const _LoadingState();
 
   @override
   Widget build(BuildContext context) {
-    // Single-screen-height padding so RefreshIndicator can still be
-    // pulled even while the future is in-flight.
+    // Tall enough so RefreshIndicator works while loading.
     return ListView(
       children: const [
         SizedBox(
@@ -117,7 +98,7 @@ class _LoadingState extends StatelessWidget {
   }
 }
 
-// Shown if the fetch failed - a friendly "couldn't load" with the reason.
+// Shown when the fetch failed.
 class _ErrorState extends StatelessWidget {
   final String message;
   const _ErrorState({required this.message});
@@ -163,8 +144,6 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // A graceful "nothing here yet" for first launch, before anyone
-    // has logged readings or played games.
     return ListView(
       padding: const EdgeInsets.all(24),
       children: const [
@@ -199,7 +178,6 @@ class _EmptyState extends StatelessWidget {
 
 // ───────────── Body ─────────────
 
-// The real page once data is in: a scrolling stack of titled cards.
 class _StatsBody extends StatelessWidget {
   final CommunityStats stats;
   const _StatsBody({required this.stats});
@@ -209,14 +187,7 @@ class _StatsBody extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
       children: [
-        // Privacy banner removed for the 2026-05-12 demo - earlier
-        // it read as a defensive disclaimer ("Showing anonymous
-        // totals across N participants. No individual readings or
-        // names are visible here.") which felt out of place at a
-        // 150-person showcase. Re-introduce as a subtle footer
-        // line, or as an info-icon tooltip on the AppBar, if the
-        // page lands in a research-IRB context where participants
-        // benefit from explicit data-handling assurances.
+        // Privacy banner removed for demo; add back if needed for IRB context.
         _SectionTitle('Cohort Pulse'),
         _CohortPulseCard(stats: stats),
         const SizedBox(height: 24),
@@ -241,7 +212,6 @@ class _StatsBody extends StatelessWidget {
 
 // ───────────── Section / Footer ─────────────
 
-// A bold heading above each group of cards.
 class _SectionTitle extends StatelessWidget {
   final String text;
   const _SectionTitle(this.text);
@@ -262,13 +232,13 @@ class _SectionTitle extends StatelessWidget {
   }
 }
 
-// The little grey line at the bottom: when it updated and the time window.
+// Footer: last updated time and the time window.
 class _Footer extends StatelessWidget {
   final DateTime fetchedAt;
   final int windowDays;
   const _Footer({required this.fetchedAt, required this.windowDays});
 
-  // Turn a time into a short "x min ago" style label.
+  // Returns "x min ago" style label.
   String _ago(DateTime t) {
     final diff = DateTime.now().difference(t);
     if (diff.inSeconds < 60) return 'just now';
@@ -298,9 +268,7 @@ class _Footer extends StatelessWidget {
 
 // ───────────── Cards ─────────────
 
-/// Generic stat card used for the simpler sections. Centred big
-/// number with a helper line under it. Two-tone variant for the
-/// pulse card uses [_TwoStatCard].
+// Simple stat card: icon, big number, label, optional sub-text.
 class _StatCard extends StatelessWidget {
   final IconData icon;
   final String headline;
@@ -366,10 +334,7 @@ class _StatCard extends StatelessWidget {
   }
 }
 
-/// Pulse card - two stats side by side. Active-today on the left,
-/// total plays this week on the right. Visually higher-contrast than
-/// the rest of the cards because it's the page's "at a glance"
-/// summary.
+// Two stats side by side: active today (left) and plays this week (right).
 class _CohortPulseCard extends StatelessWidget {
   final CommunityStats stats;
   const _CohortPulseCard({required this.stats});
@@ -410,7 +375,7 @@ class _CohortPulseCard extends StatelessWidget {
   }
 }
 
-// One side of the pulse card: a big number, a small tail, a label, a hint.
+// One half of the pulse card.
 class _PulseHalf extends StatelessWidget {
   final String big;
   final String small;
@@ -483,10 +448,7 @@ class _PulseHalf extends StatelessWidget {
   }
 }
 
-/// Heart-health card - cohort BP averages with a min/max range
-/// underneath. We deliberately don't show a daily trend chart here:
-/// at 15 participants × 7 days the line would have wide confidence
-/// intervals and could overweight a single outlier reading.
+// Cohort average BP with a min/max range. No trend chart - too few participants for it to be reliable.
 class _HeartHealthCard extends StatelessWidget {
   final CommunityStats stats;
   const _HeartHealthCard({required this.stats});
@@ -590,7 +552,7 @@ class _HeartHealthCard extends StatelessWidget {
   }
 }
 
-// One "lowest to highest" line, e.g. "Systolic range  110 - 140 mmHg".
+// One "label  min - max mmHg" row.
 class _RangeRow extends StatelessWidget {
   final String label;
   final int? min;
@@ -625,10 +587,8 @@ class _RangeRow extends StatelessWidget {
   }
 }
 
-/// Medication adherence - pills logged this week + a percentage of
-/// cohort that has taken medication today. We chose a percentage
-/// rather than raw count because it stays interpretable across
-/// cohort-size changes (15 today, possibly more tomorrow).
+// Pills logged this week + % of cohort who took medication today.
+// Uses a percentage so it stays readable if cohort size changes.
 class _MedicationCard extends StatelessWidget {
   final CommunityStats stats;
   const _MedicationCard({required this.stats});
@@ -681,9 +641,7 @@ class _MedicationCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-          // Linear progress reads as "fraction of cohort that has
-          // taken medication today". Capped at 1.0 - a defensive
-          // div-by-zero already short-circuited above.
+          // Progress bar shows what fraction of the cohort took a pill today.
           ClipRRect(
             borderRadius: BorderRadius.circular(8),
             child: LinearProgressIndicator(
@@ -712,10 +670,8 @@ class _MedicationCard extends StatelessWidget {
   }
 }
 
-/// Engagement - horizontal bars for plays-by-category plus the
-/// most-played game callout on top. The bars share a visual scale
-/// (longest bar = max category) so participants can read relative
-/// engagement at a glance without exact counts being legible.
+// Plays by category as horizontal bars, with the most-played game on top.
+// Bars are scaled to the busiest category so you can compare at a glance.
 class _GameEngagementCard extends StatelessWidget {
   final CommunityStats stats;
   const _GameEngagementCard({required this.stats});
@@ -797,9 +753,7 @@ class _GameEngagementCard extends StatelessWidget {
             ),
           ],
           const SizedBox(height: 16),
-          // Iterate the canonical category order from the enum so
-          // the bars render in the same sequence as the catalog
-          // tiles on the dashboard.
+          // Same order as the catalog tiles on the dashboard.
           for (final cat in GameCategory.values)
             _CategoryBar(
               category: cat,
@@ -812,8 +766,7 @@ class _GameEngagementCard extends StatelessWidget {
   }
 }
 
-// One horizontal bar for a game category. Its length is relative to the
-// busiest category, so you can compare at a glance.
+// One horizontal bar for a game category.
 class _CategoryBar extends StatelessWidget {
   final GameCategory category;
   final int count;
@@ -858,10 +811,7 @@ class _CategoryBar extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 4),
-          // Background track plus the filled portion. Custom-built
-          // rather than LinearProgressIndicator so each category can
-          // own a distinct viridis stop, matching the games' new
-          // unified palette.
+          // Custom bar so each category gets its own colour from the viridis palette.
           ClipRRect(
             borderRadius: BorderRadius.circular(6),
             child: Stack(
@@ -885,10 +835,7 @@ class _CategoryBar extends StatelessWidget {
     );
   }
 
-  /// Map each category to a distinct viridis anchor stop. Matches
-  /// the palette the games now share - gives the bars a clear
-  /// "this is part of the CardioCare visual system" feel rather
-  /// than a generic Material chart look.
+  // Maps each category to a viridis colour to match the rest of the app.
   static Color _viridisStop(GameCategory cat) {
     switch (cat) {
       case GameCategory.exercise:
@@ -907,7 +854,7 @@ class _CategoryBar extends StatelessWidget {
 
 // ───────────── Decoration helper ─────────────
 
-// Shared look for every card: white, rounded, bordered, soft shadow.
+// Shared card style: white, rounded, bordered, soft shadow.
 BoxDecoration _cardDecoration() => BoxDecoration(
       color: Colors.white,
       borderRadius: BorderRadius.circular(16),

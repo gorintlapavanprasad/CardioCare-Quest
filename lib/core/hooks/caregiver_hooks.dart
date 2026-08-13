@@ -6,21 +6,19 @@ import 'package:cardio_care_quest/core/services/offline_queue.dart';
 import 'package:cardio_care_quest/core/services/session_manager.dart';
 import 'package:cardio_care_quest/core/hooks/telemetry_hooks.dart';
 
-// CaregiverHooks - for when a caregiver is helping during a two-person session.
-//
-// markHelp records "I helped here" at a game moment; addNote saves a free-text
-// note. Both save under the current paired session and also fire a telemetry
-// event, so these show up in the same events stream researchers already look at.
+// CaregiverHooks - records caregiver actions during a paired session.
+// markHelp saves an "I helped" marker; addNote saves a text note.
+// Both also fire a telemetry event so they appear in the research events stream.
 abstract class CaregiverHooks {
   static OfflineQueue get _queue => GetIt.instance<OfflineQueue>();
   static const _uuid = Uuid();
 
-  // Save an "I helped" marker, tagged with whatever game/step is happening now.
+  // Save an "I helped" marker tagged to the current game step.
   static Future<void> markHelp({
     String helpType = 'other',
     String? note,
   }) async {
-    // No paired session running? Nothing to attach a help marker to, so stop.
+    // No paired session? Nothing to tag the marker to.
     final pairedSessionId = SessionManager.pairedSessionId;
     if (pairedSessionId == null) return;
     final markerId = _uuid.v4();
@@ -35,7 +33,7 @@ abstract class CaregiverHooks {
       'createdAt': OfflineFieldValue.nowTimestamp(),
     };
 
-    // Save the marker and bump the session's help count, together.
+    // Save the marker and bump the session's help count in one batch.
     await _queue.enqueueBatch([
       PendingOp.set(
         '${FirestorePaths.pairedSessions}/$pairedSessionId/'
@@ -49,7 +47,7 @@ abstract class CaregiverHooks {
       ),
     ]);
 
-    // Also log it as an event so it shows up in the research events stream.
+    // Also log it as a telemetry event.
     TelemetryHooks.logEvent(
       'caregiver_help_marked',
       parameters: {
@@ -61,9 +59,9 @@ abstract class CaregiverHooks {
     );
   }
 
-  // Save a caregiver's free-text note (a new doc each time, never overwritten).
+  // Save a caregiver's text note. Each call creates a new doc, never overwrites.
   static Future<void> addNote(String text) async {
-    // Need a running session and some actual text, otherwise skip.
+    // Skip if no session is running or the text is empty.
     final pairedSessionId = SessionManager.pairedSessionId;
     if (pairedSessionId == null || text.trim().isEmpty) return;
     final noteId = _uuid.v4();

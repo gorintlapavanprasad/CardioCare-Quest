@@ -2,17 +2,16 @@ import 'package:flutter/material.dart';
 
 import 'package:cardio_care_quest/core/widgets/twine_questionnaire_host.dart';
 
-// Salt Sludge - a 5-day food-choice story. Each day you pick one of two foods:
-// potassium-rich foods clear the "sludge" in your artery, salty foods add more.
-// It's an HTML game, no GPS.
+// Salt Sludge - 5-day food-choice story. Pick potassium-rich foods to clear
+// the artery "sludge", or salty foods to add more.
 
-// Shows the Salt Sludge game by loading its HTML in the web-view host.
+// Loads the Salt Sludge HTML game.
 class SaltSludgeGame extends StatelessWidget {
   const SaltSludgeGame({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // Give the host the game id, title, and HTML file to open.
+    // Pass the game id, title, and HTML file to the host.
     return const TwineQuestionnaireHost(
       surveyId: 'salt_sludge',
       title: 'Salt Sludge',

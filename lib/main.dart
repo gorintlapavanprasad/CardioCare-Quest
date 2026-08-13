@@ -1,8 +1,5 @@
-// main.dart - the app's starting point.
-//
-// This wires everything up before showing the first screen: Firebase (cloud),
-// the offline write-queue, the shared "brains" (providers), app-wide text
-// scaling, and keeping a paired session alive as the app is minimised/reopened.
+// App entry point. Sets up Firebase, the offline queue, providers, and
+// text scaling before showing the first screen.
 
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -26,46 +23,40 @@ import 'package:cardio_care_quest/core/providers/user_data_manager.dart'; // The
 import 'package:cardio_care_quest/core/services/activity_logs.dart';    // The Netgauge Telemetry Logger
 import 'package:cardio_care_quest/core/services/offline_queue.dart';    // Generic offline write queue
 
-// App entry point. Sets up services first, THEN shows the UI.
+// Sets up services, then shows the UI.
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 1. Initialize Firebase
+  // 1. Initialize Firebase.
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
-  // 1b. Explicit Firestore offline persistence.
-  // Mobile SDK enables persistence by default; we set it explicitly + bump the
-  // cache to unlimited so long offline sessions at the workshop never evict
-  // pending writes. cloud_firestore ^6.x applies these settings cross-platform.
+  // 1b. Set Firestore cache to unlimited so long offline sessions never lose
+  // pending writes. Persistence is on by default; we set it explicitly anyway.
   FirebaseFirestore.instance.settings = const Settings(
     persistenceEnabled: true,
     cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
   );
 
-  // 2. Initialize Netgauge Logging Service (From original Netgauge architecture)
+  // 2. Start the logging service.
   final getIt = GetIt.instance;
   final loggingService = LoggingService();
   await loggingService.init();
   getIt.registerSingleton<LoggingService>(loggingService);
 
-  // 2b. Initialize the generic OfflineQueue for all research-grade writes
-  // (BP, exercise, meal, medication, quest completions, surveys, etc.).
+  // 2b. Start the offline queue for BP, meals, surveys, and other writes.
   final offlineQueue = OfflineQueue();
   await offlineQueue.init();
   getIt.registerSingleton<OfflineQueue>(offlineQueue);
 
-  // 3. Show the app. MultiProvider hands the shared "brains" (state that many
-  //    screens read/write) down to every screen below.
+  // 3. Run the app; MultiProvider makes shared state available everywhere.
   runApp(
-    // 3. MultiProvider ensures both brains are available to all screens
     MultiProvider(
       providers: [
-        // Your Cardio Care onboarding/auth state
+        // Auth/onboarding state.
         ChangeNotifierProvider(create: (_) => AuthProvider()),
-        
-        // The Netgauge Brain (Telemetry, Points, Firebase sync)
+        // Points, telemetry, and Firebase sync.
         ChangeNotifierProvider(create: (_) => UserDataProvider()),
       ],
       child: const CardioCareQuest(),
@@ -73,8 +64,7 @@ void main() async {
   );
 }
 
-// The root widget of the whole app. Watches the app's lifecycle (foreground /
-// background) so a paired session can be paused and resumed correctly.
+// Root widget. Watches app lifecycle to pause/resume a paired session.
 class CardioCareQuest extends StatefulWidget {
   const CardioCareQuest({super.key});
 
@@ -84,29 +74,24 @@ class CardioCareQuest extends StatefulWidget {
 
 class _CardioCareQuestState extends State<CardioCareQuest>
     with WidgetsBindingObserver {
-  // Runs once at startup. Start listening for foreground/background changes.
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    // Reattach an in-progress paired session left over from a previous run.
+    // Reattach a paired session left over from a previous run.
     PairResumeService.instance.tryRestore();
   }
 
-  // Runs when the app is torn down. Stop listening so nothing leaks.
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
-  // Called every time the app moves between foreground and background.
-  // We use it to pause/resume the paired session's "still alive" heartbeat.
+  // Pause/resume the paired session heartbeat as the app goes in/out of focus.
+  // No-ops when no session is active.
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // Keep a paired session's heartbeat / status current as the app moves
-    // between foreground and background, so it survives leaving the device and
-    // returning. No-ops when no session is active.
     if (!SessionManager.isPaired) return;
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.inactive) {
@@ -116,17 +101,15 @@ class _CardioCareQuestState extends State<CardioCareQuest>
     }
   }
 
-  // Builds the app shell (theme, global text size, and the first screen).
+  // App shell: theme, global text scale (set by joint setup), first screen.
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Cardio Care Quest',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
-      // Apply the joint-setup text size globally. Because all typography is
-      // themed, a textScaler multiplies every Text uniformly - no per-widget
-      // changes. Defaults to 1.0 (unchanged) until a paired session picks a
-      // larger size, so solo use is unaffected.
+      // textScaler multiplies every Text widget; defaults to 1.0 until
+      // a paired session picks a larger size.
       builder: (context, child) {
         return ValueListenableBuilder<SessionSettings>(
           valueListenable: SessionSettingsService.instance.settings,

@@ -1,8 +1,4 @@
-// CustomGamePlayer - plays a game the user built themselves.
-//
-// It just looks at the game type and hands off to the right player:
-//   • walk → CustomWalkGame (a GPS walk, like Dog Quest)
-//   • quiz → _QuizPlayer below (answer questions, like the other quizzes)
+// Routes to CustomWalkGame (walk) or _QuizPlayer (quiz) based on game type.
 
 import 'dart:async';
 
@@ -19,9 +15,6 @@ import 'custom_game.dart';
 import 'custom_games_repository.dart';
 import 'custom_walk_game.dart';
 
-// ---- THE ROUTER ----
-
-// Picks the walk player or the quiz player based on the game's type.
 class CustomGamePlayer extends StatelessWidget {
   final CustomGame game;
   const CustomGamePlayer({super.key, required this.game});
@@ -37,12 +30,10 @@ class CustomGamePlayer extends StatelessWidget {
   }
 }
 
-// ---- THE QUIZ PLAYER ----
-
-// The three screens a quiz moves through, in order.
+// The three screens in a quiz.
 enum _Scene { welcome, question, result }
 
-// The quiz player: welcome screen → questions → results screen.
+// Quiz player: welcome → questions → results.
 class _QuizPlayer extends StatefulWidget {
   final CustomGame game;
   const _QuizPlayer({required this.game});
@@ -53,30 +44,23 @@ class _QuizPlayer extends StatefulWidget {
 
 class _CustomGamePlayerState extends State<_QuizPlayer> {
   _Scene _scene = _Scene.welcome; // which screen we're on
-  // Copy the questions once when we start, so the list can't change
-  // under us mid-play even if the cloud copy gets updated.
+  // Snapshot taken at start so a cloud update can't change questions mid-play.
   late final List<QuizQuestion> _questions;
   int _currentQuestionIndex = 0; // which question is showing
-  // The user's answers, in the same order as _questions. Filled in as
-  // they tap; all sent together at the end.
+  // Answers collected in order, sent together when done.
   final List<String> _answers = [];
   late final String _sessionId; // ties all of this one play together
   late final DateTime _startedAt;
   bool _resultHooksFired = false; // so we only award points once
 
-  // Runs once when the quiz opens: grab the questions, make an id for
-  // this play, and note that the game was opened.
   @override
   void initState() {
     super.initState();
     _startedAt = DateTime.now();
-    // Get the questions to play (handles both new and old saved games).
     _questions = widget.game.effectiveQuestions;
-    // A unique id for this one play. Every record we save below carries
-    // it, so researchers can line them all up as one play later.
+    // ID ties all saved records from this one play together.
     _sessionId = '${_surveyId}_${_startedAt.millisecondsSinceEpoch}';
 
-    // Note that the game was opened (for the researchers).
     final uid = Provider.of<UserDataProvider>(context, listen: false).uid;
     // ignore: unawaited_futures
     TelemetryHooks.logEvent(
@@ -90,11 +74,9 @@ class _CustomGamePlayerState extends State<_QuizPlayer> {
     );
   }
 
-  // A name for this quiz's saved answers, e.g. "custom_ab12".
   String get _surveyId => 'custom_${widget.game.id}';
 
-  // Runs when the user taps an answer. Saves it, then either shows the
-  // next question or, on the last one, jumps to the results screen.
+  // Records the answer and moves to the next question or results.
   Future<void> _onAnswerTapped(String answer) async {
     final isLast = _currentQuestionIndex >= _questions.length - 1;
     setState(() {
@@ -106,20 +88,18 @@ class _CustomGamePlayerState extends State<_QuizPlayer> {
       }
     });
     if (!isLast) return;
-    // Only save + give points the first time we reach the results, so
-    // going back to this screen can't hand out points twice.
+    // Guard prevents double-awarding if the screen is somehow reached twice.
     if (_resultHooksFired) return;
     _resultHooksFired = true;
     await _fireCompletionHooks();
   }
 
-  // Runs once when the quiz is finished. Saves everything and hands out
-  // points. Each numbered step below saves a different piece.
+  // Called once when the quiz finishes. Saves results and awards points.
   Future<void> _fireCompletionHooks() async {
     final uid = Provider.of<UserDataProvider>(context, listen: false).uid;
     final game = widget.game;
 
-    // 1. Mark this game as finished one more time (updates the card).
+    // 1. Increment the game's completion count (updates the dashboard card).
     if (uid.isNotEmpty) {
       // ignore: unawaited_futures
       CustomGamesRepository.instance.markCompleted(
@@ -128,9 +108,7 @@ class _CustomGamePlayerState extends State<_QuizPlayer> {
       );
     }
 
-    // 2. Save the actual answers and add the points. We save each
-    //    question with its choices and the answer picked, so researchers
-    //    can see exactly what was asked and answered.
+    // 2. Save answers with each question's choices for research.
     if (uid.isNotEmpty) {
       // ignore: unawaited_futures
       SurveyHooks.submitResponse(
@@ -151,8 +129,7 @@ class _CustomGamePlayerState extends State<_QuizPlayer> {
       );
     }
 
-    // 3. Bump the points shown on screen right away, so the user sees
-    //    their new total instantly instead of waiting for the save.
+    // 3. Update points on screen immediately.
     if (mounted) {
       PointsHooks.applyIncrements(context, {
         'points': game.pointsReward,
@@ -160,9 +137,7 @@ class _CustomGamePlayerState extends State<_QuizPlayer> {
       });
     }
 
-    // 4. Note that the quiz was finished (for the researchers). Just
-    //    counts and timing here, no answers, to keep it free of any
-    //    personal info. The real answers were saved in step 2.
+    // 4. Log completion event for research (counts/timing only, no answers).
     // ignore: unawaited_futures
     TelemetryHooks.logEvent(
       'custom_game_session_completed',
@@ -179,8 +154,7 @@ class _CustomGamePlayerState extends State<_QuizPlayer> {
       userId: uid.isEmpty ? null : uid,
     );
 
-    // 5. Grab a health snapshot from the watch/wearable at the end,
-    //    tagged with this play's id so it lines up with the rest.
+    // 5. Capture a health snapshot at the end of the session.
     if (uid.isNotEmpty) {
       // ignore: unawaited_futures
       HealthHooks.logSnapshot(
@@ -190,9 +164,7 @@ class _CustomGamePlayerState extends State<_QuizPlayer> {
       );
     }
 
-    // 6. Save a short summary of this play. It's the same shape the
-    //    other games save, so one search can pull up every play of
-    //    every game together.
+    // 6. Save a session summary in the same shape as other games.
     if (uid.isNotEmpty) {
       // ignore: unawaited_futures
       GetIt.instance<OfflineQueue>().enqueue(PendingOp.set(
@@ -203,9 +175,8 @@ class _CustomGamePlayerState extends State<_QuizPlayer> {
           'gameId': _surveyId,
           'gameTitle': game.title,
           'category': game.category.name,
-          // Which player made this record, so plays can be grouped by
-          // type. We use the queue's time markers (below), because the
-          // plain cloud ones don't survive being stored on the phone.
+          // Use queue time markers here - plain cloud timestamps can't
+          // survive being stored offline on the phone.
           'hostType': 'CustomGamePlayer.quiz',
           'startedAt': OfflineFieldValue.timestampFrom(_startedAt),
           'endedAt': OfflineFieldValue.nowTimestamp(),
@@ -221,8 +192,6 @@ class _CustomGamePlayerState extends State<_QuizPlayer> {
     }
   }
 
-  // Shows whichever screen we're on right now: welcome, a question, or
-  // the result.
   @override
   Widget build(BuildContext context) {
     return PopScope(
@@ -258,9 +227,7 @@ class _CustomGamePlayerState extends State<_QuizPlayer> {
   }
 }
 
-// ---- SCREEN PARTS (looks only) ----
-
-// The dark blue background all the quiz screens sit on.
+// Dark blue background for all quiz screens.
 class _PhoneFrame extends StatelessWidget {
   final Color categoryColor;
   final Widget child;
@@ -282,7 +249,7 @@ class _PhoneFrame extends StatelessWidget {
   }
 }
 
-// The top bar with the game's title.
+// Top bar with the game's title.
 class _GameHeader extends StatelessWidget {
   final String title;
   const _GameHeader({required this.title});
@@ -320,7 +287,7 @@ class _GameHeader extends StatelessWidget {
   }
 }
 
-// First screen: the game name, note, and a BEGIN button.
+// Welcome screen: game name, description, and BEGIN button.
 class _WelcomeScene extends StatelessWidget {
   final CustomGame game;
   final VoidCallback onStart;
@@ -372,8 +339,7 @@ class _WelcomeScene extends StatelessWidget {
   }
 }
 
-// Middle screen: one question with its answer buttons. Shows a
-// "Question 2 of 3" counter when there's more than one.
+// Question screen with answer buttons. Shows a counter for multi-question quizzes.
 class _QuestionScene extends StatelessWidget {
   final CustomGame game;
   final QuizQuestion question;
@@ -413,7 +379,7 @@ class _QuestionScene extends StatelessWidget {
                   const SizedBox(height: 12),
                 ] else
                   const SizedBox(height: 12),
-                // Use a friendly default if the question text is blank.
+                // Fallback if the question text was left blank.
                 Text(
                   question.prompt.isEmpty
                       ? 'How did it go?'
@@ -444,7 +410,7 @@ class _QuestionScene extends StatelessWidget {
   }
 }
 
-// Last screen: "Great job", the points earned, and a DONE button.
+// Results screen: points earned and a DONE button.
 class _ResultScene extends StatelessWidget {
   final CustomGame game;
   final int questionTotal;
@@ -523,7 +489,7 @@ class _ResultScene extends StatelessWidget {
   }
 }
 
-// The big white button (BEGIN / DONE).
+// Large white button (BEGIN / DONE).
 class _PrimaryButton extends StatelessWidget {
   final String label;
   final VoidCallback onPressed;
@@ -557,7 +523,7 @@ class _PrimaryButton extends StatelessWidget {
   }
 }
 
-// One answer-choice button on a question screen.
+// Answer-choice button.
 class _OptionButton extends StatelessWidget {
   final String label;
   final VoidCallback onPressed;

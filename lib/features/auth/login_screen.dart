@@ -1,9 +1,6 @@
-// login_screen.dart - how a returning participant signs in.
-//
-// Two ways in: tap an NFC card (auto-fills the id) or type the id by hand.
-// Either way it looks up the account in the cloud, and works offline by
-// falling back to a copy saved earlier on the phone. Also swaps out the old
-// participant's data first so people don't get mixed up on a shared device.
+// login_screen.dart - returning-participant sign-in.
+// Two paths: tap an NFC card (auto-fills the ID) or type it manually.
+// Falls back to a local cache when offline. Clears old participant data first.
 
 import 'dart:async';
 import 'dart:io' show Platform;
@@ -23,11 +20,9 @@ import '../../core/services/nfc_service.dart';
 import '../../core/services/activity_logs.dart';
 import '../../core/services/offline_queue.dart';
 // import 'auth_screen.dart'; // Uncomment if you still need this route
-// Routing to the HomeTab
 
 import 'package:cardio_care_quest/core/providers/user_data_manager.dart';
 
-// The login screen widget.
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -42,69 +37,41 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isLoginLoading = false; // true while a login is in progress
   String? _currentUserDocId; // the matched account's id, once found
 
-  // NFC state - `_nfcAvailable` stays null until the capability probe
-  // returns so the UI doesn't briefly flash the NFC button on iPads /
-  // NFC-less devices before resolving to the manual-only layout.
+  // null until the hardware probe returns, so NFC-less devices don't flash the button.
   bool? _nfcAvailable;
   bool _nfcScanning = false;
 
-  /// Inline status banner shown above the NFC button. Replaces the
-  /// fleeting snackbar feedback we used to rely on - earlier the
-  /// research team hit "scanned but nothing happened" because the
-  /// auto-triggered scan would silently swallow parse failures, and
-  /// any login error that fired afterwards used a snackbar that
-  /// disappeared in a few seconds. The banner persists until the
-  /// next NFC outcome (success, failure, retry), so the participant
-  /// always has a clear signal about what just happened.
+  // Persistent banner below the NFC button. Replaces the old snackbar
+  // which vanished before anyone could read it.
   _NfcStatus? _nfcStatus;
 
-  // ---- NFC (TAP-CARD) SETUP ----
-
-  // On open, check if this phone can read NFC cards and (on Android) start
-  // listening right away for a tap.
   @override
   void initState() {
     super.initState();
     _bootstrapNfc();
   }
 
-  /// Probe the device for NFC support. On Android we ALSO start an
-  /// ambient scan immediately so the participant can simply tap their
-  /// card with no button press required (auto-login). iOS requires
-  /// an explicit user gesture to invoke Core NFC, so on iOS the
-  /// participant has to tap the "Tap NFC card" button first - same
-  /// button works on Android too as a fallback.
+  // Check for NFC support. Android also starts an ambient scan immediately;
+  // iOS needs an explicit button tap (Core NFC requires a user gesture).
   Future<void> _bootstrapNfc() async {
     final available = await _nfc.isAvailable();
     if (!mounted) return;
     setState(() => _nfcAvailable = available);
     if (available && Platform.isAndroid) {
-      // Fire-and-forget. Auto-triggered scans silently swallow
-      // failures (e.g. timeout) so the participant isn't pestered
-      // with snackbars they never asked for.
       unawaited(_runNfcScan(autoTriggered: true));
     }
   }
 
-  // Leaving the screen: stop any running scan so nothing lingers.
   @override
   void dispose() {
-    // Cancel any in-flight scan before tearing down so the bridge
-    // doesn't outlive the screen. _nfc.stopScan is idempotent.
     _nfc.stopScan();
     _uniqueIdController.dispose();
     super.dispose();
   }
 
-  /// Drive an NFC scan to completion and feed the resulting ID into
-  /// the existing [_handleLogin] flow. [autoTriggered] is true for
-  /// the ambient Android session that starts on screen mount, and
-  /// false when the participant pressed the button explicitly.
-  ///
-  /// Both paths surface visible feedback now (the inline status
-  /// banner). Earlier the auto-triggered scan would swallow parse
-  /// failures so the participant was left wondering whether the
-  /// chime they heard meant anything.
+  // Run one NFC scan and pass the ID to _handleLogin.
+  // autoTriggered=true for the Android ambient session on mount;
+  // false when the participant pressed the button.
   Future<void> _runNfcScan({bool autoTriggered = false}) async {
     if (_nfcScanning || _isLoginLoading) return;
     setState(() {
@@ -128,12 +95,6 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _nfcScanning = false);
 
     if (id == null || id.isEmpty) {
-      // Surface the diagnostic from NfcService so the team can see
-      // WHY the card didn't read (no NDEF, unsupported types, empty
-      // payload, etc.) instead of a generic "couldn't read" message.
-      // Same banner copy for autoTriggered and manual scans now -
-      // silent failures on the Android auto-scan were the original
-      // bug report.
       setState(() {
         _nfcStatus = _NfcStatus(
           level: _NfcStatusLevel.warn,
@@ -150,11 +111,7 @@ class _LoginScreenState extends State<LoginScreen> {
           'diagnostic': ?diagnostic,
         },
       ));
-      // Restart the ambient listener so the participant can simply
-      // re-tap. Previously after a failed auto-scan they'd have to
-      // press the manual button; on a real device with a good tag
-      // most "failures" are actually mis-taps (off-axis, too quick)
-      // that succeed on a second try.
+      // Restart the listener so they can just re-tap the card.
       if (autoTriggered && Platform.isAndroid && mounted) {
         await Future<void>.delayed(const Duration(milliseconds: 600));
         if (mounted && !_nfcScanning && !_isLoginLoading) {
@@ -183,12 +140,8 @@ class _LoginScreenState extends State<LoginScreen> {
     _uniqueIdController.text = id;
     await _handleLogin();
 
-    // If we're still on the screen after _handleLogin, the login
-    // path didn't navigate - usually because Firestore threw and
-    // _handleLogin's catch block surfaced a snackbar. The snackbar
-    // disappears after ~4s, so we mirror the failure into the
-    // persistent banner so the participant has lasting context for
-    // what they just saw at the bottom of the screen.
+    // Still here means _handleLogin didn't navigate - login failed.
+    // Mirror the error into the persistent banner (snackbar vanishes after ~4s).
     if (!mounted) return;
     setState(() {
       _nfcStatus = _NfcStatus(
@@ -205,10 +158,7 @@ class _LoginScreenState extends State<LoginScreen> {
     ));
   }
 
-  // ---- LOGIN ----
-
-  // The main sign-in flow: clean up the previous participant, find this id's
-  // account (online, or from the phone's cache if offline), then open the app.
+  // Clear the old participant's data, find this ID's account, then open the app.
   Future<void> _handleLogin() async {
     final uniqueId = _uniqueIdController.text.trim();
     final localContext = context;
@@ -224,35 +174,14 @@ class _LoginScreenState extends State<LoginScreen> {
 
     setState(() => _isLoginLoading = true);
 
-    // Drop any leftover user state from the previous session BEFORE
-    // we kick off the auth + fetch round-trip. Without this, a
-    // pre-existing UserDataProvider map from participant A would
-    // remain visible to readers (dashboard, WebView host's UA
-    // stamp, GET_TODAY_BP bridge handler) for the entire duration
-    // of the Firestore query - long enough on a slow connection
-    // for participant B to land on the dashboard, open Vascular
-    // Village, and have the WebView's UA + localStorage tagged
-    // with A's UID. fetchUserData below also performs this wipe
-    // when it detects a participant switch, but doing it here
-    // makes the leak window zero-length even if the await chain
-    // gets reordered by a future refactor.
+    // Clear old participant's data before the auth round-trip so
+    // participant B can't briefly see A's data on a slow connection.
     Provider.of<UserDataProvider>(context, listen: false).clearData();
 
-    // Drain the persistent Hive queues before swapping participants.
-    // OfflineQueue + activity_logs are global singletons; if A had
-    // unsynced writes when their session ended, those rows sit in
-    // the same Hive box B now uses. The path strings are baked in
-    // at enqueue time (e.g. `userData/A/dailyLogs/...`) so they'd
-    // sync to A's record correctly - but they'd sync under B's
-    // Firebase auth context, which can fail security rules and
-    // leave A's data permanently stuck in the queue.
-    //
-    // Strategy: try ONE quick best-effort sync to flush A's writes
-    // (max ~3s - short enough that the participant doesn't notice),
-    // then drop whatever's left. We deliberately accept the risk of
-    // dropping a few unsynced writes for the outgoing participant
-    // over the certainty of cross-participant queue contamination
-    // for the incoming one. Same pattern for activity_logs.
+    // Best-effort sync of participant A's queue (~3s max), then clear it.
+    // Leftover rows would sync under B's auth context and could fail
+    // security rules, so we accept minor data loss for the outgoing user
+    // over cross-participant contamination for the incoming one.
     final queue = GetIt.instance<OfflineQueue>();
     try {
       await queue.syncToFirestore().timeout(
@@ -270,9 +199,7 @@ class _LoginScreenState extends State<LoginScreen> {
       const storage = FlutterSecureStorage();
       final queue = GetIt.instance<OfflineQueue>();
 
-      // Best-effort anonymous sign-in. Required for first-time auth, but if
-      // the device is offline we may still be able to log in a returning
-      // participant via Firestore's local cache (case 9).
+      // Anonymous sign-in for auth; offline devices skip this and use cache.
       String? authUid;
       bool authedOnline = false;
       try {
@@ -286,9 +213,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
       DocumentSnapshot<Map<String, dynamic>>? matchedDoc;
 
-      // First check for a document whose ID matches the entered unique ID.
-      // .get() uses Source.serverAndCache by default - falls back to cache
-      // if the device is offline, but only if the doc was previously fetched.
+      // Try direct doc lookup first; falls back to cache when offline.
       try {
         final directDoc = await firestore
             .collection(FirestorePaths.userData)
@@ -312,9 +237,7 @@ class _LoginScreenState extends State<LoginScreen> {
         } catch (_) {/* offline + uncached query → fall through */}
       }
 
-      // Brand-new participant on a brand-new device. We need to be ONLINE for
-      // this branch because there's no cached doc to fall back to. If we
-      // succeeded with anonymous auth above, attempt the create.
+      // No existing record found — create one if we're online.
       if ((matchedDoc == null || !matchedDoc.exists) && authedOnline) {
         await queue.enqueue(PendingOp.set(
           '${FirestorePaths.userData}/$uniqueId',
@@ -333,7 +256,6 @@ class _LoginScreenState extends State<LoginScreen> {
           },
           merge: true,
         ));
-        // Re-fetch from cache now that the queue applied locally as well.
         try {
           matchedDoc = await firestore
               .collection(FirestorePaths.userData)
@@ -343,7 +265,7 @@ class _LoginScreenState extends State<LoginScreen> {
       }
 
       if (matchedDoc == null && !authedOnline) {
-        // Truly stuck - offline and no cached match for this ID.
+        // Offline and no cached record — can't proceed.
         throw Exception(
           "Can't reach the network and we don't have a cached record for "
           'this ID on this device. Connect to Wi-Fi and retry.',
@@ -352,8 +274,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
       _currentUserDocId = matchedDoc?.id ?? uniqueId;
 
-      // Always queue the auth/login update - it's idempotent and will sync
-      // whenever the device next has connectivity.
+      // Queue the login timestamp — syncs when next online.
       await queue.enqueue(PendingOp.set(
         '${FirestorePaths.userData}/${_currentUserDocId!}',
         {
@@ -363,7 +284,6 @@ class _LoginScreenState extends State<LoginScreen> {
         merge: true,
       ));
 
-      // Cache the participant ID for offline-friendly relaunches.
       await storage.write(key: 'participant_id', value: uniqueId);
 
       if (!mounted) return;
@@ -390,10 +310,6 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  // ---- SCREEN LAYOUT ----
-
-  // The login card: title, the NFC "auto login" area (only on capable phones),
-  // then the manual id box, LOGIN button, and a link for new users.
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -442,11 +358,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ),
                           ),
                           const SizedBox(height: 32),
-                          // Auto-login (NFC) section - only rendered
-                          // when the device actually supports it.
-                          // iPads + NFC-less Androids skip straight
-                          // to the manual entry below, so they never
-                          // see a non-functional button.
+                          // NFC section — hidden on devices without NFC.
                           if (_nfcAvailable == true) ...[
                             _buildPathLabel('AUTO LOGIN'),
                             const SizedBox(height: 8),
@@ -465,7 +377,6 @@ class _LoginScreenState extends State<LoginScreen> {
                           const SizedBox(height: 20),
                           _buildPrimaryButton(),
                           const SizedBox(height: 28),
-                          // --- RESTORED: Join the Circle Button ---
                           TextButton(
                             onPressed: () => Navigator.of(context).pushReplacement(
                               MaterialPageRoute(
@@ -495,8 +406,6 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
     );
   }
-  // --- UI SUB-WIDGETS ---
-
   // Two soft faded circles behind everything, just for looks.
   Widget _buildBackgroundDecoration() {
     return Stack(
@@ -529,7 +438,7 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  // The text box where the participant types their Unique ID (badge).
+  // Text box for the participant's Unique ID.
   Widget _buildUniqueIdField() {
     return TextField(
       controller: _uniqueIdController,
@@ -561,7 +470,7 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  // The big LOGIN button (shows a spinner while logging in).
+  // LOGIN button; shows a spinner while in progress.
   Widget _buildPrimaryButton() {
     return SizedBox(
       width: double.infinity,
@@ -596,7 +505,7 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  // The thin rainbow strip along the bottom of the card.
+  // Thin rainbow strip along the bottom of the card.
   Widget _buildBottomGradientBar() {
     return Container(
       height: 4,
@@ -616,10 +525,7 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  /// Section label sitting above the AUTO and MANUAL paths so
-  /// participants can tell at a glance which area is which. Subtle -
-  /// uppercase, small, muted - so it doesn't compete with the
-  /// primary buttons for attention.
+  // Small uppercase label above the AUTO / MANUAL login sections.
   Widget _buildPathLabel(String text) {
     return Align(
       alignment: Alignment.centerLeft,
@@ -635,11 +541,8 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  /// NFC tap-to-login button. Visible only when [_nfcAvailable] is
-  /// true (i.e. the device has NFC hardware switched on). On Android
-  /// this is a redundant back-up to the auto-poll that fired when the
-  /// screen mounted; on iOS it's the only entry point since Apple's
-  /// Core NFC requires an explicit user gesture per scan session.
+  // NFC tap button. On Android it's a backup to the auto-poll; on iOS
+  // it's the only trigger (Core NFC needs a user gesture).
   Widget _buildNfcTapButton() {
     final scanning = _nfcScanning;
     final disabled = _isLoginLoading;
@@ -688,7 +591,7 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  /// Visual separator between AUTO and MANUAL login paths.
+  // "or" divider between AUTO and MANUAL login paths.
   Widget _buildOrDivider() {
     return Row(
       children: [
@@ -714,20 +617,8 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  /// Inline banner that displays the most recent NFC outcome under
-  /// the NFC tap button. Persists across re-renders until the next
-  /// scan replaces it. Color + icon vary by [_NfcStatusLevel] so the
-  /// participant can read the state at a glance:
-  ///   * info     - neutral blue (scan started, ambient listener)
-  ///   * success  - green (id read, login starting)
-  ///   * warn     - amber  (tag read, no id; or autoTriggered restart)
-  ///   * error    - red    (login failed after a successful read)
-  ///
-  /// `detail` is rendered below the headline in smaller text - for
-  /// info / success it's the NfcService diagnostic ("Parsed NDEF
-  /// Text record → 'P-001'"), for warn / error it's actionable next-
-  /// step copy or the diagnostic from the failed parse so the
-  /// research team can debug without logcat.
+  // Banner showing the latest NFC outcome (info/success/warn/error).
+  // Stays visible until the next scan replaces it.
   Widget _buildNfcStatusBanner(_NfcStatus status) {
     final palette = _statusPalette(status.level);
     return Container(
@@ -810,15 +701,10 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 }
 
-/// Severity of the NFC status banner - drives icon + colour.
+// Severity of the NFC status banner — drives icon + colour.
 enum _NfcStatusLevel { info, success, warn, error }
 
-/// Plain-data row backing the inline NFC status banner. Stored in
-/// state instead of triggered through a snackbar so the message
-/// persists until the participant takes their next action - earlier
-/// the team's "scanned but nothing happened" reports were partly
-/// because the snackbar evidence vanished after 4 seconds and they
-/// never saw it.
+// Data backing the NFC status banner.
 class _NfcStatus {
   final _NfcStatusLevel level;
   final String message;
@@ -830,8 +716,7 @@ class _NfcStatus {
   });
 }
 
-/// Visual tokens used by the status banner - kept as a small struct
-/// so the level→colour map lives in one place.
+// Colour tokens for the status banner.
 class _NfcStatusPalette {
   final Color background;
   final Color border;

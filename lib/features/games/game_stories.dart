@@ -1,14 +1,9 @@
-// Game catalog data - the list of all games plus the words shown for each
-// (title, story blurb, benefits, colour, icon, etc.). No gameplay here, just
-// the info the catalog and detail screens display.
+// All game metadata (title, blurb, benefits, colour, icon). No gameplay.
 library;
 
 import 'package:flutter/material.dart';
 
-// ---- CATEGORIES ----
-
-// The five health topics a game can belong to. The catalog uses these to
-// group games into sections (Exercise, Diet, and so on).
+// Health topic a game belongs to. Used to group games in the catalog.
 enum GameCategory {
   exercise,
   diet,
@@ -17,9 +12,7 @@ enum GameCategory {
   education,
 }
 
-// Helpers that give each category a display name and an icon.
 extension GameCategoryX on GameCategory {
-  // The text shown for this category (e.g. "Exercise").
   String get label {
     switch (this) {
       case GameCategory.exercise:
@@ -35,7 +28,6 @@ extension GameCategoryX on GameCategory {
     }
   }
 
-  // The little icon shown next to this category.
   IconData get icon {
     switch (this) {
       case GameCategory.exercise:
@@ -52,10 +44,7 @@ extension GameCategoryX on GameCategory {
   }
 }
 
-// ---- ONE GAME'S INFO ----
-
-// All the info about a single game - its id, the words shown to the user,
-// its colours/icon, and where it belongs in the catalog. Just data.
+// All display info for a single game. Just data, no logic.
 class GameStory {
   final String id;
   final String title;
@@ -68,10 +57,8 @@ class GameStory {
   final String color; // Hex color for card
   final String status; // 'active' or 'coming_soon'
   final GameCategory category; // Pillar this game lives under in the catalog
-  // When false, the game is excluded from the Game Catalog grid. Used
-  // for games that are only reachable from a specific dashboard widget
-  // (e.g. Blood Pressure Log is launched from the latest-BP card, not
-  // the catalog, to discourage casual play of the BP-capture flow).
+  // When false, game is hidden from the catalog grid. Use for games only
+  // reachable from a specific dashboard widget (e.g. the BP log).
   final bool showInCatalog;
 
   GameStory({
@@ -90,13 +77,9 @@ class GameStory {
   });
 }
 
-// ---- THE CATALOG (all games) ----
-
-// The master list of every game, looked up by id. Below this are helper
-// methods to filter the list (active games, catalog-visible games, etc.).
+// Master list of every game, with helpers to filter by status or visibility.
 class GameCatalog {
   static final Map<String, GameStory> games = {
-    // ─── ACTIVE GAME ───
     'dog_quest': GameStory(
       id: 'dog_quest',
       title: 'Dog Walking',
@@ -123,7 +106,6 @@ Each movement counts. Choose the distance that is safe and realistic for you rig
       category: GameCategory.exercise,
     ),
 
-    // ─── COMING SOON GAMES (from assets) ───
     'bingo_bash': GameStory(
       id: 'bingo_bash',
       title: 'Bingo Bash',
@@ -196,8 +178,7 @@ Five days. Five meals. One artery.
       category: GameCategory.diet,
     ),
 
-    // Control condition for the comparison arm of the study (work-plan
-    // goal #8). Intentionally minimal Twine page - boring by design.
+    // Control condition for the study. Intentionally plain.
     'control_daily_checkin': GameStory(
       id: 'control_daily_checkin',
       title: 'Daily Check-In',
@@ -246,13 +227,8 @@ Make choices about diet, exercise, and stress management to help your village th
       category: GameCategory.education,
     ),
 
-    // The relaxed-state BP capture game. Per the research protocol BP
-    // is only collected after a calming activity, so this is the *only*
-    // participant-facing path to log a reading. It is intentionally
-    // hidden from the Game Catalog - the dashboard's "latest reading"
-    // card has a play button that launches it directly. Surfacing it
-    // alongside the regular games invites casual play of the BP entry
-    // flow, which corrupts the measurement protocol.
+    // BP capture after a calming activity. Hidden from the catalog so the
+    // entry flow is only reached from the dashboard's "latest reading" card.
     'quiet_minute': GameStory(
       id: 'quiet_minute',
       title: 'Blood Pressure Log',
@@ -278,12 +254,7 @@ Your reading is most accurate when you are calm.
       showInCatalog: false,
     ),
 
-    // Medication-pillar games. Pill Path is the daily-adherence
-    // tracker; Quiet Landscape is a guided-breathing experience that
-    // happens to also capture a calm-state BP reading. Both author
-    // their state to localStorage today - wire them through the
-    // SurveyHooks / DailyLogHooks bridge in a future iteration to
-    // get the records into Firestore.
+    // Saves to localStorage for now. Future: wire through SurveyHooks.
     'pill_path': GameStory(
       id: 'pill_path',
       title: 'Pill Path',
@@ -308,15 +279,8 @@ The path builds even on days you missed - those days simply stay empty. The poin
       category: GameCategory.medication,
     ),
 
-    // Quiet Landscape is NOT a standalone catalog entry - it's the
-    // BP-capture trampoline that Vascular Village launches when the
-    // village needs today's reading. Quiet Minute remains the
-    // dashboard's BG log card; Quiet Landscape is the in-village
-    // alternative with the longer breathing settle. `showInCatalog:
-    // false` hides it from the Game Catalog grid; the entry still
-    // exists so `game_launcher.dart` can resolve "quiet_landscape"
-    // when Vascular Village's <<run window.CCQ.launchGame("quiet_landscape")>>
-    // crosses the bridge.
+    // Not in the catalog. Vascular Village launches this via the JS bridge
+    // to capture a BP reading mid-game.
     'quiet_landscape': GameStory(
       id: 'quiet_landscape',
       title: 'Quiet Landscape',
@@ -340,34 +304,29 @@ Sixteen slow breaths over a calm landscape. The scene shifts as you breathe - cl
     ),
   };
 
-  // ---- LOOKUP HELPERS ----
-
-  // All games that are playable right now.
+  // All playable games.
   static List<GameStory> getActiveGames() {
     return games.values.where((g) => g.status == 'active').toList();
   }
 
-  // All games still marked "coming soon".
+  // Games marked "coming soon".
   static List<GameStory> getComingSoonGames() {
     return games.values.where((g) => g.status == 'coming_soon').toList();
   }
 
-  // Find one game by its id (or null if there's no match).
+  // Look up one game by id.
   static GameStory? getGame(String id) {
     return games[id];
   }
 
-  // Games to show in the catalog grid - same as active games, but hides any
-  // marked showInCatalog: false (like the BP log, reached from the dashboard).
+  // Active games visible in the catalog (excludes showInCatalog: false).
   static List<GameStory> getCatalogGames() {
     return games.values
         .where((g) => g.status == 'active' && g.showInCatalog)
         .toList();
   }
 
-  // Same catalog games, but bucketed by category in a fixed order
-  // (Exercise → Diet → Medication → Measurements → Education). Empty
-  // categories are left out so the catalog screen can just loop over what's here.
+  // Catalog games bucketed by category in a fixed order. Empty categories omitted.
   static Map<GameCategory, List<GameStory>> getCatalogGamesByCategory() {
     final all = getCatalogGames();
     final byCat = <GameCategory, List<GameStory>>{};

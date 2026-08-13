@@ -52,9 +52,7 @@ class _BPLogScreenState extends State<BPLogScreen> {
       final int dia = int.parse(_diastolicController.text);
       final String today = DateTime.now().toIso8601String().split('T')[0];
 
-      // Durable write through the hooks library - same Firestore shape as
-      // before, but the per-reading sub-doc, daily-log summary, lifetime
-      // counters and immutable event row are all batched inside the hook.
+      // Batches the per-reading doc, daily summary, counters, and event row.
       await DailyLogHooks.logBP(
         uid: uid,
         systolic: sys,
@@ -63,9 +61,7 @@ class _BPLogScreenState extends State<BPLogScreen> {
       );
 
       if (mounted) {
-        // Optimistic local update so the dashboard reflects the new points
-        // and stats IMMEDIATELY (avoids a 10s Firestore-cache fallback wait
-        // when offline). The hook write above is already durable.
+        // Update the dashboard right away without waiting for Firestore to respond.
         PointsHooks.applyIncrements(context, const {
           'points': 50,
           'totalSessions': 1,
@@ -85,8 +81,7 @@ class _BPLogScreenState extends State<BPLogScreen> {
     }
   }
 
-  // Live feed of the last 7 daily summaries (one point per day) for the chart.
-  // Full per-reading detail lives elsewhere if we ever need to dig deeper.
+  // Last 7 daily summaries, used for the chart.
   Stream<QuerySnapshot> _getRecentReadingsStream() {
     final uid = Provider.of<UserDataProvider>(context, listen: false).uid;
     if (uid.isEmpty) return const Stream.empty();
@@ -246,8 +241,7 @@ class _BPLogScreenState extends State<BPLogScreen> {
                 return const Center(child: Text('No readings yet.'));
               }
 
-              // Filter to docs that actually contain BP data (a daily-log doc
-              // can exist with only exercise/meal entries and no readings).
+              // Skip docs that have no BP data (only exercise/meal entries).
               final readings = snapshot.data!.docs
                   .where((d) {
                     final m = d.data() as Map<String, dynamic>;
@@ -260,8 +254,7 @@ class _BPLogScreenState extends State<BPLogScreen> {
                 return const Center(child: Text('No readings yet.'));
               }
 
-              // Turn each day's reading into a dot on the chart (x = day
-              // position, y = the number).
+              // Each day becomes one dot: x = day index, y = BP value.
               final spotsSys = <FlSpot>[];
               final spotsDia = <FlSpot>[];
 
@@ -273,8 +266,7 @@ class _BPLogScreenState extends State<BPLogScreen> {
                     i.toDouble(), (reading['lastDiastolic'] as num).toDouble()));
               }
 
-              // Make a short date label (like "5 Mar") for the bottom axis.
-              // Falls back to today if the stored date is missing/odd.
+              // Short date label for the x-axis. Falls back to today if date is missing.
               String formatReadingDate(int index) {
                 final reading = readings[index].data() as Map<String, dynamic>;
                 final timestampValue = reading['lastBPTimestamp'];

@@ -4,28 +4,22 @@ import 'package:uuid/uuid.dart';
 import 'package:cardio_care_quest/core/constants/firestore_paths.dart';
 import 'package:cardio_care_quest/core/services/offline_queue.dart';
 
-// DailyLogHooks - saves the everyday health logs: blood pressure, exercise,
-// meals, medication, plus trivia quiz results.
+// DailyLogHooks - saves everyday health logs: BP, exercise, meals, meds, trivia.
 //
-// Why hooks: a game and the dashboard screens both save through here, so the
-// saved data always looks the same no matter where it came from.
-//
-// Each log writes to a few places at once (all saved together or none):
-// a detail doc for the day, a daily summary, lifetime counters on the user,
-// and an "events" row (a permanent record we never edit). Everything goes
-// through OfflineQueue so it works offline and survives the app closing.
+// Games and dashboard screens both save through here so the data always has
+// the same shape. Each log writes to several docs in one batch (detail, daily
+// summary, user counters, permanent events row). All goes through OfflineQueue
+// so it works offline.
 abstract class DailyLogHooks {
   static OfflineQueue get _queue => GetIt.instance<OfflineQueue>();
   static const _uuid = Uuid();
 
-  // Today's date as "YYYY-MM-DD" (phone's local time). Used to group logs by day.
+  // Today's date as "YYYY-MM-DD" in local time, used to group logs by day.
   static String _today() => DateTime.now().toIso8601String().split('T')[0];
 
   // Save a blood-pressure reading. Gives 50 points.
-  //
-  // Note: Watch/phone vitals are NOT saved here - those go through
-  // HealthHooks.logSnapshot after every game. Kept separate so the
-  // "only ask for BP once a day" rule doesn't block vitals collection.
+  // Watch/phone vitals go through HealthHooks.logSnapshot instead,
+  // so the "ask for BP once a day" limit doesn't block vitals collection.
   static Future<void> logBP({
     required String uid,
     required int systolic,
@@ -94,7 +88,7 @@ abstract class DailyLogHooks {
     ]);
   }
 
-  // Save an exercise activity (what they did + minutes). Gives 50 points.
+  // Save an exercise entry (activity + minutes). Gives 50 points.
   static Future<void> logExercise({
     required String uid,
     required String activity,
@@ -151,7 +145,7 @@ abstract class DailyLogHooks {
     ]);
   }
 
-  // Save a meal entry (notes, rating, whether they added a photo). Gives 25 points.
+  // Save a meal entry (notes, rating, photo flag). Gives 25 points.
   static Future<void> logMeal({
     required String uid,
     required String mealNotes,
@@ -208,8 +202,8 @@ abstract class DailyLogHooks {
     ]);
   }
 
-  // Save a "did you take your meds?" check-in. 20 points if yes, 5 if no.
-  // Pass the CURRENT streak - we work out the new one here.
+  // Save a medication check-in. 20 points if taken, 5 if not.
+  // Pass the current streak; the new streak is calculated here.
   static Future<void> logMedication({
     required String uid,
     required bool taken,
@@ -217,7 +211,7 @@ abstract class DailyLogHooks {
   }) {
     if (uid.isEmpty) return Future.value();
     final today = _today();
-    // Took it → streak goes up by one; missed it → streak resets to zero.
+    // Taken: streak +1. Missed: reset to 0.
     final newStreak = taken ? currentStreak + 1 : 0;
     final eventId = _uuid.v4();
 
@@ -250,11 +244,8 @@ abstract class DailyLogHooks {
     ]);
   }
 
-  // Save the result of a trivia / mini-game. Gives however many points passed in.
-  //
-  // "answers" is optional - one entry per question saying what they picked and
-  // whether it was right, so researchers can see which questions they got
-  // correct, not just the total score.
+  // Save a trivia result. Points added = pointsEarned.
+  // "answers" is optional: per-question breakdown for researchers.
   static Future<void> logTrivia({
     required String uid,
     required int score,

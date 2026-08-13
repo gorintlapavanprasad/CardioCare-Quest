@@ -1,19 +1,6 @@
-// Health Stats - a LIVE view of what the user's smartwatch is reporting
-// right now (heart rate, steps, etc.).
-//
-// This page shows fresh readings, not saved history - the user comes here
-// to see "what's my heart doing this minute?".
-//
-// How it works, in short:
-//   * On open, ask the phone for permission to read health data. If the
-//     user says no, show a "not connected" screen with an Allow button.
-//   * If allowed, re-check the watch every 10 seconds and show the newest
-//     numbers.
-//   * If allowed but the watch has nothing to give (off-wrist / not
-//     paired), show a "watch not connected" message.
-//   * Pull down to refresh for an instant re-check.
-//
-// It never saves anything here - saving happens elsewhere at game-end.
+// Health Stats - live watch readings (heart rate, steps, etc.).
+// Checks the watch every 10 seconds. Pull down to refresh immediately.
+// Nothing is saved here; saving happens at game-end.
 
 import 'dart:async';
 
@@ -22,7 +9,7 @@ import 'package:flutter/material.dart';
 import '../../core/services/health_service.dart';
 import '../../core/theme/app_colors.dart';
 
-// The screen widget. Its state is in the class below.
+// Screen widget; state lives in the class below.
 class HealthStatsScreen extends StatefulWidget {
   const HealthStatsScreen({super.key});
 
@@ -30,11 +17,8 @@ class HealthStatsScreen extends StatefulWidget {
   State<HealthStatsScreen> createState() => _HealthStatsScreenState();
 }
 
-// The screen's state. Three flags decide which view shows:
-//   * still loading -> spinner
-//   * permission denied -> the "allow access" wall
-//   * otherwise -> the live monitor (which itself shows readings or a
-//     "watch not connected" note)
+// State for the screen. Three flags pick which view to show:
+// loading, permission denied, or the live monitor.
 class _HealthStatsScreenState extends State<HealthStatsScreen>
     with WidgetsBindingObserver {
   HealthSnapshot? _current;
@@ -44,15 +28,13 @@ class _HealthStatsScreenState extends State<HealthStatsScreen>
   bool _permissionsDenied = false;
   bool _refreshing = false;
 
-  // How often we re-check the watch: every 10 seconds. Feels live enough
-  // without hammering the phone's health data.
+  // Poll interval: 10 s feels live without hammering HealthKit.
   static const Duration _pollInterval = Duration(seconds: 10);
 
-  // If no fresh reading comes in for this long, the little dot turns amber
-  // to warn that the numbers on screen may be old.
+  // After 30 s without a reading the status dot turns amber.
   static const Duration _staleAfter = Duration(seconds: 30);
 
-  // On open: start listening for app background/foreground, then set up.
+  // On open: register lifecycle listener and start setup.
   @override
   void initState() {
     super.initState();
@@ -60,13 +42,10 @@ class _HealthStatsScreenState extends State<HealthStatsScreen>
     _bootstrap();
   }
 
-  // React when the app goes to the background or comes back.
+  // Pause polling when backgrounded to save battery; resume with a fresh
+  // sample on foreground so the numbers aren't stale.
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // Pause polling when backgrounded - saves battery and HealthKit
-    // calls that the user wouldn't see anyway. Resume on foreground
-    // with an immediate sample so the page doesn't show a stale
-    // "Updated 5 min ago" while the user reorients.
     if (state == AppLifecycleState.resumed) {
       if (!_permissionsDenied) {
         _sample();
@@ -79,7 +58,7 @@ class _HealthStatsScreenState extends State<HealthStatsScreen>
     }
   }
 
-  // On close: stop listening and stop the timer.
+  // On close: clean up the listener and timer.
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
@@ -87,7 +66,7 @@ class _HealthStatsScreenState extends State<HealthStatsScreen>
     super.dispose();
   }
 
-  // First-time setup: ask permission, then take a reading and start polling.
+  // First-time setup: ask permission, take a reading, start polling.
   Future<void> _bootstrap() async {
     final granted = await HealthService.instance.requestPermissions();
     if (!mounted) return;
@@ -102,14 +81,13 @@ class _HealthStatsScreenState extends State<HealthStatsScreen>
     _ensureTimerRunning();
   }
 
-  // Start (or restart) the 10-second repeating check.
+  // Start (or restart) the repeating poll timer.
   void _ensureTimerRunning() {
     _timer?.cancel();
     _timer = Timer.periodic(_pollInterval, (_) => _sample());
   }
 
-  // Take one reading from the watch and show it. fromUserPull = they pulled
-  // to refresh (so show the little refresh spinner).
+  // Fetch one reading and update the UI. fromUserPull shows a spinner.
   Future<void> _sample({bool fromUserPull = false}) async {
     if (fromUserPull && mounted) setState(() => _refreshing = true);
     try {
@@ -122,8 +100,7 @@ class _HealthStatsScreenState extends State<HealthStatsScreen>
         _refreshing = false;
       });
     } catch (_) {
-      // Swallow - keep showing the last successful reading rather
-      // than blowing up the UI on a transient HealthKit error.
+      // Keep the last good reading; don't crash on a transient HealthKit error.
       if (!mounted) return;
       setState(() {
         _initialLoad = false;
@@ -132,7 +109,7 @@ class _HealthStatsScreenState extends State<HealthStatsScreen>
     }
   }
 
-  // "Allow access" tapped: ask for permission again and set up if granted.
+  // Re-request permission and retry setup if granted.
   Future<void> _retryPermissions() async {
     setState(() {
       _initialLoad = true;
@@ -141,7 +118,7 @@ class _HealthStatsScreenState extends State<HealthStatsScreen>
     await _bootstrap();
   }
 
-  // Build the page frame with pull-to-refresh; content picked in _buildContent.
+  // Page frame with pull-to-refresh; content chosen by _buildContent.
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -149,14 +126,8 @@ class _HealthStatsScreenState extends State<HealthStatsScreen>
       appBar: AppBar(
         backgroundColor: AppColors.title,
         foregroundColor: Colors.white,
-        // Explicit iconTheme + titleTextStyle because the app's
-        // global appBarTheme (lib/core/theme/app_theme.dart) sets
-        // iconTheme to AppColors.title (dark navy) and titleTextStyle
-        // to AppColors.title - both intended for the dashboard's
-        // white AppBar. That theme wins over `foregroundColor` on
-        // some Material 3 builds, leaving the back arrow + title
-        // dark-on-dark and effectively invisible against this
-        // screen's dark AppBar background.
+        // Override these explicitly: the global appBarTheme sets both to
+        // AppColors.title (dark navy), which goes invisible on this dark AppBar.
         iconTheme: const IconThemeData(color: Colors.white),
         titleTextStyle: const TextStyle(
           fontFamily: 'Atkinson Hyperlegible',
@@ -175,7 +146,7 @@ class _HealthStatsScreenState extends State<HealthStatsScreen>
     );
   }
 
-  // Pick which of the four views to show based on the state flags.
+  // Pick which view to show based on the current state.
   Widget _buildContent() {
     if (_initialLoad) return const _LoadingState();
     if (_permissionsDenied) {
@@ -201,7 +172,7 @@ class _HealthStatsScreenState extends State<HealthStatsScreen>
 
 // ───────────── States ─────────────
 
-// Spinner shown during the first setup.
+// Spinner shown on first load.
 class _LoadingState extends StatelessWidget {
   const _LoadingState();
 
@@ -220,8 +191,7 @@ class _LoadingState extends StatelessWidget {
   }
 }
 
-// The "we need permission" wall, with steps to turn access on and an
-// "Allow access" button that reopens the system dialog.
+// Shown when health access was denied. Has an "Allow access" button.
 class _PermissionsDeniedState extends StatelessWidget {
   final VoidCallback onRetry;
   const _PermissionsDeniedState({required this.onRetry});
@@ -282,8 +252,7 @@ class _PermissionsDeniedState extends StatelessWidget {
   }
 }
 
-// Shown when we have permission but the watch isn't sending readings
-// (off-wrist, not paired, etc.). Lists likely causes and a Try again button.
+// Shown when we have permission but no readings are coming through.
 class _NotConnectedState extends StatelessWidget {
   final VoidCallback onRetry;
   final bool refreshing;
@@ -383,8 +352,7 @@ class _NotConnectedState extends StatelessWidget {
 
 // ───────────── Live monitor ─────────────
 
-// The main live view: a fresh/stale badge, the big heart-rate hero, the
-// grid of other readings, and a footer note.
+// Main live view: status badge, heart-rate hero, readings grid, footer.
 class _LiveMonitor extends StatelessWidget {
   final HealthSnapshot snapshot;
   final DateTime lastSampledAt;
@@ -421,8 +389,7 @@ class _LiveMonitor extends StatelessWidget {
   }
 }
 
-// The little pill at the top: a colored dot (green = fresh, amber = stale)
-// plus "updated just now / 20s ago" text.
+// The status pill: green dot = fresh, amber = stale, plus an age label.
 class _LiveBadge extends StatelessWidget {
   final bool isFresh;
   final Duration age;
@@ -497,7 +464,7 @@ class _LiveBadge extends StatelessWidget {
   }
 }
 
-// The grey note reminding people it auto-updates and can be pulled to refresh.
+// Footer note about auto-refresh and pull-to-refresh.
 class _AutoRefreshFooter extends StatelessWidget {
   const _AutoRefreshFooter();
 
@@ -521,8 +488,7 @@ class _AutoRefreshFooter extends StatelessWidget {
 
 // ───────────── Hero + Grid ─────────────
 
-// The big colorful heart-rate card: the number in large text plus a plain
-// "what this means" line.
+// The big heart-rate card with a plain "what this means" line.
 class _HeartRateHero extends StatelessWidget {
   final HealthSnapshot snapshot;
   const _HeartRateHero({required this.snapshot});
@@ -612,7 +578,7 @@ class _HeartRateHero extends StatelessWidget {
     );
   }
 
-  /// Plain-language descriptor of the resting-context heart rate.
+  // Plain-language label for the current heart rate.
   static String _hrZone(int bpm) {
     if (bpm < 60) return 'Below the typical resting range.';
     if (bpm < 70) return 'In a calm, resting range.';
@@ -622,8 +588,7 @@ class _HeartRateHero extends StatelessWidget {
   }
 }
 
-// The grid of smaller reading cards (resting HR, HRV, steps, energy,
-// exercise minutes, blood oxygen).
+// Grid of smaller metric cards (resting HR, HRV, steps, energy, exercise, SpO2).
 class _MetricGrid extends StatelessWidget {
   final HealthSnapshot snapshot;
   const _MetricGrid({required this.snapshot});
@@ -707,21 +672,20 @@ class _MetricGrid extends StatelessWidget {
     );
   }
 
-  // Show a rounded number, or a dash "-" when there's no value.
+  // Format a number for display, or "-" if missing.
   static String _fmtInt(double? v) =>
       (v == null || v.isNaN) ? '-' : v.round().toString();
   static String _fmtIntFromInt(int? v) => v == null ? '-' : v.toString();
   static String _fmtBloodOxygen(double? v) {
     if (v == null) return '-';
-    // HealthKit reports SpO₂ as a fraction (0.0-1.0) on iOS but as
-    // a percent (0-100) on some Android Health Connect builds.
-    // Auto-scale so the displayed value is always 0-100.
+    // HealthKit gives a fraction (0.0-1.0); some Android builds give 0-100.
+    // Scale to percent either way.
     final pct = v <= 1.0 ? v * 100 : v;
     return pct.round().toString();
   }
 }
 
-// One small reading card: icon, label, big value + unit, and a helper line.
+// One metric card: icon, label, value, unit, and a helper line.
 class _MetricCard extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -811,7 +775,7 @@ class _MetricCard extends StatelessWidget {
 
 // ───────────── Helpers ─────────────
 
-// Turn a past time into a short "just now / 5 min ago / 2 h ago" label.
+// Returns a short "just now / 5 min ago / 2 h ago" label for a past time.
 String _agoLabel(DateTime when) {
   final diff = DateTime.now().difference(when);
   if (diff.inSeconds < 30) return 'just now';

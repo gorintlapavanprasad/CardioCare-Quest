@@ -66,9 +66,7 @@ class _ExerciseLogScreenState extends State<ExerciseLogScreen> {
       final int minutes = int.parse(_timeController.text);
       final String today = DateTime.now().toIso8601String().split('T')[0];
 
-      // Durable write through the hooks library (per-exercise sub-doc, daily
-      // summary, lifetime counters and immutable event row are all batched
-      // inside the hook).
+      // Batches the per-exercise doc, daily summary, counters, and event row.
       await DailyLogHooks.logExercise(
         uid: uid,
         activity: _selectedActivity!,
@@ -76,7 +74,7 @@ class _ExerciseLogScreenState extends State<ExerciseLogScreen> {
       );
 
       if (mounted) {
-        // Optimistic local update - see bp_log_screen for rationale.
+        // Update dashboard right away without waiting for Firestore.
         PointsHooks.applyIncrements(context, {
           'points': 50,
           'exercisesLogged': 1,
@@ -91,7 +89,6 @@ class _ExerciseLogScreenState extends State<ExerciseLogScreen> {
     }
   }
 
-  // Build the page frame; the actual content is in _buildLogView.
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -105,8 +102,7 @@ class _ExerciseLogScreenState extends State<ExerciseLogScreen> {
     );
   }
 
-  // The whole scrolling form: activity grid, minutes box, a heart tip,
-  // and the Save button.
+  // Scrolling form: activity grid, minutes box, tip, and Save button.
   Widget _buildLogView() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24.0),
@@ -118,7 +114,6 @@ class _ExerciseLogScreenState extends State<ExerciseLogScreen> {
             style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.title),
           ),
           const SizedBox(height: 24),
-          // Grid of activity cards. Tapping one highlights it as the choice.
           GridView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),

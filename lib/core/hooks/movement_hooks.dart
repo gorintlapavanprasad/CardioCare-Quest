@@ -9,34 +9,24 @@ import 'package:cardio_care_quest/core/services/offline_queue.dart';
 
 import '_geohash.dart';
 
-// MovementHooks - saves data for walking games that track your GPS location.
+// MovementHooks - saves GPS data for walking games. Works offline.
 //
-// Everything saves through OfflineQueue (works offline). Reads fall back to
-// the phone's local cache when there's no internet.
-//
-// How a walking game uses these, start to finish:
-//   1. generateSessionId - make an id when the walk starts.
-//   2. pushPing - every so often, save where you are + how far you've gone.
-//   3. Either endSession (walk finished) or saveOngoingState (quit part-way).
-//   4. fetchOngoingState - next app open, check for an unfinished walk to resume.
+// Typical flow:
+//   1. generateSessionId - create an id when the walk starts.
+//   2. pushPing - save location + distance every few updates.
+//   3. endSession (finished) or saveOngoingState (quit early).
+//   4. fetchOngoingState - on next open, check for an unfinished walk.
 abstract class MovementHooks {
   static OfflineQueue get _queue => GetIt.instance<OfflineQueue>();
   static const _uuid = Uuid();
 
-  // Make a fresh session id, tagged with the game name and the current time.
-  // Stays the same across resumes once created.
+  // Create a session id (game name + timestamp). Stays the same if resumed.
   static String generateSessionId(String gameId) =>
       '${gameId}_${DateTime.now().millisecondsSinceEpoch}';
 
-  // Save a GPS "ping" - called every few location updates while walking.
-  //
-  // Writes 4 docs together (all save or none):
-  //   * the session's info, * this exact location point,
-  //   * a copy for the map heatmap, and * the "walk in progress" state so we
-  //     can pick up where you left off next time.
-  //
-  // We make the doc ids ourselves so that if a saved batch replays later, it
-  // always lands on the same docs (no accidental duplicates).
+  // Save a GPS ping during a walk. Writes 4 docs in one batch: session info,
+  // this location point, a heatmap copy, and the "in progress" state.
+  // Doc ids are generated here so replayed batches don't create duplicates.
   static Future<void> pushPing({
     required String uid,
     required String sessionId,
@@ -69,8 +59,7 @@ abstract class MovementHooks {
           'test': false,
           'userId': uid,
           'game': gameId,
-          // Keep the running distance on the session as we go, so even a walk
-          // the user quits early still shows real distance (not 0).
+          // Running distance so a walk quit early still shows real distance.
           'runningDistance': distanceWalked,
           'targetDistance': targetDistance,
         },
@@ -88,8 +77,7 @@ abstract class MovementHooks {
           'geohash': geohash,
           'latitude': position.latitude,
           'longitude': position.longitude,
-          // Distance-so-far on each point too, so anyone reading the location
-          // points can see distance without digging elsewhere.
+          // Distance on each point so readers don't have to look elsewhere.
           'distanceWalked': distanceWalked,
           'targetDistance': targetDistance,
           'test': false,
@@ -126,9 +114,8 @@ abstract class MovementHooks {
     ]);
   }
 
-  // Walk finished. In one batch: bump the user's lifetime stats, save the
-  // "completed" session doc + a checkpoint entry, and clear the "in progress"
-  // fields so we don't try to resume a walk that's already done.
+  // Walk finished. Saves stats, marks the session completed, adds a checkpoint,
+  // and clears the "in progress" fields so we don't try to resume it later.
   static Future<void> endSession({
     required String uid,
     required String sessionId,
@@ -206,19 +193,16 @@ abstract class MovementHooks {
           'ongoingTarget': OfflineFieldValue.delete(),
           'ongoingSessionId': OfflineFieldValue.delete(),
           'ongoingPath': OfflineFieldValue.delete(),
-          // Remember which session we just finished. On next launch, if a
-          // leftover "in progress" walk has this same id, we know it's stale
-          // (a late GPS save that landed after we cleared things) and skip
-          // resuming it.
+          // Remember the finished session id. On next launch, if we see an
+          // "in progress" walk with this id we know it's a stale GPS write
+          // and can skip resuming it.
           'lastCompletedSessionId': sessionId,
           'lastCompletedAt': OfflineFieldValue.nowTimestamp(),
         },
         merge: true,
       ),
-      // A top-level "events" row, like every other finish writes. Without it,
-      // finished walks wouldn't show up in the Community Stats (which only
-      // reads the top-level events), so exercise numbers would sit at 0 even
-      // while people are walking. Same shape as other completion events.
+      // Top-level events row. Without this, Community Stats wouldn't count
+      // the walk and exercise numbers would show 0.
       PendingOp.set(
         '${FirestorePaths.events}/${_uuid.v4()}',
         {
@@ -239,8 +223,7 @@ abstract class MovementHooks {
     ]);
   }
 
-  // Save a half-finished walk so the next app open can resume it. Used when
-  // the player quits with some distance already walked.
+  // Save the current walk state so it can be resumed next app open.
   static Future<void> saveOngoingState({
     required String uid,
     required String gameId,
@@ -265,8 +248,7 @@ abstract class MovementHooks {
     ));
   }
 
-  // Save the game's own saved-state text (a blob from the Twine game). We just
-  // store it as-is and don't look inside it.
+  // Save the Twine game's state blob. Stored as-is, not parsed.
   static Future<void> saveGameStateJson({
     required String uid,
     required String gameId,
@@ -281,9 +263,7 @@ abstract class MovementHooks {
     ));
   }
 
-  // Read the saved walk state to decide "resume" vs "start fresh" on app open.
-  // Returns the raw doc - the caller checks the fields carefully first (a
-  // broken/garbage value should be ignored, not resumed).
+  // Read saved walk state. Returns the raw doc; caller decides resume vs. fresh start.
   static Future<DocumentSnapshot<Map<String, dynamic>>> fetchOngoingState({
     required String uid,
     required String gameId,
@@ -296,12 +276,8 @@ abstract class MovementHooks {
         .get();
   }
 
-  // Count how many walks of this game the user finished this week (since
-  // Monday). Shown on quest screens.
-  //
-  // Reads the participant's own movement sessions (now nested under
-  // userData/{uid}/movementData), then filters by game and date here on the
-  // phone - that way we don't need a special database index. Uses cache offline.
+  // Count completed walks for this game since Monday. Shown on quest screens.
+  // Filters by game and date on the phone to avoid needing a database index.
   static Future<int> fetchWeeklyQuestCount({
     required String uid,
     required String gameId,

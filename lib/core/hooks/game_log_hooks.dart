@@ -4,23 +4,17 @@ import 'package:uuid/uuid.dart';
 import 'package:cardio_care_quest/core/constants/firestore_paths.dart';
 import 'package:cardio_care_quest/core/services/offline_queue.dart';
 
-// GameLogHooks - saves "you finished a quest" records from games.
-//
-// Why not just use SurveyHooks? Surveys are questionnaires. A game quest isn't
-// one, so we keep it out of the surveys collection to avoid confusing anyone
-// looking at the data later. Everything is saved through OfflineQueue so it
-// works offline.
+// GameLogHooks - saves "quest completed" records from games.
+// Kept separate from SurveyHooks because a game quest is not a questionnaire.
+// Saves through OfflineQueue so it works offline.
 abstract class GameLogHooks {
   static OfflineQueue get _queue => GetIt.instance<OfflineQueue>();
   static const _uuid = Uuid();
 
-  // Save one finished-quest record from a game.
-  //
-  // "data" is any extra game-specific stuff we just store as-is.
-  // "pointsEarned" gets added to the user's points.
-  // "countAsCompletion": if false, we DON'T bump the "completed" counter here -
-  // the game host counts it once at the end instead. Use false for games that
-  // save several times per play; leave the default when one call = one play.
+  // Save one finished-quest record.
+  // "data": extra game-specific fields, stored as-is.
+  // "countAsCompletion": false = don't bump the counter (use for games that call
+  // this multiple times per play; the host counts once at the end instead).
   static Future<void> logQuestCompletion({
     required String uid,
     required String gameId,
@@ -45,7 +39,7 @@ abstract class GameLogHooks {
     }
 
     final ops = <PendingOp>[
-      // 1. The quest record - a new doc each time, never overwrites old ones.
+      // 1. Quest record (new doc every time).
       PendingOp.set(
         '${FirestorePaths.userData}/$uid/'
         '${FirestorePaths.gameLogs}/$logId',
@@ -63,12 +57,11 @@ abstract class GameLogHooks {
       ),
     ];
     if (userUpdates.isNotEmpty) {
-      // 2. The user's running totals - only if there's actually something to
-      // add, so we don't send an empty, pointless update.
+      // 2. User totals (only if there's something to add).
       ops.add(PendingOp.update(
           '${FirestorePaths.userData}/$uid', userUpdates));
     }
-    // 3. Permanent event row (we never edit these).
+    // 3. Permanent event row.
     ops.add(PendingOp.set(
       '${FirestorePaths.events}/$eventId',
       {

@@ -1,13 +1,7 @@
-// Game Catalog - a grid of category tiles (one per health topic).
-// Tap a tile to see that category's games (CategoryGamesScreen).
-//
-// It used to be collapsible fold-out sections, but those were fiddly for
-// older or shaky-handed users, so now it's plain flat tiles: tile ->
-// list -> preview popup -> play. Simple straight line, no expanding.
-//
-// The person's own games show up as an extra "Your Goals" tile, but only
-// when they've made some. The BP-logging game is left out on purpose
-// (it's reached from the dashboard's blood-pressure card instead).
+// Game Catalog - a grid of category tiles, one per health topic.
+// Flat tiles instead of expandable sections (easier for older users).
+// "Your Goals" tile appears only if the user has made custom games.
+// The BP-logging game is reached from the dashboard, not here.
 
 import 'dart:math';
 
@@ -22,7 +16,6 @@ import '../../games/game_stories.dart';
 import 'category_games_screen.dart';
 import 'custom_games_screen.dart';
 
-// The catalog screen: builds the tile grid and adds "Your Goals" if needed.
 class GameCatalogScreen extends StatefulWidget {
   const GameCatalogScreen({super.key});
 
@@ -31,17 +24,11 @@ class GameCatalogScreen extends StatefulWidget {
 }
 
 class _GameCatalogScreenState extends State<GameCatalogScreen> {
-  // The five factor tiles, mapped to their games. We shuffle the order once
-  // each time the screen opens so the tiles land in a fresh spot every visit,
-  // but stay put during rebuilds (e.g. when "Your Goals" pops in).
+  // Category tiles, shuffled fresh each visit but stable during rebuilds.
   late final Map<GameCategory, List<GameStory>> _byCategory;
   late final List<GameCategory> _categories;
 
-  // The order the tiles were shown in on the LAST visit to this screen,
-  // remembered across visits (static). With only 5 tiles a plain shuffle
-  // often lands on the same-looking order, making the reshuffle feel like
-  // it "isn't working". We compare against this and reshuffle until the new
-  // order actually differs, so every visit is visibly rearranged.
+  // Remembers last visit's order so each new visit looks visibly different.
   static List<GameCategory>? _lastOrder;
   static final Random _rng = Random();
 
@@ -53,10 +40,8 @@ class _GameCatalogScreenState extends State<GameCatalogScreen> {
     _lastOrder = List<GameCategory>.from(_categories);
   }
 
-  // Return a shuffled copy of [cats] that differs from the previous visit's
-  // order. Guards against the plain-shuffle "looks the same" problem for the
-  // small (5-item) list. Bails after a few tries so a 1-item list (which can
-  // never differ) can't loop forever.
+  // Shuffles categories, retrying until the order differs from last time.
+  // Stops after 8 tries so a 1-item list doesn't loop forever.
   List<GameCategory> _freshShuffledOrder(List<GameCategory> cats) {
     if (cats.length < 2) return cats;
     final order = List<GameCategory>.from(cats);
@@ -69,7 +54,6 @@ class _GameCatalogScreenState extends State<GameCatalogScreen> {
     return order;
   }
 
-  // True when two category lists are in the exact same order.
   bool _sameOrder(List<GameCategory> a, List<GameCategory> b) {
     if (a.length != b.length) return false;
     for (var i = 0; i < a.length; i++) {
@@ -78,9 +62,7 @@ class _GameCatalogScreenState extends State<GameCatalogScreen> {
     return true;
   }
 
-  // Build a tile per category, plus a "Your Goals" tile once the user
-  // has any custom games. We watch custom games live so that tile pops
-  // in on its own.
+  // Builds a tile per category plus "Your Goals" when the user has custom games.
   @override
   Widget build(BuildContext context) {
     final byCategory = _byCategory;
@@ -98,9 +80,7 @@ class _GameCatalogScreenState extends State<GameCatalogScreen> {
         elevation: 0,
         iconTheme: const IconThemeData(color: AppColors.title),
       ),
-      // Watch the user's custom games. No "Your Goals" tile until they've
-      // made at least one. Empty stream while the user id is still loading,
-      // so the category tiles show right away and Goals pops in after.
+      // Watches custom games live; "Your Goals" tile appears once they've made one.
       body: StreamBuilder<List<CustomGame>>(
         stream: uid.isEmpty
             ? const Stream<List<CustomGame>>.empty()
@@ -125,8 +105,6 @@ class _GameCatalogScreenState extends State<GameCatalogScreen> {
               ),
             if (customGames.isNotEmpty)
               _CatalogTile(
-                // Yellow + sparkle icon = "my own goals", the same look
-                // used elsewhere so people recognise it.
                 icon: Icons.auto_awesome_outlined,
                 label: 'Your Goals',
                 count: customGames.length,
@@ -158,10 +136,7 @@ class _GameCatalogScreenState extends State<GameCatalogScreen> {
   }
 }
 
-// One square tile - icon, label, and game count. Used for both the
-// category tiles and the "Your Goals" tile. The whole tile is tappable
-// (easier for shaky hands), and a screen reader reads it as one line
-// like "Exercise, 1 game" instead of three separate bits.
+// Square tile: icon, label, game count. Whole tile is tappable; screen reader reads as one line.
 class _CatalogTile extends StatelessWidget {
   final IconData icon;
   final String label;

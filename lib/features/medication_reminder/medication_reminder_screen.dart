@@ -6,11 +6,10 @@ import 'package:cardio_care_quest/core/providers/user_data_manager.dart';
 import 'package:cardio_care_quest/core/constants/firestore_paths.dart';
 import 'package:cardio_care_quest/core/hooks/hooks.dart';
 
-// Medication Reminder screen - asks "Did you take your pill today?".
-// A "Yes" shows a warm "well done" message; a "No" shows a kind,
-// encouraging tip. Either answer is recorded for the study.
+// Medication Reminder - asks "Did you take your pill today?".
+// Yes or No is recorded for the study; each answer gets a different response.
 
-// The screen widget. Its live state is in the class below.
+// Screen widget; state is in the class below.
 class MedicationReminderScreen extends StatefulWidget {
   const MedicationReminderScreen({super.key});
 
@@ -18,22 +17,21 @@ class MedicationReminderScreen extends StatefulWidget {
   State<MedicationReminderScreen> createState() => _MedicationReminderScreenState();
 }
 
-// Holds the screen's state: the current streak, whether they've answered
-// today, and a loading flag while saving.
+// Tracks the streak, today's answer, and a saving flag.
 class _MedicationReminderScreenState extends State<MedicationReminderScreen> {
   int _streak = 0;
   bool _takenToday = false;
   bool _tookPill = false;
   bool _isLoading = false;
 
-  // On open, grab the saved streak so we can show it right away.
+  // Load the saved streak on open.
   @override
   void initState() {
     super.initState();
     _loadStreak();
   }
 
-  // Read the streak number from the user's saved data.
+  // Read the streak from Firestore.
   Future<void> _loadStreak() async {
     final uid = Provider.of<UserDataProvider>(context, listen: false).uid;
     if (uid.isEmpty) return;
@@ -51,8 +49,7 @@ class _MedicationReminderScreenState extends State<MedicationReminderScreen> {
     }
   }
 
-  // Save the answer. "taken" true = took the pill (streak +1); false = missed
-  // it (streak back to 0). Then give points and flip the screen to the result.
+  // Save the answer: taken = streak +1, missed = reset to 0. Then award points.
   Future<void> _saveMedicationStatus(bool taken) async {
     final uid = Provider.of<UserDataProvider>(context, listen: false).uid;
     if (uid.isEmpty) return;
@@ -63,7 +60,7 @@ class _MedicationReminderScreenState extends State<MedicationReminderScreen> {
 
     try {
       final String today = DateTime.now().toIso8601String().split('T')[0];
-      // Took it -> add a day; missed it -> reset the chain to zero.
+      // Took it: +1 day. Missed it: reset to zero.
       final int newStreak = taken ? _streak + 1 : 0;
 
       await DailyLogHooks.logMedication(
@@ -73,7 +70,7 @@ class _MedicationReminderScreenState extends State<MedicationReminderScreen> {
       );
 
       if (mounted) {
-        // Optimistic local update - see bp_log_screen for rationale.
+        // Optimistic update - apply locally right away; Firestore will confirm.
         PointsHooks.applyIncrements(context, {'points': taken ? 20 : 5});
         PointsHooks.applySets(context, {
           'medicationStreak': newStreak,
@@ -92,18 +89,15 @@ class _MedicationReminderScreenState extends State<MedicationReminderScreen> {
     }
   }
 
-  // "Yes" button - took the pill.
   void _takeMedication() {
     _saveMedicationStatus(true);
   }
 
-  // "No" button - missed the pill.
   void _missMedication() {
     _saveMedicationStatus(false);
   }
 
-  // Build the page: the question with Yes/No buttons, or the result after
-  // they answer.
+  // Shows the question + Yes/No, then the result after they answer.
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -165,8 +159,7 @@ class _MedicationReminderScreenState extends State<MedicationReminderScreen> {
     );
   }
 
-  // The result view. If they took their pill, show a warm "well done".
-  // If they missed it, show a gentle "that's okay" tip.
+  // Result view: "Well done" if taken, gentle tip if missed.
   Widget _buildStreakCounter() {
     return Column(
       children: [

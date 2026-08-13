@@ -3,17 +3,14 @@
 
 import 'package:flutter/foundation.dart';
 
-/// Pace presets for a co-play session.
-// The three speed choices: relaxed (slower), standard (normal), brisk (faster). Maps to game timers / watchdog
-/// intervals and (via the bridge) Twine game timing. `standard` is the
-/// existing behaviour, so a session that never chooses a pace is unchanged.
+// Speed setting for a co-play session: relaxed (slower), standard, brisk (faster).
 enum SessionPace { relaxed, standard, brisk }
 
-// Extra helpers bolted onto SessionPace (its short id, and how it affects timing).
+// Adds a string id and a timing multiplier to each pace value.
 extension SessionPaceX on SessionPace {
   String get id => name;
 
-  /// Multiplier applied to game timing (higher = slower/more time).
+  // Higher = more time. 1.5 for relaxed, 1.0 for standard, 0.75 for brisk.
   double get timeMultiplier => switch (this) {
         SessionPace.relaxed => 1.5,
         SessionPace.standard => 1.0,
@@ -27,12 +24,10 @@ extension SessionPaceX on SessionPace {
       );
 }
 
-/// Joint-setup settings for a paired session: text size and pace. Immutable;
-/// snapshotted into `pairedSessions/{id}.settings` for research analysis and
-/// applied at runtime via [SessionSettingsService].
+// Text size and pace for a paired session. Immutable; saved to Firestore for research.
 @immutable
 class SessionSettings {
-  /// Global text scale factor. 1.0 = system default (existing behaviour).
+  // 1.0 = normal system size.
   final double textScale;
   final SessionPace pace;
 
@@ -64,13 +59,8 @@ class SessionSettings {
   }
 }
 
-/// Holds the live session settings in memory and notifies listeners so the
-/// [MaterialApp.builder]'s text-scale override rebuilds. Session-scoped (NOT
-/// SharedPreferences) - must be reset on logout so one participant's chosen
-/// text size doesn't carry to the next.
-///
-/// Modeled on [FavoritesService]: a private-constructor singleton exposing a
-/// [ValueNotifier].
+// Holds the live session settings and notifies listeners when they change.
+// Reset on logout so one participant's settings don't carry to the next.
 class SessionSettingsService {
   SessionSettingsService._();
   static final SessionSettingsService instance = SessionSettingsService._();

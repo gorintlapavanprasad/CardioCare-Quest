@@ -10,9 +10,8 @@ import 'package:cardio_care_quest/core/hooks/hooks.dart';
 import 'package:cardio_care_quest/core/services/session_manager.dart';
 import 'package:cardio_care_quest/core/theme/app_colors.dart';
 
-/// Caregiver view for an active paired session. Shows what the participant is
-/// doing (current game + difficulty), lets the caregiver mark when help was
-/// given, and records free-text notes. Reads live from `pairedSessions/{id}`.
+// Caregiver view for an active paired session. Shows current game + difficulty,
+// lets the caregiver mark help, and records notes. Reads live from Firestore.
 class CaregiverScreen extends StatefulWidget {
   const CaregiverScreen({super.key});
 
@@ -99,8 +98,7 @@ class _CaregiverScreenState extends State<CaregiverScreen> {
     );
   }
 
-  // Live "Now playing" card. It listens to the session in the cloud and
-  // updates by itself as the participant moves between games.
+  // "Now playing" card - updates live as the participant moves between games.
   Widget _liveContextCard(String pairedSessionId) {
     return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
       stream: FirebaseFirestore.instance
@@ -247,7 +245,7 @@ class _CaregiverScreenState extends State<CaregiverScreen> {
     );
   }
 
-  // Shared white rounded-box wrapper used by every card above.
+  // Shared white rounded card wrapper.
   Widget _card({required Widget child}) {
     return Container(
       padding: const EdgeInsets.all(20),

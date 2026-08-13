@@ -2,12 +2,8 @@ import 'package:flutter/material.dart';
 
 import 'package:cardio_care_quest/core/widgets/twine_questionnaire_host.dart';
 
-// Post-Play Survey - a short 5-question "how was it?" form shown after
-// playing. The questions live in an HTML file; this screen just loads that
-// file and lets the shared survey host do the work. Answers are saved and
-// earn 25 points.
-
-// The screen. It just hands the right settings to the shared survey host.
+// Post-Play Survey - short feedback form shown after playing.
+// Loads an HTML file; the shared host handles everything. Earns 25 points.
 class PostPlaySurveyScreen extends StatelessWidget {
   const PostPlaySurveyScreen({super.key});
 

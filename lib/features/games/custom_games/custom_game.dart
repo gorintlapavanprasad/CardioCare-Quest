@@ -1,20 +1,14 @@
-// CustomGame - the data for one game a user built themselves in the
-// "Design Your Own Game" screen. It's a walk goal or a little quiz.
-// Saved in the cloud under this user's own list of games.
+// Data for one user-created game (walk goal or quiz).
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import '../game_stories.dart';
 
-// Which kind of game this is. This picks how it plays.
-//   • walk - go for a real walk, tracked by GPS, like Dog Quest.
-//            The user picks how far to walk.
-//   • quiz - answer some questions, 2 to 4 choices each.
+// walk = GPS-tracked walk (like Dog Quest); quiz = answer some questions.
 enum CustomGameType { walk, quiz }
 
-// Extra helpers on the game type: a name, a one-liner, and an icon.
-
+// Helpers: display name, tagline, and icon for each game type.
 extension CustomGameTypeX on CustomGameType {
   String get label {
     switch (this) {
@@ -44,8 +38,7 @@ extension CustomGameTypeX on CustomGameType {
   }
 }
 
-// One question in a quiz. A quiz has one or more of these. The player
-// shows them one at a time and sends all the answers at the end.
+// One quiz question with its answer choices.
 class QuizQuestion {
   final String prompt;
   final List<String> options;
@@ -55,13 +48,13 @@ class QuizQuestion {
     this.options = const <String>[],
   });
 
-  // Turn this question into a plain map so it can be saved to the cloud.
+  // Convert to a map for cloud storage.
   Map<String, dynamic> toMap() => {
         'prompt': prompt,
         'options': options,
       };
 
-  // Build a question back from a saved map. Falls back to safe defaults.
+  // Rebuild a question from a saved map. Missing fields get safe defaults.
   static QuizQuestion fromMap(Map<dynamic, dynamic> m) {
     final raw = m['options'];
     return QuizQuestion(
@@ -73,7 +66,7 @@ class QuizQuestion {
   }
 }
 
-// The whole game and its saved stats (how many times it was finished, etc).
+// A user-created game and its saved play stats.
 class CustomGame {
   final String id;
   final String title;
@@ -82,17 +75,15 @@ class CustomGame {
   final int pointsReward;
   final CustomGameType gameType;
 
-  // The quiz questions (one or more). Empty for walk games. Older saved
-  // games from before we allowed many questions use the two fields below
-  // instead - `effectiveQuestions` smooths over both cases.
+  // Quiz questions. Empty for walk games. Old saves used `prompt`/`options`
+  // instead; `effectiveQuestions` handles both.
   final List<QuizQuestion> questions;
 
-  // Old-style single-question fields. Kept so games saved before the
-  // multi-question feature still open. New games leave these empty.
+  // Legacy single-question fields kept for backward compatibility.
   final String prompt;
   final List<String> options;
 
-  // For walk games: how far to walk, in meters. 0 for a quiz.
+  // Walk goal in meters. 0 for quiz games.
   final int targetDistance;
 
   final DateTime? createdAt;
@@ -115,12 +106,10 @@ class CustomGame {
     this.lastCompletedAt,
   });
 
-  // The icon just comes from the category, so there's no icon picker.
   IconData get iconData => category.icon;
 
-  // The real list of questions to play. Uses the new list if it has any;
-  // otherwise makes a one-item list from the old fields so old games
-  // still work. Empty for walk games.
+  // Returns the questions to play. Falls back to the old single-question
+  // fields for saves from before multi-question support was added.
   List<QuizQuestion> get effectiveQuestions {
     if (questions.isNotEmpty) return questions;
     if (gameType != CustomGameType.quiz) return const <QuizQuestion>[];
@@ -129,7 +118,7 @@ class CustomGame {
     ];
   }
 
-  // Pack the whole game into a map so it can be saved to the cloud.
+  // Convert the game to a map for cloud storage.
   Map<String, dynamic> toMap() => {
         'id': id,
         'title': title,
@@ -138,8 +127,7 @@ class CustomGame {
         'pointsReward': pointsReward,
         'gameType': gameType.name,
         'questions': questions.map((q) => q.toMap()).toList(),
-        // Also save the first question the old way, so an older app
-        // version can still show at least that one question.
+        // Also write old-style fields so older app versions can still open it.
         'prompt': questions.isNotEmpty ? questions.first.prompt : prompt,
         'options': questions.isNotEmpty
             ? questions.first.options
@@ -153,8 +141,7 @@ class CustomGame {
           'lastCompletedAt': Timestamp.fromDate(lastCompletedAt!),
       };
 
-  // Build a game back from a saved cloud record. Missing bits get safe
-  // defaults so a half-empty record still opens instead of crashing.
+  // Rebuild a game from a cloud record. Missing fields get safe defaults.
   static CustomGame fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data() ?? const <String, dynamic>{};
     final rawOptions = data['options'];
@@ -185,8 +172,7 @@ class CustomGame {
     );
   }
 
-  // Turn a saved category name back into the matching category.
-  // Defaults to "exercise" if the name is missing or unknown.
+  // Parse a saved category name. Defaults to "exercise" if unknown.
   static GameCategory _categoryFromName(String? name) {
     if (name == null) return GameCategory.exercise;
     for (final c in GameCategory.values) {
@@ -195,8 +181,7 @@ class CustomGame {
     return GameCategory.exercise;
   }
 
-  // Turn a saved type name ("walk"/"quiz") back into the type.
-  // Defaults to quiz if it's missing or unknown.
+  // Parse a saved game type name. Defaults to quiz if unknown.
   static CustomGameType _gameTypeFromName(String? name) {
     if (name == null) return CustomGameType.quiz;
     for (final t in CustomGameType.values) {

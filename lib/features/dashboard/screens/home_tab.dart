@@ -1,8 +1,5 @@
-// Home / dashboard - the main screen the participant sees, and the hub
-// everything hangs off. Top to bottom: a greeting, the latest
-// blood-pressure reading, a game menu, the person's own goals, favourite
-// games, health stats, a caregiver card, and a feedback link. Most cards
-// just tap through to a bigger screen.
+// Home dashboard. Top to bottom: greeting, latest BP, game menu, favourites,
+// health stats, caregiver card, feedback link. Most cards tap to a bigger screen.
 
 import 'dart:async';
 
@@ -31,8 +28,7 @@ import '../../../core/services/session_manager.dart';
 import '../../pairing/joint_setup_screen.dart';
 import '../../caregiver/caregiver_screen.dart';
 
-// The dashboard screen. Stateful because it does one-time setup on open
-// (permissions, loading the user's data).
+// Stateful because it does one-time setup on open (permissions, data load).
 class HomeTab extends StatefulWidget {
   const HomeTab({super.key});
 
@@ -44,42 +40,28 @@ class _HomeTabState extends State<HomeTab> {
   // So we only ask for location once per screen visit.
   bool _dashboardLocationChecked = false;
 
-  // Runs once when the screen opens. After the first frame, do the setup:
-  // ask for location + health permissions, and load the user's data.
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       _checkDashboardLocationPermission();
-      // Best-effort: ask once for HealthKit / Health Connect permissions.
-      // Used by HealthHooks.logSnapshot to capture wearable vitals after
-      // every game end. Failure / denial is fine - game-end snapshots
-      // still write a metadata-only doc with hasWearableData=false.
-      // We log the denial as a telemetry event so researchers can
-      // distinguish "no Watch" from "permission denied" in the dataset.
+      // Ask for HealthKit/Health Connect. Denial is fine but gets logged so
+      // researchers can tell "no Watch" apart from "permission denied".
       _requestHealthPermissionsAndReport();
-      // ─── CRITICAL FIX: Fetch user data when the dashboard first loads ───
-      // Await so the who's-playing prompt below has a real uid to attribute
-      // the "I am the patient" choice to.
+      // Await so the who's-playing prompt has a real uid to work with.
       await _ensureUserDataLoaded();
-      // Ask once per launch whether the participant or a caregiver is
-      // playing, so survey responses can be tagged correctly.
       if (mounted) _promptWhoIsPlaying();
     });
   }
 
-  // Show the one-time "who is playing?" popup (participant vs caregiver).
-  // No-ops if a choice was already made this launch (guarded inside the
-  // dialog's show()), so it only appears on the first dashboard load.
+  // Shows the one-time "who is playing?" popup. Dialog guards against repeat calls.
   void _promptWhoIsPlaying() {
     final uid = Provider.of<UserDataProvider>(context, listen: false).uid;
     if (uid.isEmpty) return; // no participant yet - skip, ask on next load.
     WhoIsPlayingDialog.show(context: context, uid: uid);
   }
 
-  // Ask once for access to watch/phone health data (heart rate, steps...).
-  // If the user says no, we quietly record that, so researchers can tell
-  // "said no" apart from "has no watch". Not getting it is fine either way.
+  // Requests health data access. Logs denial for research tracking.
   Future<void> _requestHealthPermissionsAndReport() async {
     try {
       final granted = await HealthService.instance.requestPermissions();
@@ -99,17 +81,13 @@ class _HomeTabState extends State<HomeTab> {
     }
   }
 
-  // Make sure the user's profile + points are loaded, and their list of
-  // favourite games too. Skips work that's already done.
+  // Loads the user's profile, points, and favourites. Skips if already loaded.
   Future<void> _ensureUserDataLoaded() async {
     try {
       final provider = Provider.of<UserDataProvider>(context, listen: false);
-      // Only fetch if data is not already loaded
       if (provider.userData == null) {
         await provider.fetchUserData();
       }
-      // Load this person's favourites. Cheap if already loaded - it skips
-      // the work when the id matches what's already cached.
       final pid = provider.uid;
       if (pid.isNotEmpty) {
         await FavoritesService.instance.load(pid);
@@ -119,8 +97,7 @@ class _HomeTabState extends State<HomeTab> {
     }
   }
 
-  // Ask for location permission (the walking/movement games need it).
-  // Pops a friendly dialog if location is switched off or was blocked.
+  // Asks for location permission once. Pops a dialog if off or blocked.
   Future<void> _checkDashboardLocationPermission() async {
     if (_dashboardLocationChecked) return;
     _dashboardLocationChecked = true;
@@ -151,7 +128,7 @@ class _HomeTabState extends State<HomeTab> {
     }
   }
 
-  // Dialog: phone's location is turned off entirely.
+  // Location services are off on the device.
   Future<void> _showLocationServiceDisabledDialog() async {
     await showDialog<void>(
       context: context,
@@ -170,7 +147,7 @@ class _HomeTabState extends State<HomeTab> {
     );
   }
 
-  // Dialog: the user declined location this time (can still allow it).
+  // User declined location this session (can still allow it).
   Future<void> _showLocationRequiredDialog() async {
     await showDialog<void>(
       context: context,
@@ -189,7 +166,7 @@ class _HomeTabState extends State<HomeTab> {
     );
   }
 
-  // Dialog: location was blocked for good - tells them to fix it in Settings.
+  // Location blocked permanently - direct them to Settings.
   Future<void> _showLocationSettingsDialog() async {
     await showDialog<void>(
       context: context,
@@ -208,13 +185,11 @@ class _HomeTabState extends State<HomeTab> {
     );
   }
 
-  // Build the whole dashboard. Shows a loading spinner until the user's
-  // data is ready, then stacks all the sections in one scrolling column.
   @override
   Widget build(BuildContext context) {
     return Consumer<UserDataProvider>(
       builder: (context, provider, child) {
-        // Still loading? Show a spinner instead of a half-empty screen.
+        // Show a spinner until data is ready.
         if (provider.userData == null) {
           return const Scaffold(
             body: Center(
@@ -225,12 +200,10 @@ class _HomeTabState extends State<HomeTab> {
 
         final data = provider.userData!;
 
-        // Everyone is greeted as "Explorer" for now. During the dry-run
-        // participants log in by ID and have no profile name, so we skip
-        // the real name until they actually set one.
+        // "Explorer" until users set a profile name.
         const name = 'Explorer';
 
-        // Their most recent BP numbers; "--" if they've never logged one.
+        // Most recent BP; "--" if never logged.
         final String sys = data['lastSystolic']?.toString() ?? "--";
         final String dia = data['lastDiastolic']?.toString() ?? "--";
 
@@ -261,44 +234,29 @@ class _HomeTabState extends State<HomeTab> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // ---- LATEST BP (tap to log a new reading) ----
                       const SizedBox(height: 24),
                       _buildSectionTitle("Health Status"),
                       _buildLatestBPCard(context, sys, dia),
-                      // ---- GAME MENU + YOUR GOALS ----
                       const SizedBox(height: 32),
                       _buildGameMenuRow(context),
-                      // "Your Goals" - the games the person built with
-                      // "Design Your Own Game". Sits right under the menu
-                      // row so the result shows up where you'd expect.
-                      // Hidden until they've made at least one.
+                      // Hidden until the user has made at least one custom game.
                       const CustomGamesSection(),
                     ],
                   ),
                 ),
-                // ---- FAVOURITES (sideways-scrolling strip) ----
-                // Sits OUTSIDE the usual side padding so the cards can run
-                // edge-to-edge. This stops the last card's heart getting
-                // clipped and lets the next card "peek" in, hinting you can
-                // scroll. Its title gets its own padding to line up again.
+                // Favourites sits outside side padding so cards run edge-to-edge.
                 _buildFavoritesSection(context),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // ---- WATCH & HEALTH (live vitals) ----
-                      // Opens the live watch/health dashboard. Placed near
-                      // the bottom so fresh vitals are handy without
-                      // scrolling back up. Only this person sees their data.
                       const SizedBox(height: 32),
                       _buildSectionTitle("Watch & Health"),
                       _buildHealthStatsCard(context),
-                      // ---- CAREGIVER (play together) ----
                       const SizedBox(height: 32),
                       _buildSectionTitle("Caregiver"),
                       _buildCaregiverCard(context),
-                      // ---- FEEDBACK (post-play survey) ----
                       const SizedBox(height: 32),
                       _buildSectionTitle("Feedback"),
                       _buildPostPlaySurveyCard(context),
@@ -314,9 +272,7 @@ class _HomeTabState extends State<HomeTab> {
     );
   }
 
-  // The "Play with a caregiver" card. Tap it: if no shared session is
-  // going yet, it opens the setup screen (caregiver name, text size, pace);
-  // if one's already running, it jumps straight to the caregiver view.
+  // "Play with a caregiver" card. Opens setup if no session, else goes straight to the caregiver view.
   Widget _buildCaregiverCard(BuildContext context) {
     return Material(
       color: Colors.white,
@@ -392,8 +348,7 @@ class _HomeTabState extends State<HomeTab> {
     );
   }
 
-  // The "Health Stats" card - taps through to the live watch/health
-  // screen (heart rate, steps, calories, etc.).
+  // Taps through to the live watch/health screen (heart rate, steps, etc.).
   Widget _buildHealthStatsCard(BuildContext context) {
     return Material(
       color: Colors.white,
@@ -462,8 +417,7 @@ class _HomeTabState extends State<HomeTab> {
     );
   }
 
-  // The "How was your experience?" card near the bottom - taps through
-  // to a short 5-question feedback survey.
+  // Taps through to the 5-question feedback survey.
   Widget _buildPostPlaySurveyCard(BuildContext context) {
     return Material(
       color: Colors.white,
@@ -530,26 +484,20 @@ class _HomeTabState extends State<HomeTab> {
     );
   }
 
-  // The Favourites strip - a sideways-scrolling row of games the person
-  // has starred. It updates live, so starring/unstarring elsewhere shows
-  // here right away. Shows nothing at all when there are no favourites,
-  // so we don't leave a lonely "Favourites" header over empty space.
+  // Sideways-scrolling strip of starred games. Updates live. Hidden when empty.
   Widget _buildFavoritesSection(BuildContext context) {
     final uid = context.select<UserDataProvider, String>((p) => p.uid);
     return ValueListenableBuilder<Set<String>>(
       valueListenable: FavoritesService.instance.favorites,
       builder: (context, favIds, _) {
-        // No favourites yet? Draw nothing.
         if (favIds.isEmpty) return const SizedBox.shrink();
 
-        // Starred built-in games, kept in catalog order (not star order)
-        // so the strip doesn't jump around.
+        // Built-in starred games, kept in catalog order so the strip doesn't jump.
         final catalogFavs = GameCatalog.games.values
             .where((g) => favIds.contains(g.id))
             .toList();
 
-        // Starred home-made games, read live from the cloud so edits or
-        // stars from another device show up here on their own.
+        // Custom starred games, live from Firestore.
         return StreamBuilder<List<CustomGame>>(
           stream: uid.isEmpty
               ? const Stream<List<CustomGame>>.empty()
@@ -563,8 +511,7 @@ class _HomeTabState extends State<HomeTab> {
               return const SizedBox.shrink();
             }
 
-            // Built-in games first, then home-made ones (same order the
-            // catalog uses).
+            // Built-in games first, then custom ones.
             final tiles = <Widget>[
               ...catalogFavs.map((g) => _FavoriteGameTile(game: g)),
               ...customFavs.map(
@@ -577,8 +524,6 @@ class _HomeTabState extends State<HomeTab> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Give just the title side padding so it lines up with
-                  // the other section titles (the strip itself runs wider).
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     child: _buildSectionTitle("Favourites"),
@@ -587,9 +532,6 @@ class _HomeTabState extends State<HomeTab> {
                     height: 124,
                     child: ListView.separated(
                       scrollDirection: Axis.horizontal,
-                      // Pad both ends by 20: lines the first card up with
-                      // the title, and keeps the last card's heart from
-                      // touching the screen edge. You can scroll for more.
                       padding: const EdgeInsets.symmetric(horizontal: 20),
                       itemCount: tiles.length,
                       separatorBuilder: (_, __) => const SizedBox(width: 12),
@@ -607,9 +549,7 @@ class _HomeTabState extends State<HomeTab> {
 
   // --- UI HELPERS (the pieces that build each card) ---
 
-  // The "Latest reading" blood-pressure card. The whole thing is tappable
-  // - body or the round play button - and both open the BP-logging game,
-  // which is the only way to record a new reading.
+  // The latest BP card. Tap anywhere to open the BP-logging game.
   Widget _buildLatestBPCard(BuildContext context, String sys, String dia) {
     return Material(
       color: Colors.white,
@@ -691,8 +631,6 @@ class _HomeTabState extends State<HomeTab> {
                   ],
                 ),
               ),
-              // The round play button. Stands out from the numbers so it's
-              // an obvious "tap here to log now".
               Container(
                 width: 56,
                 height: 56,
@@ -720,10 +658,7 @@ class _HomeTabState extends State<HomeTab> {
     );
   }
 
-  // Opens the BP-logging game. One helper so the card body and the play
-  // button both go to the same place. After the game closes, it reloads
-  // the user's data so the card shows the number you just logged instead
-  // of the old one.
+  // Opens the BP-logging game. Refreshes user data afterwards so the card updates.
   Future<void> _openBloodPressureLog(BuildContext context) async {
     final provider =
         Provider.of<UserDataProvider>(context, listen: false);
@@ -733,13 +668,11 @@ class _HomeTabState extends State<HomeTab> {
     );
     if (!mounted) return;
     if (provider.uid.isNotEmpty) {
-      // Refresh in the background. The screen already shows a quick local
-      // guess; this just syncs it with the real saved values.
       unawaited(provider.fetchUserData());
     }
   }
 
-  // The top banner: a simple "Hello, <name>!" greeting.
+  // Top banner with a "Hello, <name>!" greeting.
   Widget _buildPremiumHeader(BuildContext context, String name) {
     return Container(
       width: double.infinity,
@@ -770,8 +703,7 @@ class _HomeTabState extends State<HomeTab> {
     );
   }
 
-  // The row of three menu buttons: Game Catalog, Design Your Own Game,
-  // and Community Statistics.
+  // Row of three menu buttons: Game Catalog, Design Your Own Game, Community Stats.
   Widget _buildGameMenuRow(BuildContext context) {
     return Row(
       children: [
@@ -818,7 +750,7 @@ class _HomeTabState extends State<HomeTab> {
     );
   }
 
-  // One square menu button - icon + label - used by the row above.
+  // One square menu button with icon + label.
   Widget _buildMenuCard(
     BuildContext context, {
     required String title,
@@ -867,8 +799,7 @@ class _HomeTabState extends State<HomeTab> {
     );
   }
 
-  // A section heading (e.g. "Health Status"), with an optional grey
-  // action label on the right.
+  // Section heading with an optional grey label on the right.
   Widget _buildSectionTitle(String title, {String? actionText}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12.0),
@@ -899,10 +830,7 @@ class _HomeTabState extends State<HomeTab> {
 
 }
 
-// A small card in the Favourites strip for a built-in game. Shows the
-// icon, title, and a tiny heart in the corner. Tapping opens the same
-// preview popup the catalog uses, so you can play it or unstar it right
-// from the dashboard.
+// Favourites strip card for a built-in game. Tap to open the preview popup.
 class _FavoriteGameTile extends StatelessWidget {
   final GameStory game;
 
@@ -969,9 +897,7 @@ class _FavoriteGameTile extends StatelessWidget {
   }
 }
 
-// Same little Favourites card, but for a home-made game. Looks identical
-// to _FavoriteGameTile; it just opens the custom-game version of the
-// preview popup.
+// Same as _FavoriteGameTile but for a home-made game.
 class _FavoriteCustomGameTile extends StatelessWidget {
   final CustomGame game;
 

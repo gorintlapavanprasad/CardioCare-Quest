@@ -1,10 +1,5 @@
-// The popup you see when you tap a game - a quick preview before playing.
-// Shows the title, a big icon, a short blurb, and three buttons: a heart
-// (mark as favourite), Play, and Close.
-//
-// It works for BOTH kinds of game: the built-in catalog games AND the
-// ones the user made themselves. Play just sends each kind to the right
-// launcher.
+// Game preview popup: title, icon, short blurb, heart, Play, and Close.
+// Works for both built-in and custom games.
 
 import 'package:flutter/material.dart';
 
@@ -15,8 +10,7 @@ import '../../games/custom_games/custom_game_player.dart';
 import '../../games/game_launcher.dart';
 import '../../games/game_stories.dart';
 
-// Open the preview popup for a built-in catalog game. Finishes when the
-// user closes it (Close, back, or tapping outside).
+// Opens the preview popup for a built-in game.
 Future<void> showGameDetailDialog(BuildContext context, GameStory game) {
   return showDialog<void>(
     context: context,
@@ -25,8 +19,7 @@ Future<void> showGameDetailDialog(BuildContext context, GameStory game) {
   );
 }
 
-// Same popup, but for a game the user made themselves. Same look, it
-// just launches the custom-game player instead.
+// Same popup but for a custom game.
 Future<void> showCustomGameDetailDialog(
     BuildContext context, CustomGame game) {
   return showDialog<void>(
@@ -36,8 +29,7 @@ Future<void> showCustomGameDetailDialog(
   );
 }
 
-// The popup widget itself. Holds ONE of the two game types (catalog or
-// custom); the getters below just read from whichever one is set.
+// The popup widget. Holds either a catalog game or a custom game.
 class GameDetailDialog extends StatelessWidget {
   final GameStory? game;
   final CustomGame? customGame;
@@ -56,7 +48,6 @@ class GameDetailDialog extends StatelessWidget {
       _isCustom ? customGame!.iconData : game!.iconData;
   String get _favoriteId => _isCustom ? customGame!.id : game!.id;
 
-  // Lay out the popup: title, big icon, short blurb, then the buttons.
   @override
   Widget build(BuildContext context) {
     return Dialog(
@@ -71,7 +62,6 @@ class GameDetailDialog extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Title
               Text(
                 _title,
                 style: const TextStyle(
@@ -82,7 +72,6 @@ class GameDetailDialog extends StatelessWidget {
               ),
               const SizedBox(height: 16),
 
-              // Big centered icon so you can tell the game at a glance.
               Center(
                 child: Container(
                   width: 110,
@@ -97,10 +86,7 @@ class GameDetailDialog extends StatelessWidget {
               ),
               const SizedBox(height: 16),
 
-              // Just one short line about the game. We keep it short on
-              // purpose - a wall of text here was hard for older users to
-              // read before deciding to play. (The longer story text still
-              // lives in game_stories.dart for later if we want it.)
+              // Short description only - a wall of text was hard for older users.
               if (_shortDescription.isNotEmpty) ...[
                 Text(
                   _shortDescription,
@@ -114,16 +100,13 @@ class GameDetailDialog extends StatelessWidget {
                 const SizedBox(height: 20),
               ],
 
-              // Bottom buttons - heart on the left, Play + Close on the right.
               Row(
                 children: [
                   _FavoriteHeartButton(gameId: _favoriteId),
                   const Spacer(),
                   TextButton(
                     onPressed: () {
-                      // Close the dialog FIRST so the new route doesn't
-                      // sit underneath a translucent barrier - feels
-                      // snappier and avoids a frame of dimmed content.
+                      // Close first so the game doesn't open under the barrier.
                       Navigator.of(context).pop();
                       if (_isCustom) {
                         Navigator.push(
@@ -173,9 +156,7 @@ class GameDetailDialog extends StatelessWidget {
   }
 }
 
-// The heart button that stars/unstars a game. Red-filled when it's a
-// favourite, grey outline when not. It listens for changes so it flips
-// the moment you tap it.
+// Star button: filled when favourited, outline when not. Updates instantly on tap.
 class _FavoriteHeartButton extends StatelessWidget {
   final String gameId;
 

@@ -1,7 +1,5 @@
-// One place that opens the right game screen when you tap "Play".
-//
-// Both the game catalog and the dashboard's favourites use this, so keeping
-// the "which game id opens which screen" list here means they never disagree.
+// Central launch point for all games. Both the catalog and dashboard favourites
+// call this, so the game-id-to-screen mapping is in one place.
 
 import 'package:flutter/material.dart';
 
@@ -19,15 +17,12 @@ import 'quiet_minute.dart';
 import 'salt_sludge.dart';
 import 'vascular_village_game.dart';
 
-// Opens the screen for the given game. If a game id isn't hooked up yet,
-// it shows a friendly "Coming Soon" page instead of crashing.
+// Opens the right game screen. Unknown ids fall back to "Coming Soon".
 void launchGameStory(BuildContext context, GameStory game) {
   Widget? screen;
-  // Pick the matching game screen based on the game's id.
   switch (game.id) {
     case 'dog_quest':
-      // 500m default for the catalog launch; in-game scene 2 lets the
-      // player pick easy/medium/hard before tracking actually starts.
+      // 500m default; the in-game difficulty picker adjusts it before GPS starts.
       screen = DogQuestGame(targetDistance: 500);
       break;
     case 'control_daily_checkin':
@@ -46,8 +41,7 @@ void launchGameStory(BuildContext context, GameStory game) {
       screen = const VascularVillageGame();
       break;
     case 'quiet_minute':
-      // Hidden from the catalog (`showInCatalog: false`) but reachable
-      // here in case it's ever favourited via some other entry point.
+      // Not in the catalog (showInCatalog: false) but reachable if favourited.
       screen = const QuietMinuteGame();
       break;
     case 'pill_path':
@@ -57,11 +51,9 @@ void launchGameStory(BuildContext context, GameStory game) {
       screen = const QuietLandscapeGame();
       break;
   }
-  // Grab the navigator now so we can still use it after the game closes,
-  // even though the little preview popup's context is gone by then.
+  // Capture navigator before the game opens (context may be gone when it closes).
   final navigator = Navigator.of(context);
 
-  // Actually open the chosen screen; fall back to "Coming Soon" if none matched.
   navigator
       .push(
     MaterialPageRoute(
@@ -69,9 +61,8 @@ void launchGameStory(BuildContext context, GameStory game) {
     ),
   )
       .then((_) {
-    // When the game closes, ask the four short questions - but only if the
-    // player actually finished the game and it has feedback questions set up.
-    // consume() always clears this game's signal so nothing lingers.
+    // Show feedback popup only if the game was actually finished.
+    // consume() also clears the signal so it can't trigger again.
     final completed = GameCompletionSignal.consume(game.id);
     final hasQuestions = gameFeedbackQuestions.containsKey(game.id);
     debugPrint('GameFeedback: ${game.id} closed - '

@@ -5,25 +5,16 @@ import 'package:cardio_care_quest/core/constants/firestore_paths.dart';
 import 'package:cardio_care_quest/core/services/offline_queue.dart';
 import 'package:cardio_care_quest/core/services/session_manager.dart';
 
-// SurveyHooks - saves answers from surveys / questionnaires (post-play survey,
-// baseline survey, daily check-in, etc.). Everything saves through OfflineQueue
-// so it works offline.
+// SurveyHooks - saves survey/questionnaire answers. Works offline.
 abstract class SurveyHooks {
   static OfflineQueue get _queue => GetIt.instance<OfflineQueue>();
   static const _uuid = Uuid();
 
-  // Save one completed questionnaire.
-  //
-  // "answers" is just a map of question → answer, stored as-is.
-  // "pointsEarned" gets added to the user's points.
-  // "countAsCompletion" (default true): if true, also bump the "surveys done"
-  // counter. Set false for games that submit several times per play, so one
-  // play only counts once (the game host adds the single count at the end).
-  // "respondent": who actually answered - the participant by default, or a
-  // caregiver if they're sharing the device.
-  //
-  // If a paired (two-person) session is running, its id is added automatically
-  // so this answer links back to that session.
+  // Save a completed survey.
+  // "countAsCompletion" false: don't bump the counter (for games that submit
+  // multiple times per play; the host counts once at the end).
+  // "respondent": who answered. Defaults to the participant.
+  // If a paired session is running, its id is added automatically.
   static Future<void> submitResponse({
     required String uid,
     required String surveyId,
@@ -49,7 +40,7 @@ abstract class SurveyHooks {
     }
 
     final ops = <PendingOp>[
-      // 1. The answer itself - a new doc each time, never overwrites old ones.
+      // 1. Answer doc (new each time).
       PendingOp.set(
         '${FirestorePaths.surveys}/$surveyId/'
         '${FirestorePaths.responses}/$responseId',
@@ -67,12 +58,11 @@ abstract class SurveyHooks {
       ),
     ];
     if (userUpdates.isNotEmpty) {
-      // 2. The user's running totals - only if there's something to add, so we
-      // don't send an empty, pointless update.
+      // 2. User totals (only if there's something to update).
       ops.add(PendingOp.update(
           '${FirestorePaths.userData}/$uid', userUpdates));
     }
-    // 3. Permanent event row (we never edit these).
+    // 3. Permanent event row.
     ops.add(PendingOp.set(
       '${FirestorePaths.events}/$eventId',
       {
@@ -90,9 +80,8 @@ abstract class SurveyHooks {
         'syncedAt': OfflineFieldValue.nowTimestamp(),
       },
     ));
-    // 4. The survey's own doc. Without this the survey shows up "empty" in the
-    // database console (just a folder of answers, no real doc). Merge-save so
-    // the first answer creates it and each later one bumps the count + time.
+    // 4. Survey summary doc. Without this the survey has no doc in the console,
+    // just a folder of answers. First call creates it; later calls bump the count.
     ops.add(PendingOp.set(
       '${FirestorePaths.surveys}/$surveyId',
       {

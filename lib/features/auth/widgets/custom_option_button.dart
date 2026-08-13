@@ -17,7 +17,6 @@ class CustomOptionButton extends StatelessWidget {
     required this.onTap,
   });
 
-  // Draws the option. Colour and border animate when selected/deselected.
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
@@ -37,7 +36,6 @@ class CustomOptionButton extends StatelessWidget {
         ),
         child: Row(
           children: [
-            // Custom Radio Indicator
             AnimatedContainer(
               duration: const Duration(milliseconds: 200),
               width: 20,
@@ -55,8 +53,6 @@ class CustomOptionButton extends StatelessWidget {
                   : null,
             ),
             const SizedBox(width: 16),
-            
-            // Label
             Expanded(
               child: Text(
                 label,

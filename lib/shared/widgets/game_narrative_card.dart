@@ -2,11 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:cardio_care_quest/core/theme/app_colors.dart';
 import 'package:cardio_care_quest/features/games/game_stories.dart';
 
-// GameNarrativeCard - a tappable card that previews one game/quest.
-//
-// Shows the game's emoji, title, a short blurb, and benefit tags. If the game
-// is active, tapping plays it; if it's "coming soon", tapping opens a popup
-// with the full story instead.
+// GameNarrativeCard - tappable preview card for one game.
+// Active games play on tap; coming-soon games show a story sheet instead.
 class GameNarrativeCard extends StatelessWidget {
   final GameStory game; // the game this card describes.
   final VoidCallback? onPlayTap; // what to run when an active game is tapped.
@@ -17,11 +14,9 @@ class GameNarrativeCard extends StatelessWidget {
     this.onPlayTap,
   });
 
-  // Builds the card. Tapping plays the game (if active) or shows its story.
   @override
   Widget build(BuildContext context) {
-    // The game stores its color as text like "#FF8800"; turn it into a real
-    // Color (0xFF... is the format Flutter wants).
+    // Color is stored as "#FF8800"; convert to Flutter's 0xFF format.
     final Color cardColor = Color(int.parse(game.color.replaceFirst('#', '0xFF')));
 
     return Material(
@@ -172,8 +167,7 @@ class GameNarrativeCard extends StatelessWidget {
     );
   }
 
-  // Slides up a full-screen sheet with the game's story, why it matters, its
-  // health benefits, and whether it's ready or coming soon.
+  // Bottom sheet with the game's full story, benefits, and status.
   void _showNarrativeModal(BuildContext context, Color cardColor) {
     final Color surfaceColor = cardColor.withValues(alpha: 0.08);
 

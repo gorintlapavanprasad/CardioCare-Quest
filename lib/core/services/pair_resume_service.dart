@@ -7,27 +7,20 @@ import 'package:cardio_care_quest/core/hooks/pair_hooks.dart';
 import 'package:cardio_care_quest/core/services/session_manager.dart';
 import 'package:cardio_care_quest/core/services/session_settings_service.dart';
 
-// pair_resume_service.dart - if a two-player (participant + caregiver) session was
-// going and the app got closed, this brings it back when the app reopens.
+// pair_resume_service.dart - if a participant + caregiver session was running when
+// the app closed, this restores it on the next open.
 
-/// Reattaches a paired session after a cold restart.
-///
-/// The write durability is already handled by OfflineQueue + Firestore
-/// persistence, so "span leaving the device and returning" mostly works at the
-/// data layer. This service restores the *session context* (SessionManager +
-/// text-size/pace settings) so the UI knows a co-play session is still live.
+// Restores a paired session (session context + display settings) after a cold restart.
 class PairResumeService {
   PairResumeService._();
   static final PairResumeService instance = PairResumeService._();
 
   static const _storage = FlutterSecureStorage();
 
-  /// Sessions older than this since `lastActiveAt` are treated as stale and
-  /// not auto-resumed.
+  // Sessions inactive for more than 6 hours are not resumed.
   static const resumeWindow = Duration(hours: 6);
 
-  /// Try to restore an active paired session. Safe to call at startup; a no-op
-  /// when there is nothing to resume. Returns the restored id, or null.
+  // Try to restore a paired session from secure storage. Returns the session id, or null.
   Future<String?> tryRestore() async {
     String? id;
     try {
@@ -49,16 +42,15 @@ class PairResumeService {
         return null;
       }
 
-      // If the session hasn't been touched in over 6 hours, treat it as too old.
+      // If inactive for over 6 hours, leave the record but don't reattach.
       final lastActive = data['lastActiveAt'];
       if (lastActive is Timestamp &&
           DateTime.now().difference(lastActive.toDate()) > resumeWindow) {
-        // Too old - leave the record intact for research but don't reattach.
         await _clear();
         return null;
       }
 
-      // Good to resume: put the session and its settings (text size, pace) back.
+      // Restore the session and its display settings.
       SessionManager.restorePairedSession(
         pairedSessionId: id,
         participantId: (data['participantId'] as String?) ?? '',

@@ -1,8 +1,6 @@
-// splash_screen.dart - the first screen you see when the app opens.
-//
-// It shows the logo, then decides where to send you: to login, or (for a
-// returning user) straight past a fingerprint/face unlock into the app.
-// Right now it's in "demo mode", so it always just shows a Begin button.
+// Splash screen - shows the logo, then routes to login or (for returning
+// users) straight through fingerprint/face unlock.
+// Demo mode is on, so it always just shows a Begin button.
 
 import 'package:cardio_care_quest/features/dashboard/screens/main_layout.dart';
 import 'package:flutter/material.dart';
@@ -21,8 +19,7 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
-  // Demo mode: skip the "remember me / unlock" checks and always show the
-  // Begin button. Handy for showing the app quickly at a conference.
+  // Demo mode: skip saved-account checks and always show Begin.
   final bool _isDemoMode = true;
   final LocalAuthentication _auth = LocalAuthentication(); // fingerprint / face
   final FlutterSecureStorage _storage = const FlutterSecureStorage(); // safe on-phone store
@@ -30,7 +27,7 @@ class _SplashScreenState extends State<SplashScreen> {
   bool _showButton = false; // is the bottom button visible yet?
   bool _isReturningUser = false; // did we find a saved account on this phone?
 
-  // Pops a small on-screen message and logs it - used while testing.
+  // Show a brief on-screen message (used during testing).
   void _showDebugAlert(String message) {
     debugPrint("🛠️ DEBUG: $message");
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -45,7 +42,7 @@ class _SplashScreenState extends State<SplashScreen> {
     });
   }
 
-  // Runs once when the splash appears. Kicks off the "where do we go?" logic.
+  // Start the "where do we go?" logic when the splash appears.
   @override
   void initState() {
     super.initState();
@@ -53,14 +50,13 @@ class _SplashScreenState extends State<SplashScreen> {
     _initializeApp();
   }
 
-  // Wait a beat for the logo, then decide the next screen.
+  // Short delay for the logo, then decide the next screen.
   Future<void> _initializeApp() async {
-    // Shorter delay since we aren't waiting for a long animation
     await Future.delayed(const Duration(milliseconds: 1200));
 
     if (!mounted) return;
 
-    // Demo mode: don't bother checking for a saved account, just show Begin.
+    // In demo mode, skip the account check and show Begin right away.
     if (_isDemoMode) {
       setState(() {
         _isReturningUser = false;
@@ -69,13 +65,13 @@ class _SplashScreenState extends State<SplashScreen> {
       return;
     }
 
-    // Do we have an account saved on this phone from last time?
+    // Check for a saved account from a previous session.
     String? savedId = await _storage.read(key: 'participant_id');
 
     if (savedId != null && mounted) {
       debugPrint("🛠️ DEBUG: Found Local ID: $savedId. Verifying with server...");
       try {
-        // Double-check the saved account still exists in the cloud.
+        // Verify the saved account still exists in the cloud.
         DocumentSnapshot userDoc = await FirebaseFirestore.instance.collection(FirestorePaths.userData).doc(savedId).get();
         if (userDoc.exists && mounted) {
           debugPrint("🛠️ DEBUG: Server Verified! Triggering Biometrics.");
@@ -90,7 +86,7 @@ class _SplashScreenState extends State<SplashScreen> {
           });
         }
       } catch (e) {
-        // No internet? Trust the saved account and let them unlock anyway.
+        // No internet: trust the local account and let them unlock.
         debugPrint("🛠️ DEBUG: Network error. Defaulting to local biometric cache: $e");
         setState(() => _isReturningUser = true);
         _triggerBiometricLogin();
@@ -104,7 +100,7 @@ class _SplashScreenState extends State<SplashScreen> {
     }
   }
 
-  // Ask for fingerprint/face. If it passes, jump straight into the app.
+  // Ask for fingerprint/face ID. On success, go straight to the dashboard.
   Future<void> _triggerBiometricLogin() async {
     try {
       final bool didAuthenticate = await _auth.authenticate(
@@ -126,7 +122,7 @@ class _SplashScreenState extends State<SplashScreen> {
     }
   }
 
-  // The screen itself: logo in the middle, welcome text and button below.
+  // Screen layout: logo, welcome text, and fade-in button.
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -167,8 +163,8 @@ class _SplashScreenState extends State<SplashScreen> {
     );
   }
 
-  // The welcome line plus the fade-in button. The button text and where it
-  // sends you both depend on whether you're a new or returning user.
+  // Welcome line and the fade-in button. Text and destination depend on
+  // whether this is a new or returning user.
   Widget _buildBottomContent() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),

@@ -1,27 +1,15 @@
 import 'package:flutter/material.dart';
 
-// session_manager.dart - remembers "what's happening right now": which game is
-// open, and whether a participant + caregiver are playing together (a paired
-// session). Other parts of the app read this to tag their data correctly.
+// session_manager.dart - tracks which game is open and whether a participant
+// and caregiver are playing together. Other code reads this to tag data correctly.
 
-/// SessionManager - Tracks game state across the app
-/// Mirrored from netguage for consistency
-///
-/// Usage:
-///   SessionManager.startGame('Walk Buddy');
-///   // ... game runs ...
-///   SessionManager.endGame();
-
-// Static (app-wide) holder of the current game and paired-session info.
+// Static holder of the active game and paired-session state.
 class SessionManager {
   static String? _sessionId;
   static String? _currentGame;
   static DateTime? _gameStartTime;
 
-  // ── Paired-session state (participant + caregiver co-play) ──────────────
-  // A paired session groups every write made while a participant and their
-  // caregiver play together. It is the single source of truth read by the
-  // telemetry layer, which stamps `pairedSessionId` onto every event.
+  // Paired-session state (participant + caregiver playing together).
   static String? _pairedSessionId;
   static String? _participantId;
   static String? _caregiverId;
@@ -40,14 +28,11 @@ class SessionManager {
   static String? get caregiverLabel => _caregiverLabel;
   static bool get isPaired => _pairedSessionId != null;
 
-  /// The current in-game step/passage, if a game is reporting it. Used by the
-  /// caregiver view to attach "help given" markers to the right game moment.
+  // The current in-game passage. Used to tag caregiver-help events to the right moment.
   static String? get currentStep => _currentStep;
   static set currentStep(String? step) => _currentStep = step;
 
-  /// Begin a paired session. Called by the joint-setup flow after login.
-  /// Pass a pre-minted id (so the same id can be persisted to secure storage
-  /// for cold-start resume) or let this generate one.
+  // Start a paired session. Pass a pre-made id or let this generate one.
   static String startPairedSession({
     required String participantId,
     String? caregiverId,
@@ -64,8 +49,7 @@ class SessionManager {
     return _pairedSessionId!;
   }
 
-  /// Rehydrate paired-session state on cold-start resume without minting a
-  /// new id.
+  // Restore a paired session on cold-start without creating a new id.
   static void restorePairedSession({
     required String pairedSessionId,
     required String participantId,
@@ -95,16 +79,14 @@ class SessionManager {
     debugPrint('[SESSION_MANAGER] Session ID set to $_sessionId');
   }
 
-  // Called when a game is launched
-  // Mirrors netguage's SessionManager.startGame()
+  // Called when a game is launched.
   static void startGame(String gameTitle) {
     _currentGame = gameTitle;
     _gameStartTime = DateTime.now();
     debugPrint('[SESSION_MANAGER] Game started: $_currentGame at $_gameStartTime');
   }
 
-  // Called when a game ends
-  // Mirrors netguage's SessionManager.endGame()
+  // Called when a game ends.
   static void endGame() {
     if (_currentGame != null && _gameStartTime != null) {
       final duration = DateTime.now().difference(_gameStartTime!);
@@ -120,9 +102,7 @@ class SessionManager {
     return DateTime.now().difference(_gameStartTime!).inSeconds;
   }
 
-  // Reset all state (useful for logout or app reset). Also clears any paired
-  // session so a stale pairedSessionId can't leak onto the next participant's
-  // events.
+  // Reset all state on logout so nothing leaks to the next participant.
   static void reset() {
     _sessionId = null;
     _currentGame = null;

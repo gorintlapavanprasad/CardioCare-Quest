@@ -4,24 +4,15 @@ import 'package:provider/provider.dart';
 import 'package:cardio_care_quest/core/providers/user_data_manager.dart';
 import 'package:cardio_care_quest/core/theme/app_colors.dart';
 
-// WhoIsPlayingDialog - a small popup shown once after login that asks whether
-// the participant themselves is playing, or a caregiver is helping them on the
-// same device.
-//
-// The choice is stored in UserDataProvider.respondent (in memory, per launch)
-// and used to tag every survey response (SurveyHooks.submitResponse
-// `respondent`) so researchers can tell participant-entered answers apart from
-// caregiver-entered ones, without changing the signed-in account.
+// WhoIsPlayingDialog - asks once after login whether the participant is using the
+// device themselves or a caregiver is helping. Tags survey responses accordingly.
 class WhoIsPlayingDialog extends StatelessWidget {
-  /// The signed-in participant's id. Chosen when "I'm the patient" is tapped
-  /// so responses stay attributed to the participant.
+  // The participant's id, used when "I am the patient" is tapped.
   final String uid;
 
   const WhoIsPlayingDialog({super.key, required this.uid});
 
-  /// Show the prompt once. No-ops (returns immediately) if a choice was
-  /// already made this launch, so it never nags between screens. Not
-  /// dismissible by tapping outside - the participant must pick one.
+  // Show the prompt once per launch. Not dismissible; the player must pick one.
   static Future<void> show({
     required BuildContext context,
     required String uid,
@@ -62,7 +53,7 @@ class WhoIsPlayingDialog extends StatelessWidget {
       ),
       actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
       actions: [
-        // Full-width stacked buttons for easy tapping (audience skews older).
+        // Full-width buttons are easier to tap for older users.
         SizedBox(
           width: double.infinity,
           child: ElevatedButton.icon(

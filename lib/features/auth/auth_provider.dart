@@ -11,7 +11,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/constants/firestore_paths.dart';
 import '../../core/services/offline_queue.dart';
 
-// Holds the sign-up state (current step + answers) and shares it with screens.
+// Holds the sign-up form state (current page + all answers).
 class AuthProvider extends ChangeNotifier {
   int _currentStep = 0; // which page of the form we're on
   final int totalSteps = 14; // how many pages there are
@@ -22,7 +22,7 @@ class AuthProvider extends ChangeNotifier {
   Map<String, dynamic> get formData => _formData;
   bool get isSubmitting => _isSubmitting;
 
-  // The progress bar colour, shifting through the palette as you near the end.
+  // Progress bar color: shifts through the palette as you near the last page.
   Color get progressColor {
     double t = (_currentStep + 1) / totalSteps;
     if (t < 0.25) return AppColors.viridis0;
@@ -55,23 +55,19 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  // Finish sign-up: make the account, then save the profile + survey answers.
-  // Returns the new user id on success, or null if something went wrong.
+  // Create the account and save the profile + survey answers.
+  // Returns the new user id on success, or null on failure.
   Future<String?> submitQuest() async {
     try {
-      // signInAnonymously requires network; without an internet connection
-      // Firebase Auth cannot mint a new UID. We let it throw - caller decides
-      // how to surface that to the participant. (Workshop guidance: register
-      // participants while connected to the registration-table Wi-Fi.)
+      // signInAnonymously needs internet. Register participants on Wi-Fi.
       UserCredential userCredential =
           await FirebaseAuth.instance.signInAnonymously();
       String uid = userCredential.user!.uid;
-      // A short, friendly id shown to the participant (built from the clock).
+      // Short readable id shown to the participant.
       String displayId =
           'CCQ-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}';
 
-      // These answers go into their own profile fields below, so we keep them
-      // OUT of the generic survey list to avoid saving them twice.
+      // These fields go into the profile separately, so skip them in the survey list.
       final excludedKeys = [
         'firstName',
         'lastName',
@@ -94,8 +90,7 @@ class AuthProvider extends ChangeNotifier {
         'digitalSignature',
       ];
 
-      // Turn the leftover answers into two lists: the questions, and the
-      // matching responses. (Skips the profile fields excluded above.)
+      // Build the survey question and response lists from remaining answers.
       final surveyQuestions = <Map<String, dynamic>>[];
       final surveyResponses = <Map<String, dynamic>>[];
       formData.forEach((key, value) {
@@ -112,8 +107,7 @@ class AuthProvider extends ChangeNotifier {
         }
       });
 
-      // Auto-id for the submission doc; generated client-side so OfflineQueue
-      // can replay deterministically.
+      // Generate a doc id client-side so OfflineQueue can replay it correctly.
       final firestore = FirebaseFirestore.instance;
       final submissionDocId = firestore
           .collection(FirestorePaths.responses)
@@ -122,8 +116,7 @@ class AuthProvider extends ChangeNotifier {
           .doc()
           .id;
 
-      // Save three things together (all save, or none): the user profile,
-      // the survey question list, and this person's survey answers.
+      // Save the profile, question list, and responses as one atomic batch.
       await GetIt.instance<OfflineQueue>().enqueueBatch([
         PendingOp.set(
           '${FirestorePaths.userData}/$uid',
@@ -180,7 +173,6 @@ class AuthProvider extends ChangeNotifier {
 
       return uid;
     } catch (e) {
-      // Something failed (often no internet for the sign-in). Tell the caller.
       debugPrint('Onboarding sync error: $e');
       return null;
     }

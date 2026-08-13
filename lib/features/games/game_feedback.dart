@@ -7,13 +7,9 @@ import 'package:webview_flutter/webview_flutter.dart';
 import 'package:cardio_care_quest/core/hooks/hooks.dart';
 import 'package:cardio_care_quest/core/providers/user_data_manager.dart';
 
-// A short "how was it?" popup shown right after a game finishes. It asks four
-// quick questions, each answered with the same five faces used in the end
-// survey (😢 🙁 😐 🙂 😄 -> 1 to 5). Answers save to
-// surveys/game_feedback/responses via SurveyHooks.
-//
-// The questions live here in plain Dart so they are easy to read and change.
-// Only games listed in this map get a popup.
+// Short "how was it?" popup shown after a game finishes. Four questions,
+// each answered with five emoji faces. Answers go via SurveyHooks.
+// Only games listed here get the popup.
 const Map<String, List<Map<String, String>>> gameFeedbackQuestions = {
   'salt_sludge': [
     {'key': 'fun', 'text': 'Was it fun?'},
@@ -47,8 +43,7 @@ const Map<String, List<Map<String, String>>> gameFeedbackQuestions = {
   ],
 };
 
-// The popup screen. Loads the plain feedback HTML in a WebView, hands it the
-// game's four questions, saves the answers, then closes.
+// Loads the feedback HTML, passes the game's questions, saves answers, closes.
 class GameFeedbackScreen extends StatefulWidget {
   final String gameId;
   final String gameTitle;
@@ -84,7 +79,6 @@ class _GameFeedbackScreenState extends State<GameFeedbackScreen> {
       ..setBackgroundColor(Colors.white)
       ..setNavigationDelegate(
         NavigationDelegate(
-          // Hand the page its four questions, then tell it to draw.
           onPageFinished: (_) {
             _controller.runJavaScript(
               'window.__ccqFeedback = $config;'
@@ -114,7 +108,7 @@ class _GameFeedbackScreenState extends State<GameFeedbackScreen> {
       ..loadFlutterAsset('assets/game/game_feedback.html');
   }
 
-  // Save the answers, then let the player see the thank-you for a moment.
+  // Saves the answers, pauses briefly for the thank-you message, then closes.
   Future<void> _save(dynamic answers) async {
     if (_handled) return;
     _handled = true;

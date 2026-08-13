@@ -1,26 +1,17 @@
 import 'package:flutter/material.dart';
 import 'app_colors.dart';
 
-// AppTheme - the app's overall look: fonts, button shapes, card style, colors.
-//
-// Set once here and Flutter applies it everywhere, so every screen looks
-// consistent without repeating style code on each widget.
+// AppTheme - fonts, buttons, cards, and colors defined once and applied everywhere.
 class AppTheme {
-  // The one theme the app uses. Uses our AppColors and a high-readability font.
   static ThemeData get lightTheme {
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.light,
       scaffoldBackgroundColor: AppColors.background,
 
-      // Typography: Atkinson Hyperlegible throughout. Designed by the
-      // Braille Institute specifically to maximise legibility for
-      // readers with low vision - distinct letterforms (especially
-      // I/l/1, O/0, b/d, p/q) reduce the misreads our elderly +
-      // visually-impaired participants are most likely to make.
-      // Hierarchy comes from weight + size; the four TTF files are
-      // bundled locally (see pubspec.yaml + assets/fonts/) so the
-      // app works fully offline with the chosen typeface.
+      // Atkinson Hyperlegible: designed for low-vision readers, with distinct
+      // letterforms (I/l/1, O/0, b/d) that reduce misreads. Bundled locally
+      // so it works offline.
       fontFamily: 'Atkinson Hyperlegible',
       textTheme: const TextTheme(
         displayLarge: TextStyle(
@@ -62,7 +53,7 @@ class AppTheme {
         ),
       ),
 
-      // Card Style: High-fidelity with subtle shadow and border
+      // Card Style
       cardTheme: CardThemeData(
         color: AppColors.cardBg,
         elevation: 0,
@@ -72,7 +63,7 @@ class AppTheme {
         ),
       ),
 
-      // Button Style: Primary green with white text
+      // Buttons
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.primary,
@@ -89,7 +80,7 @@ class AppTheme {
         ),
       ),
 
-      // Text Button Style
+      // Text buttons
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           foregroundColor: AppColors.primary,
@@ -101,7 +92,7 @@ class AppTheme {
         ),
       ),
 
-      // Input Style: Clean, accessible
+      // Text fields
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: Colors.white,
@@ -131,7 +122,7 @@ class AppTheme {
         ),
       ),
 
-      // App Bar Style
+      // App bar
       appBarTheme: const AppBarTheme(
         backgroundColor: Colors.white,
         elevation: 0,
@@ -145,7 +136,7 @@ class AppTheme {
         iconTheme: IconThemeData(color: AppColors.title),
       ),
 
-      // Colors
+      // Color scheme
       colorScheme: ColorScheme.light(
         primary: AppColors.primary,
         secondary: AppColors.secondary,

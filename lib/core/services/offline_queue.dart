@@ -6,41 +6,18 @@ import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:uuid/uuid.dart';
 
-// offline_queue.dart - a "save it later" line for cloud writes.
-//
-// Instead of writing straight to the cloud, the app drops each write in here.
-// It's stored on the phone first, then sent up when there's internet. If sending
-// fails, it stays and retries. This is what makes the whole app work offline.
+// offline_queue.dart - saves cloud writes to the phone first, then sends them
+// when internet is available. Retries automatically on failure.
 
-/// Generic Hive-backed write queue for Firestore.
-///
-/// Every research-grade write (BP, exercise, meal, medication, quest
-/// completions, surveys, etc.) is enqueued here BEFORE hitting Firestore.
-/// On a successful Firestore replay the entry is deleted from Hive. If the
-/// device is offline (or Firestore rejects), the entry stays in Hive and is
-/// retried whenever connectivity transitions back up or [syncToFirestore]
-/// is called manually.
-///
-/// Goals:
-///  * Survives app kill (Hive persists to disk).
-///  * Preserves batch atomicity (each PendingBatch replays via WriteBatch).
-///  * Encodes Firestore sentinels (`FieldValue.serverTimestamp`,
-///    `FieldValue.increment`, `FieldValue.delete`) and `GeoPoint` so they
-///    round-trip through Hive.
-///  * `serverTimestamp()` is resolved to a client `Timestamp` AT QUEUE TIME so
-///    research analyses get true event time even when sync is hours later.
-///  * `increment()` is replayed as `FieldValue.increment` so it merges
-///    correctly server-side.
+// All research writes go here before hitting Firestore. Survives app kills (Hive
+// persists to disk). Timestamps are captured at queue time so event times are
+// accurate even when sync happens hours later.
 // The queue itself: holds pending writes on the phone and pushes them to the cloud.
 class OfflineQueue {
   static const String _boxName = 'offline_write_queue';
   static const int _maxBatches = 1000; // don't let the queue grow past 1000
 
-  /// Safety-net retry interval. The primary sync trigger is the
-  /// connectivity_plus stream; this timer just guarantees we don't get stuck
-  /// if the OS / emulator silently drops a connectivity event (observed on
-  /// Android emulator after toggling airplane mode). Cheap: it short-circuits
-  /// on `_box.isEmpty`.
+  // Backup retry every 15s in case the connectivity event was silently dropped.
   static const Duration _retryInterval = Duration(seconds: 15);
 
   final FirebaseFirestore _firestore;
@@ -49,10 +26,10 @@ class OfflineQueue {
   bool _isSyncing = false;
   Timer? _retryTimer;
 
-  /// Number of batches currently waiting to sync. Drives the dashboard badge.
+  // Drives the dashboard sync badge.
   final ValueNotifier<int> pendingCount = ValueNotifier<int>(0);
 
-  /// True while a sync attempt is in flight.
+  // True while a sync is running.
   final ValueNotifier<bool> isSyncing = ValueNotifier<bool>(false);
 
   OfflineQueue({FirebaseFirestore? firestore})
@@ -73,11 +50,7 @@ class OfflineQueue {
       }
     });
 
-    // Periodic safety-net retry. Some devices/emulators don't reliably emit a
-    // connectivity event on the offline→online transition, leaving the queue
-    // stuck until the user opens the app and (per old code) had to long-press
-    // the badge. This timer drains the queue automatically every 15 s as long
-    // as there's something pending.
+    // Fallback timer - some devices miss the connectivity event.
     _retryTimer?.cancel();
     _retryTimer = Timer.periodic(_retryInterval, (_) {
       if (_box.isOpen && _box.isNotEmpty && !_isSyncing) {
@@ -86,10 +59,7 @@ class OfflineQueue {
       }
     });
 
-    // Kick off an initial sync, but DON'T await it: startup must never block on
-    // a network round-trip. If there are leftover pending batches, awaiting here
-    // freezes app launch on the splash screen until the upload resolves. Fire it
-    // in the background (same pattern as enqueueBatch) so the UI shows right away.
+    // Fire-and-forget initial sync so startup doesn't block on the network.
     unawaited(syncToFirestore());
     debugPrint('OfflineQueue initialized (${_box.length} pending)');
   }
@@ -108,13 +78,10 @@ class OfflineQueue {
 
   // ---- ADDING TO THE QUEUE ----
 
-  /// Enqueue a single write spec, replayed standalone (no batch atomicity).
-  // (One write on its own.)
+  // Queue a single write.
   Future<void> enqueue(PendingOp op) => enqueueBatch([op]);
 
-  /// Enqueue an atomic batch of writes. They will be replayed as a single
-  /// Firestore [WriteBatch] on the next sync.
-  // (A group of writes that must all succeed together, or none of them do.)
+  // Queue a group of writes that must all succeed together (or all fail).
   Future<void> enqueueBatch(List<PendingOp> ops) async {
     if (ops.isEmpty) return;
 
@@ -136,8 +103,7 @@ class OfflineQueue {
       'OfflineQueue: queued batch ${batch.id} with ${ops.length} op(s)',
     );
 
-    // Best-effort sync. If offline, this no-ops; the connectivity listener
-    // will pick it up later.
+    // Try syncing now; the connectivity listener will retry if offline.
     unawaited(syncToFirestore());
   }
 
@@ -185,9 +151,7 @@ class OfflineQueue {
           _refreshPendingCount();
           debugPrint('OfflineQueue: synced batch ${batch.id}');
         } catch (e) {
-          // Leave the batch in the queue and stop the loop. Next connectivity
-          // event (or manual call) will retry. We avoid skipping ahead so
-          // that ordering is preserved per-document.
+          // Stop on failure so order is preserved; retry on next connectivity event.
           debugPrint('OfflineQueue: batch sync failed, will retry: $e');
           break;
         }
@@ -209,9 +173,8 @@ class OfflineQueue {
 
   // ---- HELPERS: paths & encoding ----
 
-  // Turn a text path like "users/abc/pets/rex" into a real Firestore reference.
+  // Convert a path string like "collection/doc/sub/doc" into a Firestore reference.
   DocumentReference<Map<String, dynamic>> _refFromPath(String path) {
-    // Path format: "collection/doc/sub/doc/..." with even segment count.
     final segments = path.split('/').where((s) => s.isNotEmpty).toList();
     if (segments.length < 2 || segments.length.isOdd) {
       throw StateError('OfflineQueue: invalid document path: $path');
@@ -229,8 +192,7 @@ class OfflineQueue {
     return ref!;
   }
 
-  /// Recursively walk a payload and turn type markers back into their real
-  /// runtime objects (FieldValue, GeoPoint, Timestamp).
+  // Walk a payload and convert "__type" markers back into real Firestore objects.
   Map<String, dynamic> _decodePayload(Map<dynamic, dynamic> input) {
     final out = <String, dynamic>{};
     input.forEach((key, value) {
@@ -239,8 +201,7 @@ class OfflineQueue {
     return out;
   }
 
-  // Convert one saved value back. Special "__type" markers become real Firestore
-  // objects (a counter bump, a delete, a map point, or a timestamp).
+  // Convert one value: "__type" markers become real FieldValue/GeoPoint/Timestamp.
   dynamic _decodeValue(dynamic value) {
     if (value is Map) {
       final marker = value['__type'];
@@ -281,7 +242,6 @@ class OfflineQueue {
 
 // ---- DATA SHAPES ----
 
-/// One operation inside a PendingBatch.
 // The kind of write: create/overwrite (set), change fields (update), or remove (delete).
 enum PendingOpType { set, update, delete }
 
@@ -366,22 +326,18 @@ class PendingBatch {
   }
 }
 
-// Little builders for "special" values (a counter bump, a delete, a timestamp,
-// a map point) that need extra handling. Use these when filling a write's data.
-/// Helpers used by callers to encode special values into Hive-safe markers.
-/// Use these when building a PendingOp's `data` map.
+// Helpers for encoding special Firestore values so they survive the Hive round-trip.
+// Use these when building a PendingOp's data map.
 abstract class OfflineFieldValue {
-  /// Replays as `FieldValue.increment(value)` server-side.
+  // Replays as FieldValue.increment server-side.
   static Map<String, dynamic> increment(num value) =>
       {'__type': 'increment', 'value': value};
 
-  /// Replays as `FieldValue.delete()` server-side.
+  // Replays as FieldValue.delete server-side.
   static Map<String, dynamic> delete() => {'__type': 'delete'};
 
-  /// Resolves AT QUEUE TIME to a client Timestamp. Use this in preference to
-  /// `FieldValue.serverTimestamp()` when the timestamp must reflect when the
-  /// event happened on the device, not when it eventually synced. The returned
-  /// marker round-trips through Hive and emerges as a `Timestamp` on replay.
+  // Captures the current device time at queue time, not sync time.
+  // This keeps timestamps accurate even when sync happens hours later.
   static Map<String, dynamic> nowTimestamp() => {
         '__type': 'timestamp',
         'ms': DateTime.now().millisecondsSinceEpoch,

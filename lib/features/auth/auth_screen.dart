@@ -1,8 +1,5 @@
-// auth_screen.dart - the new-user sign-up questionnaire ("Join the Circle").
-//
-// A 14-page wizard: basic info, demographics, habits, a big set of survey
-// sliders, and finally consent + signature. Hitting Finish saves everything
-// and drops you into the app. The AuthProvider "brain" holds the answers.
+// auth_screen.dart - the 14-page sign-up wizard (basic info, demographics,
+// habits, survey sliders, consent + signature). AuthProvider holds the answers.
 
 import 'package:cardio_care_quest/features/dashboard/screens/main_layout.dart';
 import 'package:flutter/material.dart';
@@ -15,7 +12,6 @@ import 'widgets/signature_pad.dart';
 import 'package:cardio_care_quest/core/providers/user_data_manager.dart'; // ─── ADD THIS
 
 
-// The sign-up screen widget.
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
 
@@ -23,9 +19,7 @@ class AuthScreen extends StatefulWidget {
   State<AuthScreen> createState() => _AuthScreenState();
 }
 
-// ─── THE DEMO MODE TOGGLE ───
-// Set this to `true` to skip the PIN screen and go directly to the Dashboard
-// This is useful for conference demos or user testing where you want to show the app quickly.
+// Set to true to skip straight to the dashboard (useful for demos).
 const bool isDemoMode = true;
 
 class _AuthScreenState extends State<AuthScreen> {
@@ -33,8 +27,7 @@ class _AuthScreenState extends State<AuthScreen> {
   // ─── ADD THIS VARIABLE ───
   bool _isSubmitting = false; // true while the final save is running
 
-  // The 35 survey statements, numbered. The sliders later look these up by number.
-  // ─── THE 35 RESEARCH PROTOCOL QUESTIONS ───
+  // The 35 research survey statements, looked up by number in the slider pages.
   final Map<int, String> _surveyQuestions = {
     1: "I decided to start using Cardio Care Quest because other people want me to use it.",
     2: "I would expect Cardio Care Quest to be interesting to use.",
@@ -73,8 +66,7 @@ class _AuthScreenState extends State<AuthScreen> {
     35: "Using Cardio Care Quest to remember my medication would help me feel part of a larger community."
   };
 
-  // Holds the finger-drawn consent signature on the last page.
-  // ─── ADD THIS CONTROLLER ───
+  // Finger-drawn signature controller for the consent page.
   final SignatureController _sigController = SignatureController(
     penStrokeWidth: 3,
     penColor: AppColors.title,
@@ -87,8 +79,6 @@ class _AuthScreenState extends State<AuthScreen> {
     super.dispose();
   }
 
-  // The screen: progress bar on top, the current page in the middle card,
-  // and Back / Next (or Finish) buttons at the bottom.
   @override
   Widget build(BuildContext context) {
     final authProvider = context.watch<AuthProvider>();
@@ -101,10 +91,7 @@ class _AuthScreenState extends State<AuthScreen> {
         child: SafeArea(
           child: Column(
             children: [
-              // ─── Segmented Progress Header ───
               _buildProgressHeader(currentStep, totalSteps),
-
-              // ─── Main Content Card (Glassmorphism feel) ───
               Expanded(
                 child: Container(
                   margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
@@ -128,7 +115,6 @@ class _AuthScreenState extends State<AuthScreen> {
                           child: PageView(
                             controller: _pageController,
                             physics: const NeverScrollableScrollPhysics(),
-                            // Generates exactly 14 pages based on the provider's total steps
                             children: List.generate(
                               totalSteps, 
                               (index) => _buildStepContent(authProvider, index + 1)
@@ -136,7 +122,6 @@ class _AuthScreenState extends State<AuthScreen> {
                           ),
                         ),
                         
-                        // Bottom Viridis Accent Bar
                         Container(
                           height: 4,
                           width: double.infinity,
@@ -158,7 +143,6 @@ class _AuthScreenState extends State<AuthScreen> {
                 ),
               ),
 
-              // ─── Navigation Buttons ───
               _buildNavButtons(authProvider),
             ],
           ),
@@ -167,9 +151,7 @@ class _AuthScreenState extends State<AuthScreen> {
     );
   }
 
-  // ─── WIDGET BUILDERS ───
-
-  // Top progress area: "STEP x OF y", a percent, and the segmented bar.
+  // Top progress header: step label, percent, and segmented bar.
   Widget _buildProgressHeader(int current, int total) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(32, 24, 32, 8),
@@ -218,9 +200,7 @@ class _AuthScreenState extends State<AuthScreen> {
     );
   }
 
-  // Builds the right content for a given page number (1-14).
-  // ─── DYNAMIC STEP RENDERER ───
-  // Notice we now pass the 'step' directly from the PageView generator!
+  // Returns the right content widget for a given step number (1-14).
   Widget _buildStepContent(AuthProvider provider, int step) {
    switch (step) {
   case 1:
@@ -264,7 +244,7 @@ class _AuthScreenState extends State<AuthScreen> {
             _buildTextField(provider, "bpAppType", "Which app do you use?", "e.g. MyFitnessPal, Apple Health..."),
         ]);
 
-      // Health Survey Slider Groups
+      // Steps 5-12 are the 35-question survey, split across 8 slider pages.
       case 5: case 6: case 7: case 8: case 9: case 10: case 11: case 12:
         return _buildSliderGroup(provider, step);
 
@@ -280,7 +260,6 @@ class _AuthScreenState extends State<AuthScreen> {
           const Text("Please read the consent form carefully, then sign below to confirm your agreement.", style: TextStyle(color: AppColors.subtitle, fontSize: 14)),
           const SizedBox(height: 24),
           
-          // ─── UPDATED: Consent Text Box with Scrollbar ───
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8), // Room for the scrollbar
             decoration: BoxDecoration(
@@ -326,11 +305,8 @@ class _AuthScreenState extends State<AuthScreen> {
     }
   }
 
-// Builds one survey page: which of the 35 questions belong on this step, each
-// shown with a 1-7 agree/disagree scale.
-// ─── SLIDER GROUP RENDERER ───
+// Renders one survey page (steps 5-12) with its subset of the 35 questions.
   Widget _buildSliderGroup(AuthProvider provider, int step) {
-    // Which question numbers go on each step page.
     final Map<int, List<int>> stepMap = {
       5: [1, 2, 3, 4, 5],
       6: [6, 7, 8, 9, 10],
@@ -342,7 +318,6 @@ class _AuthScreenState extends State<AuthScreen> {
       12: [33, 34, 35]
     };
 
-    // ─── NEW: Thematic titles instead of "Form X" ───
     final Map<int, String> thematicTitles = {
       5: "Initial Thoughts",
       6: "Your Expectations",
@@ -366,8 +341,7 @@ class _AuthScreenState extends State<AuthScreen> {
     
     ...questionNumbers.map((qNum) {
       String fullQuestionText = _surveyQuestions[qNum] ?? "Question $qNum";
-      // The key we save the answer under. Drop a trailing "." so the saved
-      // name stays tidy and consistent.
+      // Strip trailing "." so the Firestore key is clean.
       String dbKey = fullQuestionText.endsWith('.')
           ? fullQuestionText.substring(0, fullQuestionText.length - 1)
           : fullQuestionText;
@@ -383,9 +357,7 @@ class _AuthScreenState extends State<AuthScreen> {
             ),
             const SizedBox(height: 24),
             
-            // ─── REPLACED ViridisSlider WITH THIS ───
             _buildLikertScale(provider, dbKey), 
-            // ────────────────────────────────────────
           ],
         ),
       );
@@ -394,7 +366,7 @@ class _AuthScreenState extends State<AuthScreen> {
     
 }
 
-// Shared page frame: a big title with the given widgets stacked, scrollable.
+// Page frame: title + scrollable content.
 Widget _buildStepWrapper(String title, List<Widget> children) {
     return Scrollbar(
       thumbVisibility: true, // Forces the scrollbar to stay visible while scrolling
@@ -409,7 +381,6 @@ Widget _buildStepWrapper(String title, List<Widget> children) {
             Text(title, style: Theme.of(context).textTheme.displayLarge?.copyWith(fontSize: 24)),
             const SizedBox(height: 24),
             ...children.map((w) => Padding(padding: const EdgeInsets.only(bottom: 16), child: w)),
-            // ─── ADD THIS: Prevents content from being flush against the bottom ───
             const SizedBox(height: 60), 
           ],
         ),
@@ -417,9 +388,7 @@ Widget _buildStepWrapper(String title, List<Widget> children) {
     );
   }
 
-  // ─── INPUT RENDERERS ───
-
- // A labelled text box; saves what you type into the form under [key].
+  // A labelled text box; saves what you type under [key].
  Widget _buildTextField(AuthProvider provider, String key, String label, String hint, {bool isNumber = false, int maxLines = 1}) {
     return TextField(
       onChanged: (val) => provider.updateField(key, val),
@@ -454,10 +423,8 @@ Widget _buildStepWrapper(String title, List<Widget> children) {
     );
   }
 
-// The bottom Back / Next buttons. On the last page, Next reads "FINISH" and
-// runs the save. In demo mode it then jumps straight to the dashboard.
+// Back / Next buttons at the bottom. Last page shows "FINISH" and saves.
 Widget _buildNavButtons(AuthProvider provider) {
-  // ─── OPTIONAL: Toggle this boolean to true for the demo ───
   final bool isDemoMode = true;
 
   return Padding(
@@ -499,20 +466,14 @@ Widget _buildNavButtons(AuthProvider provider) {
                 String? newId = await provider.submitQuest();
                 
              if (newId != null && mounted) {
-                  // ─── 1. REMOVED SharedPreferences ───
-                  // Firebase Auth handles session memory natively now!
-
-                  // ─── 2. THE CRITICAL FIX: Fetch the newly created profile! ───
-                  // This tells the "Brain" to load the data so the HomeTab doesn't spin forever.
+                  // Load the new profile so the home tab doesn't spin.
                   try {
                     await Provider.of<UserDataProvider>(context, listen: false).fetchUserData();
                   } catch (e) {
                     debugPrint('Error fetching user data after signup: $e');
                   }
 
-                  // ─── 3. THE DEMO TOGGLE ───
                   if (isDemoMode && mounted) {
-                    // Send directly to Dashboard for the conference
                     Navigator.of(context).pushReplacement(
                       MaterialPageRoute(builder: (context) => const MainLayout()),
                     );
@@ -537,14 +498,13 @@ Widget _buildNavButtons(AuthProvider provider) {
     ),
   );
 }
-// The 1-7 agree/disagree row for one survey question. Tapping a number saves it.
+// 1-7 agree/disagree row for one survey question.
 Widget _buildLikertScale(AuthProvider provider, String key) {
     return Column(
       children: [
         Row(
           children: List.generate(7, (index) {
             int value = index + 1;
-            // The saved answer so far (0 = nothing picked yet).
             int currentValue = provider.formData[key] ?? 0;
             
             return Expanded(

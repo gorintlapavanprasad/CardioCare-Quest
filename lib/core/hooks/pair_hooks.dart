@@ -6,24 +6,19 @@ import 'package:cardio_care_quest/core/constants/firestore_paths.dart';
 import 'package:cardio_care_quest/core/services/offline_queue.dart';
 import 'package:cardio_care_quest/core/services/session_manager.dart';
 
-// PairHooks - a "two people playing together" session.
-//
-// When a participant plays with a caregiver, we make ONE session record. Every
-// event/survey/walk saved after that gets tagged with the same session id (done
-// automatically by TelemetryHooks), so later we can see the whole session as one.
-//
-// Writes go through OfflineQueue (saved on the phone first, sent to the cloud
-// when there's internet), so this works offline too.
+// PairHooks - manages a paired (participant + caregiver) session.
+// One session record ties all events/surveys/walks together by session id.
+// TelemetryHooks adds the id automatically so callers don't have to.
+// Writes go through OfflineQueue so this works offline.
 abstract class PairHooks {
-  // The one shared write queue.
+  // Shared write queue.
   static OfflineQueue get _queue => GetIt.instance<OfflineQueue>();
 
-  // We save the current session id on the phone. If the app is closed and
-  // reopened, this is how we know a session was in progress and can resume it.
+  // Session id persisted on the phone so a restart can find and resume it.
   static const activePairKey = 'active_pair_session';
   static const _storage = FlutterSecureStorage();
 
-  // START a session. The joint-setup screen calls this. Returns the new id.
+  // Start a paired session. Returns the new session id.
   static Future<String> start({
     required String participantId,
     String? caregiverId,
@@ -31,15 +26,14 @@ abstract class PairHooks {
     Map<String, dynamic>? settings,
     String? deviceTag,
   }) async {
-    // Mark the session active. From now on every event carries this id.
+    // Activate the session. Events from this point carry its id.
     final id = SessionManager.startPairedSession(
       participantId: participantId,
       caregiverId: caregiverId,
       caregiverLabel: caregiverLabel,
     );
 
-    // The session record. "lastActiveAt" is a heartbeat - the last time we saw
-    // it alive (used later to decide if it's still safe to resume).
+    // "lastActiveAt" is a heartbeat timestamp used to decide if resuming is safe.
     final record = <String, dynamic>{
       'pairedSessionId': id,
       'participantId': participantId,
@@ -53,12 +47,11 @@ abstract class PairHooks {
       'helpMarkerCount': 0, // grows each time the caregiver marks "I helped".
     };
 
-    // Save it in two places at once (both save or neither).
+    // Save to two places in one batch: top-level and under the participant.
     await _queue.enqueueBatch([
-      // 1) Main copy, in the top-level pairedSessions collection.
+      // 1) Top-level pairedSessions collection.
       PendingOp.set('${FirestorePaths.pairedSessions}/$id', record, merge: true),
-      // 2) A small copy under the participant, so listing "this person's
-      //    sessions" is quick.
+      // 2) Under the participant for quick per-person lookups.
       PendingOp.set(
         '${FirestorePaths.userData}/$participantId/'
         '${FirestorePaths.pairedSessions}/$id',
@@ -67,8 +60,7 @@ abstract class PairHooks {
       ),
     ]);
 
-    // Remember this session on the phone so a restart can find it. If storage
-    // fails, just log it - not worth crashing over.
+    // Persist the session id on the phone. Storage failures are non-fatal.
     try {
       await _storage.write(key: activePairKey, value: id);
     } catch (e) {
@@ -77,7 +69,7 @@ abstract class PairHooks {
     return id;
   }
 
-  // TOUCH - heartbeat. Bumps "lastActiveAt" to now. Does nothing if no session.
+  // Heartbeat: update lastActiveAt. No-op if no session is running.
   static Future<void> touch() {
     final id = SessionManager.pairedSessionId;
     if (id == null) return Future.value();
@@ -88,7 +80,7 @@ abstract class PairHooks {
     ));
   }
 
-  // PAUSE - app went to background. Mark "paused" but keep it so we can resume.
+  // App went to background. Mark session paused (kept for resume).
   static Future<void> pause() {
     final id = SessionManager.pairedSessionId;
     if (id == null) return Future.value();
@@ -102,7 +94,7 @@ abstract class PairHooks {
     ));
   }
 
-  // RESUME - app came back to the foreground. Flip status back to "active".
+  // App came back to foreground. Set status back to active.
   static Future<void> resume() {
     final id = SessionManager.pairedSessionId;
     if (id == null) return Future.value();
@@ -116,14 +108,13 @@ abstract class PairHooks {
     ));
   }
 
-  // END - the pair is done. Mark "ended", clear the phone pointer, and tell
-  // SessionManager to forget it (so later writes aren't tagged with this old id).
+  // End the paired session, clear the phone pointer, and reset SessionManager.
   static Future<void> end() async {
     final id = SessionManager.pairedSessionId;
     final participantId = SessionManager.participantId;
     if (id == null) return;
 
-    // Mark both copies ended, together.
+    // Mark both copies ended in one batch.
     await _queue.enqueueBatch([
       PendingOp.set(
         '${FirestorePaths.pairedSessions}/$id',
@@ -146,7 +137,7 @@ abstract class PairHooks {
         ),
     ]);
 
-    // Forget the phone pointer so we don't try to resume a finished session.
+    // Clear the stored id so we don't try to resume a finished session.
     try {
       await _storage.delete(key: activePairKey);
     } catch (e) {

@@ -3,14 +3,12 @@ import 'package:get_it/get_it.dart';
 import 'package:cardio_care_quest/core/constants/firestore_paths.dart';
 import 'package:cardio_care_quest/core/services/offline_queue.dart';
 
-// ProfileHooks - changes fields on the user's profile. Saves through
-// OfflineQueue so changes work offline and survive the app closing.
+// ProfileHooks - updates fields on the user's profile. Works offline.
 abstract class ProfileHooks {
   static OfflineQueue get _queue => GetIt.instance<OfflineQueue>();
 
-  // Set the player's companion name. We save it under two names, "dogName" and
-  // "buddyName", because some games say "dog" and others say "buddy" - keeping
-  // both in sync means every screen shows the right thing.
+  // Set the companion name. Saves as both "dogName" and "buddyName" because
+  // different games use different field names.
   static Future<void> updateBuddyName(String uid, String name) {
     if (uid.isEmpty) return Future.value();
     return _queue.enqueue(PendingOp.update(
@@ -19,8 +17,7 @@ abstract class ProfileHooks {
     ));
   }
 
-  // Set any profile fields you want. A catch-all for updates that don't have
-  // their own dedicated helper above.
+  // Generic: set any profile fields not covered by the helpers above.
   static Future<void> setFields(
     String uid,
     Map<String, dynamic> values, {
