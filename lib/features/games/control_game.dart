@@ -13,8 +13,6 @@ class ControlGame extends StatelessWidget {
       surveyId: 'control_daily_checkin',
       title: 'Daily Check-In',
       htmlAsset: 'assets/game/control_game.html',
-      // Give only a tiny 10 points - this one isn't meant to feel like a game.
-      defaultPointsPerResponse: 10,
     );
   }
 }

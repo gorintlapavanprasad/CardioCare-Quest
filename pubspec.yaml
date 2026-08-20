@@ -82,6 +82,9 @@ flutter:
     - assets/game/game_feedback.html
     - assets/game/pill_path.html
     - assets/game/quiet_landscape.html
+    # Engine shell (SugarCube + shared stylesheet, passages stripped) that
+    # custom_twine_builder.dart fills in at runtime to play user-made story games.
+    - assets/game/custom_game_template.html
     # Atkinson Hyperlegible — bundled locally so the font ships in
     # the APK / IPA and works fully offline. The Twine games' CSS
     # (@font-face declarations injected by `ccq_bridge.js`) loads

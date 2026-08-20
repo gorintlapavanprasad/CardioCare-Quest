@@ -17,7 +17,7 @@ abstract class DailyLogHooks {
   // Today's date as "YYYY-MM-DD" in local time, used to group logs by day.
   static String _today() => DateTime.now().toIso8601String().split('T')[0];
 
-  // Save a blood-pressure reading. Gives 50 points.
+  // Save a blood-pressure reading.
   // Watch/phone vitals go through HealthHooks.logSnapshot instead,
   // so the "ask for BP once a day" limit doesn't block vitals collection.
   static Future<void> logBP({
@@ -61,7 +61,6 @@ abstract class DailyLogHooks {
         merge: true,
       ),
       PendingOp.update('${FirestorePaths.userData}/$uid', {
-        'points': OfflineFieldValue.increment(50),
         'totalSessions': OfflineFieldValue.increment(1),
         'measurementsTaken': OfflineFieldValue.increment(1),
         'lastSystolic': systolic,
@@ -88,7 +87,7 @@ abstract class DailyLogHooks {
     ]);
   }
 
-  // Save an exercise entry (activity + minutes). Gives 50 points.
+  // Save an exercise entry (activity + minutes).
   static Future<void> logExercise({
     required String uid,
     required String activity,
@@ -124,7 +123,6 @@ abstract class DailyLogHooks {
         merge: true,
       ),
       PendingOp.update('${FirestorePaths.userData}/$uid', {
-        'points': OfflineFieldValue.increment(50),
         'exercisesLogged': OfflineFieldValue.increment(1),
         'totalExerciseMinutes': OfflineFieldValue.increment(minutes),
         'lastLogDate': today,
@@ -145,7 +143,7 @@ abstract class DailyLogHooks {
     ]);
   }
 
-  // Save a meal entry (notes, rating, photo flag). Gives 25 points.
+  // Save a meal entry (notes, rating, photo flag).
   static Future<void> logMeal({
     required String uid,
     required String mealNotes,
@@ -183,7 +181,6 @@ abstract class DailyLogHooks {
         merge: true,
       ),
       PendingOp.update('${FirestorePaths.userData}/$uid', {
-        'points': OfflineFieldValue.increment(25),
         'mealsLogged': OfflineFieldValue.increment(1),
         'lastLogDate': today,
       }),
@@ -202,7 +199,7 @@ abstract class DailyLogHooks {
     ]);
   }
 
-  // Save a medication check-in. 20 points if taken, 5 if not.
+  // Save a medication check-in.
   // Pass the current streak; the new streak is calculated here.
   static Future<void> logMedication({
     required String uid,
@@ -226,7 +223,6 @@ abstract class DailyLogHooks {
         merge: true,
       ),
       PendingOp.update('${FirestorePaths.userData}/$uid', {
-        'points': OfflineFieldValue.increment(taken ? 20 : 5),
         'medicationStreak': newStreak,
         'lastLogDate': today,
       }),
@@ -244,22 +240,18 @@ abstract class DailyLogHooks {
     ]);
   }
 
-  // Save a trivia result. Points added = pointsEarned.
+  // Save a trivia result.
   // "answers" is optional: per-question breakdown for researchers.
   static Future<void> logTrivia({
     required String uid,
     required int score,
     required int totalQuestions,
-    required int pointsEarned,
     List<Map<String, dynamic>>? answers,
   }) {
     if (uid.isEmpty) return Future.value();
     final eventId = _uuid.v4();
 
     return _queue.enqueueBatch([
-      PendingOp.update('${FirestorePaths.userData}/$uid', {
-        'points': OfflineFieldValue.increment(pointsEarned),
-      }),
       PendingOp.set(
         '${FirestorePaths.events}/$eventId',
         {
@@ -268,7 +260,6 @@ abstract class DailyLogHooks {
           'event': 'trivia_completed',
           'score': score,
           'totalQuestions': totalQuestions,
-          'pointsEarned': pointsEarned,
           if (answers != null) 'answers': answers,
           'timestamp': OfflineFieldValue.nowTimestamp(),
           'syncedAt': OfflineFieldValue.nowTimestamp(),

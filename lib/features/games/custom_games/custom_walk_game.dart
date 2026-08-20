@@ -138,7 +138,7 @@ class _CustomWalkGameState extends State<CustomWalkGame> {
     }
   }
 
-  // Ends the walk (goal reached or user stopped early), calculates points, saves.
+  // Ends the walk (goal reached or user stopped early), saves the session.
   Future<void> _finishWalk({required bool autoCompleted}) async {
     if (_completed) return;
     setState(() => _completed = true);
@@ -147,9 +147,6 @@ class _CustomWalkGameState extends State<CustomWalkGame> {
 
     final uid = Provider.of<UserDataProvider>(context, listen: false).uid;
     final game = widget.game;
-    // Full points at goal, partial points otherwise. Floor so near-misses stay partial.
-    final ratio = (_distanceWalked / game.targetDistance).clamp(0.0, 1.0);
-    final pointsEarned = (game.pointsReward * ratio).floor();
 
     if (uid.isNotEmpty) {
       // ignore: unawaited_futures
@@ -159,7 +156,6 @@ class _CustomWalkGameState extends State<CustomWalkGame> {
         gameId: _gameId,
         distanceWalked: _distanceWalked,
         targetDistance: game.targetDistance.toDouble(),
-        pointsEarned: pointsEarned,
         buddyName: '',
         pathCoordinates: _path,
         completionEventName: 'custom_walk_completed',
@@ -177,9 +173,8 @@ class _CustomWalkGameState extends State<CustomWalkGame> {
       );
     }
 
-    if (mounted && pointsEarned > 0) {
+    if (mounted && _distanceWalked > 0) {
       PointsHooks.applyIncrements(context, {
-        'points': pointsEarned,
         'totalSessions': 1,
         'totalDistance': _distanceWalked.toInt(),
       });
@@ -194,7 +189,6 @@ class _CustomWalkGameState extends State<CustomWalkGame> {
         'gameType': 'walk',
         'targetDistance': game.targetDistance,
         'distanceWalked': _distanceWalked.toInt(),
-        'pointsEarned': pointsEarned,
         'autoCompleted': autoCompleted,
         'durationMs':
             DateTime.now().difference(_startedAt).inMilliseconds,
@@ -316,7 +310,7 @@ class _WelcomeView extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         Text(
-          'Walk ${game.targetDistance} meters to earn ${game.pointsReward} points.',
+          'Walk ${game.targetDistance} meters to finish this goal.',
           textAlign: TextAlign.center,
           style: TextStyle(
             color: Colors.white.withValues(alpha: 0.85),
@@ -424,7 +418,7 @@ class _ActiveWalkView extends StatelessWidget {
   }
 }
 
-// Results screen: distance walked, points earned, DONE button.
+// Results screen: distance walked, DONE button.
 class _ResultView extends StatelessWidget {
   final CustomGame game;
   final double distanceWalked;
@@ -437,9 +431,6 @@ class _ResultView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Recalculate points the same way as _finishWalk for display.
-    final ratio = (distanceWalked / game.targetDistance).clamp(0.0, 1.0);
-    final earned = (game.pointsReward * ratio).floor();
     return Column(
       children: [
         const Spacer(),
@@ -452,15 +443,12 @@ class _ResultView extends StatelessWidget {
           ),
           child: Column(
             children: [
-              Text(
-                '+$earned',
-                style: const TextStyle(
-                  color: Color(0xFFfde725),
-                  fontSize: 42,
-                  fontWeight: FontWeight.bold,
-                ),
+              const Icon(
+                Icons.check_circle,
+                color: Color(0xFFfde725),
+                size: 56,
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 8),
               const Text(
                 'Walk complete',
                 style: TextStyle(

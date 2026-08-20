@@ -600,9 +600,8 @@ body {
   time any passage references it.
 
   Why a [script] passage and not inline scripts on the per-passage
-  bodies: see CLAUDE.md at the project root, "Don't put logic
-  inside script macros in nobr passages". Short version — nobr
-  collapses newlines (breaks line-comments), and the SugarCube
+  bodies: nobr collapses newlines (which breaks line-comments), and
+  the SugarCube
   macro tokenizer mis-parses certain macro-literal text inside
   block comments as nested macros. A top-of-file [script] passage
   sidesteps both problems because it runs as raw JS at story load

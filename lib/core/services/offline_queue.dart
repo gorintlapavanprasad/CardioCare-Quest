@@ -9,7 +9,6 @@ import 'package:uuid/uuid.dart';
 // offline_queue.dart - saves cloud writes to the phone first, then sends them
 // when internet is available. Retries automatically on failure.
 
-// All research writes go here before hitting Firestore. Survives app kills (Hive
 // persists to disk). Timestamps are captured at queue time so event times are
 // accurate even when sync happens hours later.
 // The queue itself: holds pending writes on the phone and pushes them to the cloud.

@@ -35,7 +35,7 @@ class FirestorePaths {
   // The person's own "design your own game" goals.
   static const customGames = 'customGames';
 
-  // Per-action logs from games that hand out points step by step.
+  // Per-action logs from games that record progress step by step.
   static const gameLogs = 'gameLogs';
 
   // The person's starred games. Saved in the cloud so they follow them

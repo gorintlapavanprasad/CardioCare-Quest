@@ -49,7 +49,7 @@ class _MedicationReminderScreenState extends State<MedicationReminderScreen> {
     }
   }
 
-  // Save the answer: taken = streak +1, missed = reset to 0. Then award points.
+  // Save the answer: taken = streak +1, missed = reset to 0.
   Future<void> _saveMedicationStatus(bool taken) async {
     final uid = Provider.of<UserDataProvider>(context, listen: false).uid;
     if (uid.isEmpty) return;
@@ -71,7 +71,6 @@ class _MedicationReminderScreenState extends State<MedicationReminderScreen> {
 
       if (mounted) {
         // Optimistic update - apply locally right away; Firestore will confirm.
-        PointsHooks.applyIncrements(context, {'points': taken ? 20 : 5});
         PointsHooks.applySets(context, {
           'medicationStreak': newStreak,
           'lastLogDate': today,

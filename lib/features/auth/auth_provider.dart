@@ -146,7 +146,6 @@ class AuthProvider extends ChangeNotifier {
               'foodTracking': formData['foodTracking'],
               'takingMedication': formData['takingMedication'],
             },
-            'points': 0,
             'totalDistance': 0,
             'totalSessions': 0,
             'totalSteps': 0,

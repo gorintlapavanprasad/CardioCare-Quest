@@ -42,9 +42,6 @@ class CommunityStats {
   final String? topGameId;
   final int topGamePlays;
 
-  // ─── Cohort total score ────────────────────────────────────────
-  final int totalCohortPoints;
-
   final int windowDays;
   final DateTime fetchedAt;
 
@@ -65,7 +62,6 @@ class CommunityStats {
     required this.playsByGame,
     required this.topGameId,
     required this.topGamePlays,
-    required this.totalCohortPoints,
     required this.windowDays,
     required this.fetchedAt,
   });
@@ -88,7 +84,6 @@ class CommunityStats {
         playsByGame: const {},
         topGameId: null,
         topGamePlays: 0,
-        totalCohortPoints: 0,
         windowDays: windowDays,
         fetchedAt: DateTime.now(),
       );
@@ -103,7 +98,7 @@ class CommunityStatsService {
 
   final FirebaseFirestore _db;
 
-  // Two Firestore reads: user list (size, points, active today) then
+  // Two Firestore reads: user list (size, active today) then
   // this week's events (games, BP, pills). windowDays = how far back to look.
   Future<CommunityStats> fetch({int windowDays = 7}) async {
     final now = DateTime.now();
@@ -118,13 +113,10 @@ class CommunityStatsService {
       return CommunityStats.empty(windowDays);
     }
 
-    // Add up points and count who was active today.
-    int totalPoints = 0;
+    // Count who was active today.
     int activeToday = 0;
     for (final doc in userDocs.docs) {
       final data = doc.data();
-      final pts = (data['points'] as num?)?.toInt() ?? 0;
-      totalPoints += pts;
       if (_isActiveToday(data, today, now)) {
         activeToday += 1;
       }
@@ -235,7 +227,7 @@ class CommunityStatsService {
       }
     } catch (_) {
       // Events read failed (e.g. permissions). Zero these out but keep the
-      // group size and points from read 1 so the page isn't totally blank.
+      // group size from read 1 so the page isn't totally blank.
       bpCount = 0;
       sysSum = 0;
       diaSum = 0;
@@ -274,7 +266,6 @@ class CommunityStatsService {
       playsByGame: playsByGame,
       topGameId: topGameId,
       topGamePlays: topGamePlays,
-      totalCohortPoints: totalPoints,
       windowDays: windowDays,
       fetchedAt: now,
     );

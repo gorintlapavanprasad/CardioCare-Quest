@@ -31,7 +31,7 @@ class _DietLogScreenState extends State<DietLogScreen> {
     });
   }
 
-  // Saves the meal, awards 25 pts, and closes. No-op if notes and photo are both empty.
+  // Saves the meal and closes. No-op if notes and photo are both empty.
   Future<void> _saveMeal() async {
     final uid = Provider.of<UserDataProvider>(context, listen: false).uid;
     if (uid.isEmpty) return;
@@ -51,11 +51,10 @@ class _DietLogScreenState extends State<DietLogScreen> {
 
       if (mounted) {
         PointsHooks.applyIncrements(context, const {
-          'points': 25,
           'mealsLogged': 1,
         });
         PointsHooks.applySets(context, {'lastLogDate': today});
-        Navigator.of(context).pop(25);
+        Navigator.of(context).pop(true);
       }
     } catch (e) {
       debugPrint('SAVE ERROR: $e');

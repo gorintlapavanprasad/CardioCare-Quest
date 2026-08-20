@@ -823,7 +823,7 @@ Card 2 of 2 before gameplay starts.
 &lt;a class=&quot;btn-primary&quot; data-passage=&quot;Diet Choice&quot;&gt;NEXT&lt;/a&gt;
 
 &lt;/div&gt;
-&lt;/div&gt;</tw-passagedata><tw-passagedata pid="9" name="Diet Choice" tags="Important/Needed nobr" position="350,225" size="100,100">/*
+&lt;/div&gt;</tw-passagedata><tw-passagedata pid="4" name="Diet Choice" tags="Important/Needed nobr" position="350,225" size="100,100">/*
 DIET CHOICE: Ask once what the player eats. Sets $playerDiet, which
 setup.salt.resolveDay() reads to swap meat/dairy foods for plant
 stand-ins during the daily food choices.
@@ -858,7 +858,7 @@ setTimeout(function () {
     links[i].style.marginBottom = &#39;12px&#39;;
   }
 }, 0);
-&lt;&lt;/script&gt;&gt;</tw-passagedata><tw-passagedata pid="4" name="Day Start" tags="Important/Needed nobr" position="475,100" size="100,100">/*
+&lt;&lt;/script&gt;&gt;</tw-passagedata><tw-passagedata pid="5" name="Day Start" tags="Important/Needed nobr" position="475,100" size="100,100">/*
 START OF EACH DAY.
 Shows current day, current sludge level (visual + number),
 and a daily health tip. Sends player to the food choice for that day.
@@ -878,7 +878,7 @@ and a daily health tip. Sends player to the food choice for that day.
 
 &lt;div class=&quot;tip-card&quot;&gt;
 &lt;div class=&quot;tip-label&quot;&gt;Did you know&lt;/div&gt;
-&lt;&lt;if $day is 1&gt;&gt;Most adults eat twice as much salt as they should without realizing it.&lt;&lt;elseif $day is 2&gt;&gt;Potassium helps your body clear salt out. Most people do not eat enough of it.&lt;&lt;elseif $day is 3&gt;&gt;Canned foods are one of the biggest hidden sources of salt. One serving can have more than half a day's worth.&lt;&lt;elseif $day is 4&gt;&gt;Walking also helps lower blood pressure. Potassium is not the only tool you have.&lt;&lt;else&gt;&gt;Five days of better choices can make a real difference in your blood pressure.&lt;&lt;/if&gt;&gt;
+&lt;&lt;if $day is 1&gt;&gt;Most adults eat twice as much salt as they should without realizing it.&lt;&lt;elseif $day is 2&gt;&gt;Potassium helps your body clear salt out. Most people do not eat enough of it.&lt;&lt;elseif $day is 3&gt;&gt;Canned foods are one of the biggest hidden sources of salt. One serving can have more than half a day&#39;s worth.&lt;&lt;elseif $day is 4&gt;&gt;Walking also helps lower blood pressure. Potassium is not the only tool you have.&lt;&lt;else&gt;&gt;Five days of better choices can make a real difference in your blood pressure.&lt;&lt;/if&gt;&gt;
 &lt;/div&gt;
 
 &lt;div class=&quot;spacer&quot;&gt;&lt;/div&gt;
@@ -889,12 +889,12 @@ and a daily health tip. Sends player to the food choice for that day.
      instantly (constant cadence), gate it behind a randomized 0.4–2.0s
      &lt;&lt;timed&gt;&gt; delay so choices don&#39;t arrive on a metronome. The button
      still always appears, so the screen stays fully accessible. --&gt;
-&lt;&lt;set _pace to 0.4 + Math.random() * 1.6&gt;&gt;
+&lt;&lt;set _delay to Math.round((0.4 + Math.random() * 1.6) * 1000) + &quot;ms&quot;&gt;&gt;
 &lt;span id=&quot;reveal-slot&quot;&gt;&lt;/span&gt;
-&lt;&lt;timed _pace + &quot;s&quot;&gt;&gt;&lt;&lt;replace &quot;#reveal-slot&quot;&gt;&gt;&lt;a class=&quot;btn-primary&quot; data-passage=&quot;Food Day&quot;&gt;SHOW ME TODAY&#39;S FOOD&lt;/a&gt;&lt;&lt;/replace&gt;&gt;&lt;&lt;/timed&gt;&gt;
+&lt;&lt;timed _delay&gt;&gt;&lt;&lt;replace &quot;#reveal-slot&quot;&gt;&gt;&lt;a class=&quot;btn-primary&quot; data-passage=&quot;Food Day&quot;&gt;SHOW ME TODAY&#39;S FOOD&lt;/a&gt;&lt;&lt;/replace&gt;&gt;&lt;&lt;/timed&gt;&gt;
 
 &lt;/div&gt;
-&lt;/div&gt;</tw-passagedata><tw-passagedata pid="5" name="Food Day" tags="Important/Needed nobr" position="600,100" size="100,100">/*
+&lt;/div&gt;</tw-passagedata><tw-passagedata pid="6" name="Food Day" tags="Important/Needed nobr" position="600,100" size="100,100">/*
 GENERIC DAY FOOD CHOICE (UPDATE9).
 Renders $dayOrder[$day - 1] — the shuffled scenario for today. The good
 option clears sludge + earns nutrient points; the bad option adds
@@ -956,7 +956,7 @@ setTimeout(function () {
     a.classList.add(&#39;food-card&#39;);
   });
 }, 0);
-&lt;&lt;/script&gt;&gt;</tw-passagedata><tw-passagedata pid="6" name="Food Result" tags="Important/Needed nobr" position="725,100" size="100,100">/*
+&lt;&lt;/script&gt;&gt;</tw-passagedata><tw-passagedata pid="7" name="Food Result" tags="Important/Needed nobr" position="725,100" size="100,100">/*
 RESULT OF EACH FOOD CHOICE.
 Tells the player what that food did to their artery and why.
 Then moves to next day or final result after Day 5.
@@ -1007,7 +1007,7 @@ Then moves to next day or final result after Day 5.
 &lt;&lt;/if&gt;&gt;
 
 &lt;/div&gt;
-&lt;/div&gt;</tw-passagedata><tw-passagedata pid="7" name="Final Result" tags="Important/Needed nobr" position="850,100" size="100,100">/*
+&lt;/div&gt;</tw-passagedata><tw-passagedata pid="8" name="Final Result" tags="Important/Needed nobr" position="850,100" size="100,100">/*
 DENOUEMENT: End of game.
 Personalized message based on final sludge level.
 Score shown. Option to play again.
@@ -1040,10 +1040,6 @@ session flag so PLAY AGAIN doesn&#39;t double-credit.
     }
   } catch (e) { /* swallow */ }
 &gt;&gt;
-&lt;!-- UPDATE12: chain the control Daily Check-In off the END of this game.
-     Inside the same submit-once guard so it launches exactly once per
-     play-through (PLAY AGAIN resets $submittedThisSession in Story innit). --&gt;
-&lt;&lt;run try { if (window.CCQ &amp;&amp; window.CCQ.launchGame) window.CCQ.launchGame(&quot;control_daily_checkin&quot;); } catch (e) {} &gt;&gt;
 &lt;&lt;/if&gt;&gt;
 
 &lt;div class=&quot;phone&quot;&gt;
@@ -1060,21 +1056,21 @@ session flag so PLAY AGAIN doesn&#39;t double-credit.
 
 &lt;&lt;if $sludge lt 30&gt;&gt;
 &lt;div class=&quot;final-headline clean&quot;&gt;Clean artery&lt;/div&gt;
-&lt;div class=&quot;final-stats&quot;&gt;Sludge $sludge of 100. Nutrient points $score.&lt;/div&gt;
+&lt;div class=&quot;final-stats&quot;&gt;Sludge $sludge of 100.&lt;/div&gt;
 &lt;div class=&quot;final-body&quot;&gt;
 &lt;p&gt;Your potassium choices paid off. Blood is moving freely. Your blood pressure is lower right now than it was at the start of Day 1.&lt;/p&gt;
 &lt;p&gt;Five days of consistent good choices. Not dramatic. Not perfect. Just noticeably better.&lt;/p&gt;
 &lt;/div&gt;
 &lt;&lt;elseif $sludge lt 60&gt;&gt;
 &lt;div class=&quot;final-headline middle&quot;&gt;Some sludge&lt;/div&gt;
-&lt;div class=&quot;final-stats&quot;&gt;Sludge $sludge of 100. Nutrient points $score.&lt;/div&gt;
+&lt;div class=&quot;final-stats&quot;&gt;Sludge $sludge of 100.&lt;/div&gt;
 &lt;div class=&quot;final-body&quot;&gt;
 &lt;p&gt;A mix of good and tough choices. Your blood vessels are managing but working harder than they need to.&lt;/p&gt;
 &lt;p&gt;The good news is you already know which foods cleared it. Those are the ones to reach for more often.&lt;/p&gt;
 &lt;/div&gt;
 &lt;&lt;else&gt;&gt;
 &lt;div class=&quot;final-headline heavy&quot;&gt;Heavy sludge&lt;/div&gt;
-&lt;div class=&quot;final-stats&quot;&gt;Sludge $sludge of 100. Nutrient points $score.&lt;/div&gt;
+&lt;div class=&quot;final-stats&quot;&gt;Sludge $sludge of 100.&lt;/div&gt;
 &lt;div class=&quot;final-body&quot;&gt;
 &lt;p&gt;A tough five days. Your blood vessels have been working overtime.&lt;/p&gt;
 &lt;p&gt;The salt added up faster than the potassium could clear it. That is the most common pattern. And now you can see exactly why it matters.&lt;/p&gt;
@@ -1093,7 +1089,7 @@ session flag so PLAY AGAIN doesn&#39;t double-credit.
 &lt;a class=&quot;btn-primary ccq-home-trigger&quot; href=&quot;javascript:void(0)&quot;&gt;BACK TO CARDIOCARE QUEST&lt;/a&gt;
 
 &lt;/div&gt;
-&lt;/div&gt;</tw-passagedata><tw-passagedata pid="8" name="Central Hub" tags="Important/Needed nobr" position="975,100" size="100,100">/*
+&lt;/div&gt;</tw-passagedata><tw-passagedata pid="9" name="Central Hub" tags="Important/Needed nobr" position="975,100" size="100,100">/*
 EXIT HATCH. The visible &quot;BACK TO CARDIOCAREQUEST&quot; buttons now use
 `.ccq-home-trigger` and fire CCQ.goHome() directly, so this passage
 should rarely be reached anymore. Kept for safety: if any future

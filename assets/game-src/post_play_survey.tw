@@ -1,16 +1,16 @@
-::StoryTitle
+:: StoryTitle
 CardioCare Quest Survey
 
-::StoryData
+:: StoryData
 {
   "ifid": "E5F6A7B8-C9D0-4234-AFAB-345678901234",
   "format": "SugarCube",
-  "format-version": "2.37.3",
+  "format-version": "2.30.0",
   "start": "Story innit",
   "zoom": 1
 }
 
-::StoryInit
+:: StoryInit {"position": "100,100", "size": "100,100"}
 <<script>>
 State.variables.favoriteGame = "";
 State.variables.funReasons = [];
@@ -42,91 +42,844 @@ State.variables.susScore = 0;
 State.variables.startedAt = Date.now();
 <</script>>
 
-::SetupHelpers [script]
-/*
-HELPERS available before any passage renders.
-- setup.gameInfo: lookup table for ranking cards
-- setup.bindSpeak: wires the read-aloud buttons via Web Speech API
-- setup.renderRank: renders ranking lists with up/down arrows
-*/
-setup.gameInfo = {
-  salt:    { name: "Salt Sludge",      emoji: "🧂" },
-  walk:    { name: "Dog Walking",       emoji: "🐕" },
-  dash:    { name: "DASH Diet Game",   emoji: "🥗" },
-  village: { name: "Vascular Village", emoji: "🏘️" },
-  bingo:   { name: "Bingo Bash",       emoji: "🎯" }
-};
+:: Story innit {"position": "225,100", "size": "100,100"}
+<<goto "Welcome">>
 
-setup.bindSpeak = function () {
-  if (typeof document === "undefined") return;
-  document.querySelectorAll(".speak-btn").forEach(function (b) {
-    if (b.dataset.bound === "1") return;
-    b.dataset.bound = "1";
-    b.addEventListener("click", function (e) {
+:: Welcome [nobr] {"position": "350,100", "size": "100,100"}
+<div class="phone">
+<div class="header"><span>End Survey</span><span class="header-progress">Step 9 of 12</span></div>
+<div class="progress-track"><div class="progress-fill" style="width: 5%;"></div></div>
+<div class="content">
+
+<span class="hero-emoji">📝</span>
+
+<h1 class="intro-title">A few questions</h1>
+
+<p class="narrative center">You played the games. Now we want to hear what you thought.</p>
+
+<p class="narrative center">Tap your answers. There are no wrong ones. Take your time.</p>
+
+<div class="spacer"></div>
+
+<a class="btn-primary" data-passage="Q1 Favorite">START</a>
+
+</div>
+</div>
+
+:: Q1 Favorite [nobr] {"position": "475,100", "size": "100,100"}
+/*
+END SURVEY Q1: Which game was your favorite?
+Single-select tile list with explicit confirm-then-next.
+
+UX history: this used to use SugarCube `<<link>>` macros that
+auto-advanced to Q2 the moment a tile was tapped. Participants
+in dry-run-2 reported the screen shifted "very fast" with no
+chance to confirm or change their pick. Reworked to use plain
+`<a class="choice-tile">` with a JS click handler that sets the
+SugarCube variable AND visually highlights the tile WITHOUT
+navigating. The participant then taps NEXT to advance, or BACK
+to return to Welcome and re-read the intro. Same pattern now
+used by Q3 Feeling, Q4 Again, and the SUS questions.
+
+The NEXT button starts without a `data-passage` attribute (so
+the bridge JS click delegation has nothing to navigate to) and
+the script adds `data-passage="Q2 Fun"` only after a selection
+exists. The `.disabled` class is purely visual at that point —
+the lack of `data-passage` is what actually blocks navigation,
+which keeps the UX honest even if the .disabled class is ever
+removed by mistake.
+*/
+
+<div class="phone">
+<div class="header"><span>End Survey</span><span class="header-progress">1 of 5</span></div>
+<div class="progress-track"><div class="progress-fill" style="width: 10%;"></div></div>
+<div class="content">
+
+<div class="q-section">
+<p class="q-step">Question 1</p>
+<h2 class="q-text">Which game was your favorite?</h2>
+<a class="speak-btn" data-speak="Which game was your favorite?"><span class="speak-btn-icon">🔊</span> Read aloud</a>
+</div>
+
+<div class="choice-list" id="fav-list">
+
+<a class="choice-tile" data-fav="Salt Sludge">
+<span class="choice-emoji">🧂</span>
+<div class="choice-text">Salt Sludge</div>
+<span class="choice-check">✓</span>
+</a>
+
+<a class="choice-tile" data-fav="Dog Walking">
+<span class="choice-emoji">🐕</span>
+<div class="choice-text">Dog Walking</div>
+<span class="choice-check">✓</span>
+</a>
+
+<a class="choice-tile" data-fav="DASH Diet Game">
+<span class="choice-emoji">🥗</span>
+<div class="choice-text">DASH Diet Game</div>
+<span class="choice-check">✓</span>
+</a>
+
+<a class="choice-tile" data-fav="Vascular Village">
+<span class="choice-emoji">🏘️</span>
+<div class="choice-text">Vascular Village</div>
+<span class="choice-check">✓</span>
+</a>
+
+<a class="choice-tile" data-fav="Bingo Bash">
+<span class="choice-emoji">🎯</span>
+<div class="choice-text">Bingo Bash</div>
+<span class="choice-check">✓</span>
+</a>
+
+</div>
+
+<div class="spacer"></div>
+
+<a class="btn-primary disabled" id="q1-next">NEXT</a>
+<a class="btn-secondary" data-passage="Welcome">BACK</a>
+
+</div>
+</div>
+
+<<script>>
+setTimeout(function () {
+  /*
+    NEXT navigation uses an explicit Engine.play() call rather than a
+    runtime-set `data-passage` attribute. Reason: SugarCube binds its
+    `data-passage` click handlers when the passage renders. Adding the
+    attribute via JS *after* render doesn't pick up that binding, so
+    the bridge's document-level click delegation logs the click but
+    nothing navigates. Calling Engine.play() from our own bound
+    handler sidesteps SugarCube's attribute scanning entirely. Same
+    pattern the SUS Q passage uses.
+  */
+  var current = State.variables.favoriteGame || "";
+  var nextBtn = document.getElementById("q1-next");
+  function enableNext() {
+    if (nextBtn) nextBtn.classList.remove("disabled");
+  }
+  document.querySelectorAll("#fav-list a.choice-tile").forEach(function (t) {
+    if (t.dataset.fav === current) {
+      t.classList.add("selected");
+      enableNext();
+    }
+    if (t.dataset.bound === "1") return;
+    t.dataset.bound = "1";
+    t.addEventListener("click", function (e) {
       e.preventDefault();
-      try {
-        var text = b.dataset.speak || "";
-        if (!text) return;
-        if (window.speechSynthesis) {
-          window.speechSynthesis.cancel();
-          var u = new SpeechSynthesisUtterance(text);
-          u.rate = 0.9;
-          u.pitch = 1.0;
-          window.speechSynthesis.speak(u);
-        }
-      } catch (err) {}
+      e.stopPropagation();
+      document.querySelectorAll("#fav-list a.choice-tile").forEach(function (x) {
+        x.classList.remove("selected");
+      });
+      t.classList.add("selected");
+      State.variables.favoriteGame = t.dataset.fav;
+      State.variables.favoriteTouched = true;
+      enableNext();
     });
   });
-};
-
-setup.renderRank = function (containerId, varName) {
-  var container = document.getElementById(containerId);
-  if (!container) return;
-  var draw = function () {
-    var arr = State.variables[varName] || [];
-    container.innerHTML = "";
-    arr.forEach(function (key, idx) {
-      var info = setup.gameInfo[key] || { name: key, emoji: "🎮" };
-      var row = document.createElement("div");
-      row.className = "rank-item";
-      var upDisabled = (idx === 0) ? " disabled" : "";
-      var downDisabled = (idx === arr.length - 1) ? " disabled" : "";
-      row.innerHTML =
-        '<span class="rank-num">' + (idx + 1) + '</span>' +
-        '<span class="rank-emoji">' + info.emoji + '</span>' +
-        '<span class="rank-name">' + info.name + '</span>' +
-        '<span class="rank-controls">' +
-          '<a class="rank-btn rank-up' + upDisabled + '" data-idx="' + idx + '" data-dir="up">▲</a>' +
-          '<a class="rank-btn rank-down' + downDisabled + '" data-idx="' + idx + '" data-dir="down">▼</a>' +
-        '</span>';
-      container.appendChild(row);
+  if (nextBtn && nextBtn.dataset.bound !== "1") {
+    nextBtn.dataset.bound = "1";
+    nextBtn.addEventListener("click", function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (nextBtn.classList.contains("disabled")) return;
+      Engine.play("Q2 Fun");
     });
-    container.querySelectorAll(".rank-btn").forEach(function (btn) {
-      btn.addEventListener("click", function (e) {
-        e.preventDefault();
-        if (btn.classList.contains("disabled")) return;
-        var i = Number(btn.dataset.idx);
-        var dir = btn.dataset.dir;
-        var current = (State.variables[varName] || []).slice();
-        if (dir === "up" && i > 0) {
-          var t = current[i]; current[i] = current[i - 1]; current[i - 1] = t;
-        } else if (dir === "down" && i < current.length - 1) {
-          var t2 = current[i]; current[i] = current[i + 1]; current[i + 1] = t2;
-        }
-        State.variables[varName] = current;
-        /* Record that the participant actually moved an item in this
-           list — detect which list is being rendered by varName. */
-        if (varName === "rankFun") State.variables.rankFunTouched = true;
-        if (varName === "rankHealth") State.variables.rankHealthTouched = true;
-        draw();
+  }
+  if (setup.bindSpeak) setup.bindSpeak();
+}, 0);
+<</script>>
+
+:: Q2 Fun [nobr] {"position": "600,100", "size": "100,100"}
+/*
+END SURVEY Q2: What made it fun? Multi-select.
+Player can pick multiple, then tap NEXT.
+*/
+
+<div class="phone">
+<div class="header"><span>End Survey</span><span class="header-progress">2 of 5</span></div>
+<div class="progress-track"><div class="progress-fill" style="width: 25%;"></div></div>
+<div class="content">
+
+<div class="q-section">
+<p class="q-step">Question 2</p>
+<h2 class="q-text">What made it fun?</h2>
+<p class="q-help">Pick as many as you want.</p>
+<a class="speak-btn" data-speak="What made it fun? Pick as many as you want."><span class="speak-btn-icon">🔊</span> Read aloud</a>
+</div>
+
+<div class="choice-list" id="fun-list">
+
+<a class="choice-tile" data-fun="movement">
+<span class="choice-emoji">🚶</span>
+<div class="choice-text">Moving around</div>
+<span class="choice-check">✓</span>
+</a>
+
+<a class="choice-tile" data-fun="story">
+<span class="choice-emoji">📖</span>
+<div class="choice-text">The story</div>
+<span class="choice-check">✓</span>
+</a>
+
+<a class="choice-tile" data-fun="progress">
+<span class="choice-emoji">📈</span>
+<div class="choice-text">Seeing my progress</div>
+<span class="choice-check">✓</span>
+</a>
+
+<a class="choice-tile" data-fun="others">
+<span class="choice-emoji">👥</span>
+<div class="choice-text">Playing with others</div>
+<span class="choice-check">✓</span>
+</a>
+
+<a class="choice-tile" data-fun="other">
+<span class="choice-emoji">✨</span>
+<div class="choice-text">Something else</div>
+<span class="choice-check">✓</span>
+</a>
+
+</div>
+
+<div class="spacer"></div>
+
+<a class="btn-primary" data-passage="Q3 Feeling">NEXT</a>
+<a class="btn-secondary" data-passage="Q1 Favorite">BACK</a>
+
+</div>
+</div>
+
+<<script>>
+setTimeout(function () {
+  var picked = (State.variables.funReasons || []).slice();
+  document.querySelectorAll("#fun-list a.choice-tile").forEach(function (t) {
+    if (picked.indexOf(t.dataset.fun) >= 0) t.classList.add("selected");
+    if (t.dataset.bound === "1") return;
+    t.dataset.bound = "1";
+    t.addEventListener("click", function (e) {
+      e.preventDefault();
+      var key = t.dataset.fun;
+      var i = picked.indexOf(key);
+      if (i >= 0) {
+        picked.splice(i, 1);
+        t.classList.remove("selected");
+      } else {
+        picked.push(key);
+        t.classList.add("selected");
+      }
+      State.variables.funReasons = picked.slice();
+    });
+  });
+  if (setup.bindSpeak) setup.bindSpeak();
+}, 0);
+<</script>>
+
+:: Q3 Feeling [nobr] {"position": "725,100", "size": "100,100"}
+/*
+END SURVEY Q3: How do you feel right now? 5-emoji scale.
+Same select-then-confirm pattern as Q1 — see ::Q1 Favorite docstring.
+*/
+
+<div class="phone">
+<div class="header"><span>End Survey</span><span class="header-progress">3 of 5</span></div>
+<div class="progress-track"><div class="progress-fill" style="width: 40%;"></div></div>
+<div class="content">
+
+<div class="q-section">
+<p class="q-step">Question 3</p>
+<h2 class="q-text">How do you feel right now?</h2>
+<a class="speak-btn" data-speak="How do you feel right now?"><span class="speak-btn-icon">🔊</span> Read aloud</a>
+</div>
+
+<div class="tile-row" id="feel-row">
+
+<a class="scale-tile bg-1" data-feel="1"><span class="scale-emoji">😢</span><span class="scale-label">Very sad</span></a>
+<a class="scale-tile bg-2" data-feel="2"><span class="scale-emoji">🙁</span><span class="scale-label">Sad</span></a>
+<a class="scale-tile bg-3" data-feel="3"><span class="scale-emoji">😐</span><span class="scale-label">Okay</span></a>
+<a class="scale-tile bg-4" data-feel="4"><span class="scale-emoji">🙂</span><span class="scale-label">Good</span></a>
+<a class="scale-tile bg-5" data-feel="5"><span class="scale-emoji">😄</span><span class="scale-label">Very good</span></a>
+
+</div>
+
+<div class="spacer"></div>
+
+<a class="btn-primary disabled" id="q3-next">NEXT</a>
+<a class="btn-secondary" data-passage="Q2 Fun">BACK</a>
+
+</div>
+</div>
+
+<<script>>
+setTimeout(function () {
+  /* NEXT uses explicit Engine.play() — see ::Q1 Favorite note. */
+  var current = State.variables.feeling || 0;
+  var nextBtn = document.getElementById("q3-next");
+  function enableNext() {
+    if (nextBtn) nextBtn.classList.remove("disabled");
+  }
+  document.querySelectorAll("#feel-row a.scale-tile").forEach(function (t) {
+    if (Number(t.dataset.feel) === current) {
+      t.classList.add("selected");
+      enableNext();
+    }
+    if (t.dataset.bound === "1") return;
+    t.dataset.bound = "1";
+    t.addEventListener("click", function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      document.querySelectorAll("#feel-row a.scale-tile").forEach(function (x) {
+        x.classList.remove("selected");
       });
+      t.classList.add("selected");
+      State.variables.feeling = Number(t.dataset.feel);
+      State.variables.feelingTouched = true;
+      enableNext();
     });
+  });
+  if (nextBtn && nextBtn.dataset.bound !== "1") {
+    nextBtn.dataset.bound = "1";
+    nextBtn.addEventListener("click", function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (nextBtn.classList.contains("disabled")) return;
+      Engine.play("Q4 Again");
+    });
+  }
+  if (setup.bindSpeak) setup.bindSpeak();
+}, 0);
+<</script>>
+
+:: Q4 Again [nobr] {"position": "850,100", "size": "100,100"}
+/*
+END SURVEY Q4: Would you like to play again?
+Same select-then-confirm pattern as Q1 — see ::Q1 Favorite docstring.
+*/
+
+<div class="phone">
+<div class="header"><span>End Survey</span><span class="header-progress">4 of 5</span></div>
+<div class="progress-track"><div class="progress-fill" style="width: 55%;"></div></div>
+<div class="content">
+
+<div class="q-section">
+<p class="q-step">Question 4</p>
+<h2 class="q-text">Would you like to play CardioCare Quest again?</h2>
+<a class="speak-btn" data-speak="Would you like to play CardioCare Quest again?"><span class="speak-btn-icon">🔊</span> Read aloud</a>
+</div>
+
+<div class="choice-list" id="again-list">
+
+<a class="choice-tile" data-again="yes">
+<span class="choice-emoji">😄</span>
+<div class="choice-text">Yes</div>
+<span class="choice-check">✓</span>
+</a>
+
+<a class="choice-tile" data-again="maybe">
+<span class="choice-emoji">🤔</span>
+<div class="choice-text">Maybe</div>
+<span class="choice-check">✓</span>
+</a>
+
+<a class="choice-tile" data-again="no">
+<span class="choice-emoji">🙁</span>
+<div class="choice-text">No</div>
+<span class="choice-check">✓</span>
+</a>
+
+<a class="choice-tile" data-again="not_sure">
+<span class="choice-emoji">🤷</span>
+<div class="choice-text">Not sure</div>
+<span class="choice-check">✓</span>
+</a>
+
+</div>
+
+<div class="spacer"></div>
+
+<a class="btn-primary disabled" id="q4-next">NEXT</a>
+<a class="btn-secondary" data-passage="Q3 Feeling">BACK</a>
+
+</div>
+</div>
+
+<<script>>
+setTimeout(function () {
+  /* NEXT uses explicit Engine.play() — see ::Q1 Favorite note. */
+  var current = State.variables.playAgain || "";
+  var nextBtn = document.getElementById("q4-next");
+  function enableNext() {
+    if (nextBtn) nextBtn.classList.remove("disabled");
+  }
+  document.querySelectorAll("#again-list a.choice-tile").forEach(function (t) {
+    if (t.dataset.again === current) {
+      t.classList.add("selected");
+      enableNext();
+    }
+    if (t.dataset.bound === "1") return;
+    t.dataset.bound = "1";
+    t.addEventListener("click", function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      document.querySelectorAll("#again-list a.choice-tile").forEach(function (x) {
+        x.classList.remove("selected");
+      });
+      t.classList.add("selected");
+      State.variables.playAgain = t.dataset.again;
+      State.variables.playAgainTouched = true;
+      enableNext();
+    });
+  });
+  if (nextBtn && nextBtn.dataset.bound !== "1") {
+    nextBtn.dataset.bound = "1";
+    nextBtn.addEventListener("click", function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (nextBtn.classList.contains("disabled")) return;
+      Engine.play("Q5 Wish");
+    });
+  }
+  if (setup.bindSpeak) setup.bindSpeak();
+}, 0);
+<</script>>
+
+:: Q5 Wish [nobr] {"position": "975,100", "size": "100,100"}
+/*
+END SURVEY Q5: Anything you wish the game had? Optional open text.
+*/
+
+<div class="phone">
+<div class="header"><span>End Survey</span><span class="header-progress">5 of 5</span></div>
+<div class="progress-track"><div class="progress-fill" style="width: 70%;"></div></div>
+<div class="content">
+
+<div class="q-section">
+<p class="q-step">Question 5 · optional</p>
+<h2 class="q-text">Is there anything you wish the game had?</h2>
+<p class="q-help">You can leave this empty if you want.</p>
+<a class="speak-btn" data-speak="Is there anything you wish the game had? You can leave this empty if you want."><span class="speak-btn-icon">🔊</span> Read aloud</a>
+</div>
+
+<div class="text-input-wrap">
+<textarea id="wish-input" rows="6" placeholder="Type here, or skip"></textarea>
+</div>
+
+<div class="spacer"></div>
+
+<a class="btn-primary" data-passage="SUS Intro">NEXT</a>
+<a class="btn-secondary" data-passage="Q4 Again">BACK</a>
+
+</div>
+</div>
+
+<<script>>
+setTimeout(function () {
+  var wish = document.getElementById("wish-input");
+  if (wish && State.variables.wishOpen) wish.value = State.variables.wishOpen;
+  if (wish && wish.dataset.bound !== "1") {
+    wish.dataset.bound = "1";
+    wish.addEventListener("input", function () {
+      State.variables.wishOpen = wish.value;
+    });
+  }
+  if (setup.bindSpeak) setup.bindSpeak();
+}, 0);
+<</script>>
+
+:: SUS Intro [nobr] {"position": "1100,100", "size": "100,100"}
+/*
+SUS preamble.
+*/
+
+<div class="phone">
+<div class="header"><span>How was the system?</span><span class="header-progress">Step 10 of 12</span></div>
+<div class="progress-track"><div class="progress-fill" style="width: 75%;"></div></div>
+<div class="content">
+
+<span class="hero-emoji">📊</span>
+
+<h2 class="intro-title">Four quick questions</h2>
+
+<p class="narrative center">For each one, tap how much you agree.</p>
+
+<div class="scale-preview">
+<div class="preview-tile p-1"><span class="scale-emoji">😠</span><span class="scale-label">Strongly disagree</span></div>
+<div class="preview-tile p-3"><span class="scale-emoji">😐</span><span class="scale-label">Neutral</span></div>
+<div class="preview-tile p-5"><span class="scale-emoji">😍</span><span class="scale-label">Strongly agree</span></div>
+</div>
+
+<div class="spacer"></div>
+
+<a class="btn-primary" data-passage="SUS Q">START</a>
+<a class="btn-secondary" data-passage="Q5 Wish">BACK</a>
+
+</div>
+</div>
+
+:: SUS Q [nobr] {"position": "1225,100", "size": "100,100"}
+/*
+SUS QUESTION SCREEN.
+Single passage handles all 4 usability questions; advancing/retreating
+mutates $susIdx and re-renders ("SUS Q" calls itself via <<goto>>).
+On NEXT past Q4, navigates to "Three Words". BACK from Q1 returns
+to "SUS Intro". All four questions are positively worded, so the
+raw 1–5 ratings are stored directly with no reverse scoring.
+
+Same select-then-confirm pattern as Q1 / Q3 / Q4 — tapping a tile
+records the rating in $susAnswers[idx] and highlights the tile;
+NEXT button advances. Restoring a previously-given rating on
+BACK is what makes the BACK button useful, so the script reads
+$susAnswers[idx-1] on render and pre-selects it.
+*/
+
+<<set _susQs to [
+  "The games were easy to use.",
+  "I would like to keep playing these games.",
+  "I could tell how well I was doing.",
+  "I felt sure about what to tap."
+]>>
+<<set _i to $susIdx>>
+<<set _q to _susQs[_i - 1]>>
+<<set _pct to 75 + Math.floor((_i / 4) * 15)>>
+
+<div class="phone">
+<div class="header"><span>System questions</span><span class="header-progress"><<print _i>> of 4</span></div>
+<div class="progress-track"><div class="progress-fill" @style="'width: ' + _pct + '%;'"></div></div>
+<div class="content">
+
+<div class="q-section">
+<p class="q-step">SUS · question <<print _i>></p>
+<h2 class="q-text"><<print _q>></h2>
+<a class="speak-btn" @data-speak="_q"><span class="speak-btn-icon">🔊</span> Read aloud</a>
+</div>
+
+<div class="tile-row" id="sus-row">
+
+<a class="scale-tile bg-1" data-sus="1"><span class="scale-emoji">😠</span><span class="scale-label">Strongly disagree</span></a>
+<a class="scale-tile bg-2" data-sus="2"><span class="scale-emoji">🙁</span><span class="scale-label">Disagree</span></a>
+<a class="scale-tile bg-3" data-sus="3"><span class="scale-emoji">😐</span><span class="scale-label">Neutral</span></a>
+<a class="scale-tile bg-4" data-sus="4"><span class="scale-emoji">🙂</span><span class="scale-label">Agree</span></a>
+<a class="scale-tile bg-5" data-sus="5"><span class="scale-emoji">😍</span><span class="scale-label">Strongly agree</span></a>
+
+</div>
+
+<div class="spacer"></div>
+
+<a class="btn-primary disabled" id="sus-next">NEXT</a>
+<a class="btn-secondary" id="sus-back">BACK</a>
+
+</div>
+</div>
+
+<<script>>
+setTimeout(function () {
+  var idx = State.variables.susIdx || 1;
+  var current = (State.variables.susAnswers || [])[idx - 1] || 0;
+  var nextBtn = document.getElementById("sus-next");
+  var backBtn = document.getElementById("sus-back");
+
+  function enableNext() {
+    if (!nextBtn) return;
+    nextBtn.classList.remove("disabled");
+    /* Tag NEXT with a sentinel data-sus-ready so its own click
+       handler (below) knows there's a valid answer and can decide
+       whether to advance susIdx or jump to Three Words. We don't
+       use data-passage here because the navigation target depends
+       on whether this is the 10th question. */
+    nextBtn.setAttribute("data-sus-ready", "1");
+  }
+
+  /* Restore previous answer if the user is revisiting via BACK. */
+  document.querySelectorAll("#sus-row a.scale-tile").forEach(function (t) {
+    if (Number(t.dataset.sus) === current) {
+      t.classList.add("selected");
+      enableNext();
+    }
+    if (t.dataset.bound === "1") return;
+    t.dataset.bound = "1";
+    t.addEventListener("click", function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      document.querySelectorAll("#sus-row a.scale-tile").forEach(function (x) {
+        x.classList.remove("selected");
+      });
+      t.classList.add("selected");
+      var arr = State.variables.susAnswers || [];
+      arr[idx - 1] = Number(t.dataset.sus);
+      State.variables.susAnswers = arr;
+      enableNext();
+    });
+  });
+
+  /* NEXT: advance susIdx and re-render this passage, OR jump
+     to Three Words on Q4. */
+  if (nextBtn && nextBtn.dataset.bound !== "1") {
+    nextBtn.dataset.bound = "1";
+    nextBtn.addEventListener("click", function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (nextBtn.classList.contains("disabled")) return;
+      if (idx >= 4) {
+        Engine.play("Three Words");
+      } else {
+        State.variables.susIdx = idx + 1;
+        Engine.play("SUS Q");
+      }
+    });
+  }
+
+  /* BACK: decrement susIdx and re-render, OR return to SUS Intro
+     on Q1. The participant's previous answer for the prior
+     question is restored by the render-time selected check above. */
+  if (backBtn && backBtn.dataset.bound !== "1") {
+    backBtn.dataset.bound = "1";
+    backBtn.addEventListener("click", function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (idx <= 1) {
+        Engine.play("SUS Intro");
+      } else {
+        State.variables.susIdx = idx - 1;
+        Engine.play("SUS Q");
+      }
+    });
+  }
+
+  if (setup.bindSpeak) setup.bindSpeak();
+}, 0);
+<</script>>
+
+:: Three Words [nobr] {"position": "100,225", "size": "100,100"}
+/*
+STEP 11: Three words.
+Three text inputs. Neutral prompt, no example words shown.
+*/
+
+<div class="phone">
+<div class="header"><span>Three words</span><span class="header-progress">Step 11 of 12</span></div>
+<div class="progress-track"><div class="progress-fill" style="width: 90%;"></div></div>
+<div class="content">
+
+<div class="q-section">
+<p class="q-step">Step 11</p>
+<h2 class="q-text">What three words would you use to describe CardioCare Quest?</h2>
+<a class="speak-btn" data-speak="What three words would you use to describe CardioCare Quest?"><span class="speak-btn-icon">🔊</span> Read aloud</a>
+</div>
+
+<div class="three-input-stack">
+<div class="three-input-row"><span class="three-input-num">1</span><input type="text" id="word-1"></div>
+<div class="three-input-row"><span class="three-input-num">2</span><input type="text" id="word-2"></div>
+<div class="three-input-row"><span class="three-input-num">3</span><input type="text" id="word-3"></div>
+</div>
+
+<div class="spacer"></div>
+
+<a class="btn-primary" data-passage="Rank Fun">NEXT</a>
+<a class="btn-secondary" data-passage="SUS Q">BACK</a>
+
+</div>
+</div>
+
+<<script>>
+setTimeout(function () {
+  var inputs = [
+    document.getElementById("word-1"),
+    document.getElementById("word-2"),
+    document.getElementById("word-3")
+  ];
+  inputs.forEach(function (el, i) {
+    if (!el) return;
+    if (State.variables.threeWords && State.variables.threeWords[i]) {
+      el.value = State.variables.threeWords[i];
+    }
+    if (el.dataset.bound !== "1") {
+      el.dataset.bound = "1";
+      el.addEventListener("input", function () {
+        var arr = (State.variables.threeWords || ["", "", ""]).slice();
+        arr[i] = el.value;
+        State.variables.threeWords = arr;
+      });
+    }
+  });
+  if (setup.bindSpeak) setup.bindSpeak();
+}, 0);
+<</script>>
+
+:: Rank Fun [nobr] {"position": "225,225", "size": "100,100"}
+/*
+STEP 12 PASS 1: Rank by fun.
+Position 1 (top) = most fun, Position 5 (bottom) = least fun.
+*/
+
+<div class="phone">
+<div class="header"><span>Most fun</span><span class="header-progress">Step 12 · 1 of 2</span></div>
+<div class="progress-track"><div class="progress-fill" style="width: 94%;"></div></div>
+<div class="content">
+
+<div class="q-section">
+<p class="q-step">Ranking · by fun</p>
+<h2 class="q-text">Put these in order. Most fun at the top.</h2>
+<a class="speak-btn" data-speak="Put these in order. Most fun at the top. Least fun at the bottom."><span class="speak-btn-icon">🔊</span> Read aloud</a>
+</div>
+
+<div class="rank-edges"><span>Most fun</span><span>Least fun</span></div>
+
+<div class="rank-list" id="rank-fun-list"></div>
+
+<p class="rank-hint">Tap up or down to move a game.</p>
+
+<a class="btn-primary" data-passage="Rank Health">NEXT RANKING</a>
+<a class="btn-secondary" data-passage="Three Words">BACK</a>
+
+</div>
+</div>
+
+<<script>>
+setTimeout(function () {
+  /* Shuffle the five games fresh each time this page opens, so no game
+     sits in the same spot every session. If the player has already moved
+     an item, keep their order instead of scrambling their work. */
+  if (!State.variables.rankFunTouched && setup.ccqShuffle) {
+    State.variables.rankFun = setup.ccqShuffle((State.variables.rankFun || []).slice());
+  }
+  if (setup.renderRank) setup.renderRank("rank-fun-list", "rankFun");
+  if (setup.bindSpeak) setup.bindSpeak();
+}, 0);
+<</script>>
+
+:: Rank Health [nobr] {"position": "350,225", "size": "100,100"}
+/*
+STEP 12 PASS 2: Rank by importance for health.
+*/
+
+<div class="phone">
+<div class="header"><span>Most important</span><span class="header-progress">Step 12 · 2 of 2</span></div>
+<div class="progress-track"><div class="progress-fill" style="width: 98%;"></div></div>
+<div class="content">
+
+<div class="q-section">
+<p class="q-step">Ranking · for health</p>
+<h2 class="q-text">Now order them by which one felt most important for your health.</h2>
+<a class="speak-btn" data-speak="Now order them by which one felt most important for your health."><span class="speak-btn-icon">🔊</span> Read aloud</a>
+</div>
+
+<div class="rank-edges"><span>Most important</span><span>Least important</span></div>
+
+<div class="rank-list" id="rank-health-list"></div>
+
+<p class="rank-hint">Tap up or down to move a game.</p>
+
+<a class="btn-primary" data-passage="Done">FINISH</a>
+<a class="btn-secondary" data-passage="Rank Fun">BACK</a>
+
+</div>
+</div>
+
+<<script>>
+setTimeout(function () {
+  /* Shuffle the five games fresh each time this page opens, so no game
+     sits in the same spot every session. If the player has already moved
+     an item, keep their order instead of scrambling their work. */
+  if (!State.variables.rankHealthTouched && setup.ccqShuffle) {
+    State.variables.rankHealth = setup.ccqShuffle((State.variables.rankHealth || []).slice());
+  }
+  if (setup.renderRank) setup.renderRank("rank-health-list", "rankHealth");
+  if (setup.bindSpeak) setup.bindSpeak();
+}, 0);
+<</script>>
+
+:: Done [nobr] {"position": "475,225", "size": "100,100"}
+/*
+DONE. Persist payload, submit once, show thank-you.
+The four usability questions are all positively worded, so their
+raw 1–5 ratings are stored directly under `usability` — no reverse
+scoring, no composite score.
+*/
+
+<<script>>
+(function () {
+  var ans = State.variables.susAnswers || [];
+
+  var payload = {
+    endSurvey: {
+      favoriteGame: State.variables.favoriteGame,
+      funReasons: State.variables.funReasons,
+      feeling: State.variables.feeling,
+      playAgain: State.variables.playAgain,
+      wishOpen: State.variables.wishOpen
+    },
+    usability: {
+      easy: State.variables.susAnswers[0],
+      keepPlaying: State.variables.susAnswers[1],
+      knewProgress: State.variables.susAnswers[2],
+      confident: State.variables.susAnswers[3]
+    },
+    threeWords: State.variables.threeWords,
+    rankFun: State.variables.rankFun,
+    rankHealth: State.variables.rankHealth,
+    rankFunTouched: State.variables.rankFunTouched,
+    rankHealthTouched: State.variables.rankHealthTouched,
+    touched: {
+      favorite: State.variables.favoriteTouched,
+      feeling: State.variables.feelingTouched,
+      playAgain: State.variables.playAgainTouched,
+      rankFun: State.variables.rankFunTouched,
+      rankHealth: State.variables.rankHealthTouched
+    },
+    submissionKey: State.variables.startedAt,
+    startedAt: State.variables.startedAt,
+    completedAt: Date.now()
   };
-  draw();
-};
+  try {
+    window.localStorage.setItem("cardiocarequest_survey", JSON.stringify(payload));
+  } catch (e) {}
+  /* CCQ — push the full payload to Flutter so it lands in
+     surveys/post_play_v1/responses/{auto} via SurveyHooks.submitResponse.
+     localStorage above is just a defensive backup on the device.
 
+     One-shot guard: the Done passage re-renders on every visit /
+     :passagestart, which previously fired submitResponse each time
+     and wrote a duplicate response row. Guard on
+     $submittedThisSession so the network submit fires exactly once
+     per session; `submissionKey` (the story's startedAt) lets any
+     stray re-fire coalesce onto the same logical response. */
+  if (!State.variables.submittedThisSession) {
+    State.variables.submittedThisSession = true;
+    try {
+      if (window.CCQ && typeof window.CCQ.submitResponse === "function") {
+        window.CCQ.submitResponse(payload, { pointsEarned: 25 });
+      }
+    } catch (e) { /* swallow */ }
+  }
+})();
+<</script>>
 
-::UserStylesheet [stylesheet]
+<div class="phone">
+<div class="header"><span>All done</span><span class="header-progress">Complete</span></div>
+<div class="progress-track"><div class="progress-fill" style="width: 100%;"></div></div>
+<div class="content">
+
+<div class="done-card">
+<div class="done-emoji">🎉</div>
+<div class="done-headline">Thank you</div>
+<p class="done-message">You finished the survey. Your answers are saved on this device.</p>
+<div>
+<<if $favoriteGame isnot "">><span class="done-stat">Favorite: $favoriteGame</span><</if>>
+</div>
+</div>
+
+<p class="narrative center">A researcher will collect your responses from the device.</p>
+
+<div class="spacer"></div>
+
+<a class="btn-primary ccq-home-trigger" href="javascript:void(0)">DONE</a>
+
+</div>
+</div>
+
+:: UserStylesheet [stylesheet]
 /*
   CARDIOCARE QUEST SURVEY
   Phone-first, accessibility-conscious.
@@ -775,847 +1528,100 @@ body {
   .phone { min-height: 760px; }
 }
 
-
-::Story innit
-<<goto "Welcome">>
-
-
-::Welcome [nobr]
-
-<div class="phone">
-<div class="header"><span>End Survey</span><span class="header-progress">Step 9 of 12</span></div>
-<div class="progress-track"><div class="progress-fill" style="width: 5%;"></div></div>
-<div class="content">
-
-<span class="hero-emoji">📝</span>
-
-<h1 class="intro-title">A few questions</h1>
-
-<p class="narrative center">You played the games. Now we want to hear what you thought.</p>
-
-<p class="narrative center">Tap your answers. There are no wrong ones. Take your time.</p>
-
-<div class="spacer"></div>
-
-<a class="btn-primary" data-passage="Q1 Favorite">START</a>
-
-</div>
-</div>
-
-
-::Q1 Favorite [nobr]
+:: UserScript [script]
+/* twine-user-script #1: "SetupHelpers" */
 /*
-END SURVEY Q1: Which game was your favorite?
-Single-select tile list with explicit confirm-then-next.
-
-UX history: this used to use SugarCube `<<link>>` macros that
-auto-advanced to Q2 the moment a tile was tapped. Participants
-in dry-run-2 reported the screen shifted "very fast" with no
-chance to confirm or change their pick. Reworked to use plain
-`<a class="choice-tile">` with a JS click handler that sets the
-SugarCube variable AND visually highlights the tile WITHOUT
-navigating. The participant then taps NEXT to advance, or BACK
-to return to Welcome and re-read the intro. Same pattern now
-used by Q3 Feeling, Q4 Again, and the SUS questions.
-
-The NEXT button starts without a `data-passage` attribute (so
-the bridge JS click delegation has nothing to navigate to) and
-the script adds `data-passage="Q2 Fun"` only after a selection
-exists. The `.disabled` class is purely visual at that point —
-the lack of `data-passage` is what actually blocks navigation,
-which keeps the UX honest even if the .disabled class is ever
-removed by mistake.
+HELPERS available before any passage renders.
+- setup.gameInfo: lookup table for ranking cards
+- setup.bindSpeak: wires the read-aloud buttons via Web Speech API
+- setup.renderRank: renders ranking lists with up/down arrows
 */
+setup.gameInfo = {
+  salt:    { name: "Salt Sludge",      emoji: "🧂" },
+  walk:    { name: "Dog Walking",       emoji: "🐕" },
+  dash:    { name: "DASH Diet Game",   emoji: "🥗" },
+  village: { name: "Vascular Village", emoji: "🏘️" },
+  bingo:   { name: "Bingo Bash",       emoji: "🎯" }
+};
 
-<div class="phone">
-<div class="header"><span>End Survey</span><span class="header-progress">1 of 5</span></div>
-<div class="progress-track"><div class="progress-fill" style="width: 10%;"></div></div>
-<div class="content">
-
-<div class="q-section">
-<p class="q-step">Question 1</p>
-<h2 class="q-text">Which game was your favorite?</h2>
-<a class="speak-btn" data-speak="Which game was your favorite?"><span class="speak-btn-icon">🔊</span> Read aloud</a>
-</div>
-
-<div class="choice-list" id="fav-list">
-
-<a class="choice-tile" data-fav="Salt Sludge">
-<span class="choice-emoji">🧂</span>
-<div class="choice-text">Salt Sludge</div>
-<span class="choice-check">✓</span>
-</a>
-
-<a class="choice-tile" data-fav="Dog Walking">
-<span class="choice-emoji">🐕</span>
-<div class="choice-text">Dog Walking</div>
-<span class="choice-check">✓</span>
-</a>
-
-<a class="choice-tile" data-fav="DASH Diet Game">
-<span class="choice-emoji">🥗</span>
-<div class="choice-text">DASH Diet Game</div>
-<span class="choice-check">✓</span>
-</a>
-
-<a class="choice-tile" data-fav="Vascular Village">
-<span class="choice-emoji">🏘️</span>
-<div class="choice-text">Vascular Village</div>
-<span class="choice-check">✓</span>
-</a>
-
-<a class="choice-tile" data-fav="Bingo Bash">
-<span class="choice-emoji">🎯</span>
-<div class="choice-text">Bingo Bash</div>
-<span class="choice-check">✓</span>
-</a>
-
-</div>
-
-<div class="spacer"></div>
-
-<a class="btn-primary disabled" id="q1-next">NEXT</a>
-<a class="btn-secondary" data-passage="Welcome">BACK</a>
-
-</div>
-</div>
-
-<<script>>
-setTimeout(function () {
-  /*
-    NEXT navigation uses an explicit Engine.play() call rather than a
-    runtime-set `data-passage` attribute. Reason: SugarCube binds its
-    `data-passage` click handlers when the passage renders. Adding the
-    attribute via JS *after* render doesn't pick up that binding, so
-    the bridge's document-level click delegation logs the click but
-    nothing navigates. Calling Engine.play() from our own bound
-    handler sidesteps SugarCube's attribute scanning entirely. Same
-    pattern the SUS Q passage uses.
-  */
-  var current = State.variables.favoriteGame || "";
-  var nextBtn = document.getElementById("q1-next");
-  function enableNext() {
-    if (nextBtn) nextBtn.classList.remove("disabled");
+/* Fisher–Yates shuffle, shared so StoryInit and the ranking pages
+   use the same code. Shuffles the array in place and returns it. */
+setup.ccqShuffle = function (a) {
+  for (var i = a.length - 1; i > 0; i--) {
+    var j = Math.floor(Math.random() * (i + 1));
+    var t = a[i]; a[i] = a[j]; a[j] = t;
   }
-  document.querySelectorAll("#fav-list a.choice-tile").forEach(function (t) {
-    if (t.dataset.fav === current) {
-      t.classList.add("selected");
-      enableNext();
-    }
-    if (t.dataset.bound === "1") return;
-    t.dataset.bound = "1";
-    t.addEventListener("click", function (e) {
+  return a;
+};
+
+setup.bindSpeak = function () {
+  if (typeof document === "undefined") return;
+  document.querySelectorAll(".speak-btn").forEach(function (b) {
+    if (b.dataset.bound === "1") return;
+    b.dataset.bound = "1";
+    b.addEventListener("click", function (e) {
       e.preventDefault();
-      e.stopPropagation();
-      document.querySelectorAll("#fav-list a.choice-tile").forEach(function (x) {
-        x.classList.remove("selected");
+      try {
+        var text = b.dataset.speak || "";
+        if (!text) return;
+        if (window.speechSynthesis) {
+          window.speechSynthesis.cancel();
+          var u = new SpeechSynthesisUtterance(text);
+          u.rate = 0.9;
+          u.pitch = 1.0;
+          window.speechSynthesis.speak(u);
+        }
+      } catch (err) {}
+    });
+  });
+};
+
+setup.renderRank = function (containerId, varName) {
+  var container = document.getElementById(containerId);
+  if (!container) return;
+  var draw = function () {
+    var arr = State.variables[varName] || [];
+    container.innerHTML = "";
+    arr.forEach(function (key, idx) {
+      var info = setup.gameInfo[key] || { name: key, emoji: "🎮" };
+      var row = document.createElement("div");
+      row.className = "rank-item";
+      var upDisabled = (idx === 0) ? " disabled" : "";
+      var downDisabled = (idx === arr.length - 1) ? " disabled" : "";
+      row.innerHTML =
+        '<span class="rank-num">' + (idx + 1) + '</span>' +
+        '<span class="rank-emoji">' + info.emoji + '</span>' +
+        '<span class="rank-name">' + info.name + '</span>' +
+        '<span class="rank-controls">' +
+          '<a class="rank-btn rank-up' + upDisabled + '" data-idx="' + idx + '" data-dir="up">▲</a>' +
+          '<a class="rank-btn rank-down' + downDisabled + '" data-idx="' + idx + '" data-dir="down">▼</a>' +
+        '</span>';
+      container.appendChild(row);
+    });
+    container.querySelectorAll(".rank-btn").forEach(function (btn) {
+      btn.addEventListener("click", function (e) {
+        e.preventDefault();
+        if (btn.classList.contains("disabled")) return;
+        var i = Number(btn.dataset.idx);
+        var dir = btn.dataset.dir;
+        var current = (State.variables[varName] || []).slice();
+        if (dir === "up" && i > 0) {
+          var t = current[i]; current[i] = current[i - 1]; current[i - 1] = t;
+        } else if (dir === "down" && i < current.length - 1) {
+          var t2 = current[i]; current[i] = current[i + 1]; current[i + 1] = t2;
+        }
+        State.variables[varName] = current;
+        /* Record that the participant actually moved an item in this
+           list — detect which list is being rendered by varName. */
+        if (varName === "rankFun") State.variables.rankFunTouched = true;
+        if (varName === "rankHealth") State.variables.rankHealthTouched = true;
+        draw();
       });
-      t.classList.add("selected");
-      State.variables.favoriteGame = t.dataset.fav;
-      State.variables.favoriteTouched = true;
-      enableNext();
     });
-  });
-  if (nextBtn && nextBtn.dataset.bound !== "1") {
-    nextBtn.dataset.bound = "1";
-    nextBtn.addEventListener("click", function (e) {
-      e.preventDefault();
-      e.stopPropagation();
-      if (nextBtn.classList.contains("disabled")) return;
-      Engine.play("Q2 Fun");
-    });
-  }
-  if (setup.bindSpeak) setup.bindSpeak();
-}, 0);
-<</script>>
-
-
-::Q2 Fun [nobr]
-/*
-END SURVEY Q2: What made it fun? Multi-select.
-Player can pick multiple, then tap NEXT.
-*/
-
-<div class="phone">
-<div class="header"><span>End Survey</span><span class="header-progress">2 of 5</span></div>
-<div class="progress-track"><div class="progress-fill" style="width: 25%;"></div></div>
-<div class="content">
-
-<div class="q-section">
-<p class="q-step">Question 2</p>
-<h2 class="q-text">What made it fun?</h2>
-<p class="q-help">Pick as many as you want.</p>
-<a class="speak-btn" data-speak="What made it fun? Pick as many as you want."><span class="speak-btn-icon">🔊</span> Read aloud</a>
-</div>
-
-<div class="choice-list" id="fun-list">
-
-<a class="choice-tile" data-fun="movement">
-<span class="choice-emoji">🚶</span>
-<div class="choice-text">Moving around</div>
-<span class="choice-check">✓</span>
-</a>
-
-<a class="choice-tile" data-fun="story">
-<span class="choice-emoji">📖</span>
-<div class="choice-text">The story</div>
-<span class="choice-check">✓</span>
-</a>
-
-<a class="choice-tile" data-fun="progress">
-<span class="choice-emoji">📈</span>
-<div class="choice-text">Seeing my progress</div>
-<span class="choice-check">✓</span>
-</a>
-
-<a class="choice-tile" data-fun="others">
-<span class="choice-emoji">👥</span>
-<div class="choice-text">Playing with others</div>
-<span class="choice-check">✓</span>
-</a>
-
-<a class="choice-tile" data-fun="other">
-<span class="choice-emoji">✨</span>
-<div class="choice-text">Something else</div>
-<span class="choice-check">✓</span>
-</a>
-
-</div>
-
-<div class="spacer"></div>
-
-<a class="btn-primary" data-passage="Q3 Feeling">NEXT</a>
-<a class="btn-secondary" data-passage="Q1 Favorite">BACK</a>
-
-</div>
-</div>
-
-<<script>>
-setTimeout(function () {
-  var picked = (State.variables.funReasons || []).slice();
-  document.querySelectorAll("#fun-list a.choice-tile").forEach(function (t) {
-    if (picked.indexOf(t.dataset.fun) >= 0) t.classList.add("selected");
-    if (t.dataset.bound === "1") return;
-    t.dataset.bound = "1";
-    t.addEventListener("click", function (e) {
-      e.preventDefault();
-      var key = t.dataset.fun;
-      var i = picked.indexOf(key);
-      if (i >= 0) {
-        picked.splice(i, 1);
-        t.classList.remove("selected");
-      } else {
-        picked.push(key);
-        t.classList.add("selected");
-      }
-      State.variables.funReasons = picked.slice();
-    });
-  });
-  if (setup.bindSpeak) setup.bindSpeak();
-}, 0);
-<</script>>
-
-
-::Q3 Feeling [nobr]
-/*
-END SURVEY Q3: How do you feel right now? 5-emoji scale.
-Same select-then-confirm pattern as Q1 — see ::Q1 Favorite docstring.
-*/
-
-<div class="phone">
-<div class="header"><span>End Survey</span><span class="header-progress">3 of 5</span></div>
-<div class="progress-track"><div class="progress-fill" style="width: 40%;"></div></div>
-<div class="content">
-
-<div class="q-section">
-<p class="q-step">Question 3</p>
-<h2 class="q-text">How do you feel right now?</h2>
-<a class="speak-btn" data-speak="How do you feel right now?"><span class="speak-btn-icon">🔊</span> Read aloud</a>
-</div>
-
-<div class="tile-row" id="feel-row">
-
-<a class="scale-tile bg-1" data-feel="1"><span class="scale-emoji">😢</span><span class="scale-label">Very sad</span></a>
-<a class="scale-tile bg-2" data-feel="2"><span class="scale-emoji">🙁</span><span class="scale-label">Sad</span></a>
-<a class="scale-tile bg-3" data-feel="3"><span class="scale-emoji">😐</span><span class="scale-label">Okay</span></a>
-<a class="scale-tile bg-4" data-feel="4"><span class="scale-emoji">🙂</span><span class="scale-label">Good</span></a>
-<a class="scale-tile bg-5" data-feel="5"><span class="scale-emoji">😄</span><span class="scale-label">Very good</span></a>
-
-</div>
-
-<div class="spacer"></div>
-
-<a class="btn-primary disabled" id="q3-next">NEXT</a>
-<a class="btn-secondary" data-passage="Q2 Fun">BACK</a>
-
-</div>
-</div>
-
-<<script>>
-setTimeout(function () {
-  /* NEXT uses explicit Engine.play() — see ::Q1 Favorite note. */
-  var current = State.variables.feeling || 0;
-  var nextBtn = document.getElementById("q3-next");
-  function enableNext() {
-    if (nextBtn) nextBtn.classList.remove("disabled");
-  }
-  document.querySelectorAll("#feel-row a.scale-tile").forEach(function (t) {
-    if (Number(t.dataset.feel) === current) {
-      t.classList.add("selected");
-      enableNext();
-    }
-    if (t.dataset.bound === "1") return;
-    t.dataset.bound = "1";
-    t.addEventListener("click", function (e) {
-      e.preventDefault();
-      e.stopPropagation();
-      document.querySelectorAll("#feel-row a.scale-tile").forEach(function (x) {
-        x.classList.remove("selected");
-      });
-      t.classList.add("selected");
-      State.variables.feeling = Number(t.dataset.feel);
-      State.variables.feelingTouched = true;
-      enableNext();
-    });
-  });
-  if (nextBtn && nextBtn.dataset.bound !== "1") {
-    nextBtn.dataset.bound = "1";
-    nextBtn.addEventListener("click", function (e) {
-      e.preventDefault();
-      e.stopPropagation();
-      if (nextBtn.classList.contains("disabled")) return;
-      Engine.play("Q4 Again");
-    });
-  }
-  if (setup.bindSpeak) setup.bindSpeak();
-}, 0);
-<</script>>
-
-
-::Q4 Again [nobr]
-/*
-END SURVEY Q4: Would you like to play again?
-Same select-then-confirm pattern as Q1 — see ::Q1 Favorite docstring.
-*/
-
-<div class="phone">
-<div class="header"><span>End Survey</span><span class="header-progress">4 of 5</span></div>
-<div class="progress-track"><div class="progress-fill" style="width: 55%;"></div></div>
-<div class="content">
-
-<div class="q-section">
-<p class="q-step">Question 4</p>
-<h2 class="q-text">Would you like to play CardioCare Quest again?</h2>
-<a class="speak-btn" data-speak="Would you like to play CardioCare Quest again?"><span class="speak-btn-icon">🔊</span> Read aloud</a>
-</div>
-
-<div class="choice-list" id="again-list">
-
-<a class="choice-tile" data-again="yes">
-<span class="choice-emoji">😄</span>
-<div class="choice-text">Yes</div>
-<span class="choice-check">✓</span>
-</a>
-
-<a class="choice-tile" data-again="maybe">
-<span class="choice-emoji">🤔</span>
-<div class="choice-text">Maybe</div>
-<span class="choice-check">✓</span>
-</a>
-
-<a class="choice-tile" data-again="no">
-<span class="choice-emoji">🙁</span>
-<div class="choice-text">No</div>
-<span class="choice-check">✓</span>
-</a>
-
-<a class="choice-tile" data-again="not_sure">
-<span class="choice-emoji">🤷</span>
-<div class="choice-text">Not sure</div>
-<span class="choice-check">✓</span>
-</a>
-
-</div>
-
-<div class="spacer"></div>
-
-<a class="btn-primary disabled" id="q4-next">NEXT</a>
-<a class="btn-secondary" data-passage="Q3 Feeling">BACK</a>
-
-</div>
-</div>
-
-<<script>>
-setTimeout(function () {
-  /* NEXT uses explicit Engine.play() — see ::Q1 Favorite note. */
-  var current = State.variables.playAgain || "";
-  var nextBtn = document.getElementById("q4-next");
-  function enableNext() {
-    if (nextBtn) nextBtn.classList.remove("disabled");
-  }
-  document.querySelectorAll("#again-list a.choice-tile").forEach(function (t) {
-    if (t.dataset.again === current) {
-      t.classList.add("selected");
-      enableNext();
-    }
-    if (t.dataset.bound === "1") return;
-    t.dataset.bound = "1";
-    t.addEventListener("click", function (e) {
-      e.preventDefault();
-      e.stopPropagation();
-      document.querySelectorAll("#again-list a.choice-tile").forEach(function (x) {
-        x.classList.remove("selected");
-      });
-      t.classList.add("selected");
-      State.variables.playAgain = t.dataset.again;
-      State.variables.playAgainTouched = true;
-      enableNext();
-    });
-  });
-  if (nextBtn && nextBtn.dataset.bound !== "1") {
-    nextBtn.dataset.bound = "1";
-    nextBtn.addEventListener("click", function (e) {
-      e.preventDefault();
-      e.stopPropagation();
-      if (nextBtn.classList.contains("disabled")) return;
-      Engine.play("Q5 Wish");
-    });
-  }
-  if (setup.bindSpeak) setup.bindSpeak();
-}, 0);
-<</script>>
-
-
-::Q5 Wish [nobr]
-/*
-END SURVEY Q5: Anything you wish the game had? Optional open text.
-*/
-
-<div class="phone">
-<div class="header"><span>End Survey</span><span class="header-progress">5 of 5</span></div>
-<div class="progress-track"><div class="progress-fill" style="width: 70%;"></div></div>
-<div class="content">
-
-<div class="q-section">
-<p class="q-step">Question 5 · optional</p>
-<h2 class="q-text">Is there anything you wish the game had?</h2>
-<p class="q-help">You can leave this empty if you want.</p>
-<a class="speak-btn" data-speak="Is there anything you wish the game had? You can leave this empty if you want."><span class="speak-btn-icon">🔊</span> Read aloud</a>
-</div>
-
-<div class="text-input-wrap">
-<textarea id="wish-input" rows="6" placeholder="Type here, or skip"></textarea>
-</div>
-
-<div class="spacer"></div>
-
-<a class="btn-primary" data-passage="SUS Intro">NEXT</a>
-<a class="btn-secondary" data-passage="Q4 Again">BACK</a>
-
-</div>
-</div>
-
-<<script>>
-setTimeout(function () {
-  var wish = document.getElementById("wish-input");
-  if (wish && State.variables.wishOpen) wish.value = State.variables.wishOpen;
-  if (wish && wish.dataset.bound !== "1") {
-    wish.dataset.bound = "1";
-    wish.addEventListener("input", function () {
-      State.variables.wishOpen = wish.value;
-    });
-  }
-  if (setup.bindSpeak) setup.bindSpeak();
-}, 0);
-<</script>>
-
-
-::SUS Intro [nobr]
-/*
-SUS preamble.
-*/
-
-<div class="phone">
-<div class="header"><span>How was the system?</span><span class="header-progress">Step 10 of 12</span></div>
-<div class="progress-track"><div class="progress-fill" style="width: 75%;"></div></div>
-<div class="content">
-
-<span class="hero-emoji">📊</span>
-
-<h2 class="intro-title">Four quick questions</h2>
-
-<p class="narrative center">For each one, tap how much you agree.</p>
-
-<div class="scale-preview">
-<div class="preview-tile p-1"><span class="scale-emoji">😠</span><span class="scale-label">Strongly disagree</span></div>
-<div class="preview-tile p-3"><span class="scale-emoji">😐</span><span class="scale-label">Neutral</span></div>
-<div class="preview-tile p-5"><span class="scale-emoji">😍</span><span class="scale-label">Strongly agree</span></div>
-</div>
-
-<div class="spacer"></div>
-
-<a class="btn-primary" data-passage="SUS Q">START</a>
-<a class="btn-secondary" data-passage="Q5 Wish">BACK</a>
-
-</div>
-</div>
-
-
-::SUS Q [nobr]
-/*
-SUS QUESTION SCREEN.
-Single passage handles all 4 usability questions; advancing/retreating
-mutates $susIdx and re-renders ("SUS Q" calls itself via <<goto>>).
-On NEXT past Q4, navigates to "Three Words". BACK from Q1 returns
-to "SUS Intro". All four questions are positively worded, so the
-raw 1–5 ratings are stored directly with no reverse scoring.
-
-Same select-then-confirm pattern as Q1 / Q3 / Q4 — tapping a tile
-records the rating in $susAnswers[idx] and highlights the tile;
-NEXT button advances. Restoring a previously-given rating on
-BACK is what makes the BACK button useful, so the script reads
-$susAnswers[idx-1] on render and pre-selects it.
-*/
-
-<<set _susQs to [
-  "The games were easy to use.",
-  "I would like to keep playing these games.",
-  "I could tell how well I was doing.",
-  "I felt sure about what to tap."
-]>>
-<<set _i to $susIdx>>
-<<set _q to _susQs[_i - 1]>>
-<<set _pct to 75 + Math.floor((_i / 4) * 15)>>
-
-<div class="phone">
-<div class="header"><span>System questions</span><span class="header-progress"><<print _i>> of 4</span></div>
-<div class="progress-track"><div class="progress-fill" @style="'width: ' + _pct + '%;'"></div></div>
-<div class="content">
-
-<div class="q-section">
-<p class="q-step">SUS · question <<print _i>></p>
-<h2 class="q-text"><<print _q>></h2>
-<a class="speak-btn" @data-speak="_q"><span class="speak-btn-icon">🔊</span> Read aloud</a>
-</div>
-
-<div class="tile-row" id="sus-row">
-
-<a class="scale-tile bg-1" data-sus="1"><span class="scale-emoji">😠</span><span class="scale-label">Strongly disagree</span></a>
-<a class="scale-tile bg-2" data-sus="2"><span class="scale-emoji">🙁</span><span class="scale-label">Disagree</span></a>
-<a class="scale-tile bg-3" data-sus="3"><span class="scale-emoji">😐</span><span class="scale-label">Neutral</span></a>
-<a class="scale-tile bg-4" data-sus="4"><span class="scale-emoji">🙂</span><span class="scale-label">Agree</span></a>
-<a class="scale-tile bg-5" data-sus="5"><span class="scale-emoji">😍</span><span class="scale-label">Strongly agree</span></a>
-
-</div>
-
-<div class="spacer"></div>
-
-<a class="btn-primary disabled" id="sus-next">NEXT</a>
-<a class="btn-secondary" id="sus-back">BACK</a>
-
-</div>
-</div>
-
-<<script>>
-setTimeout(function () {
-  var idx = State.variables.susIdx || 1;
-  var current = (State.variables.susAnswers || [])[idx - 1] || 0;
-  var nextBtn = document.getElementById("sus-next");
-  var backBtn = document.getElementById("sus-back");
-
-  function enableNext() {
-    if (!nextBtn) return;
-    nextBtn.classList.remove("disabled");
-    /* Tag NEXT with a sentinel data-sus-ready so its own click
-       handler (below) knows there's a valid answer and can decide
-       whether to advance susIdx or jump to Three Words. We don't
-       use data-passage here because the navigation target depends
-       on whether this is the 10th question. */
-    nextBtn.setAttribute("data-sus-ready", "1");
-  }
-
-  /* Restore previous answer if the user is revisiting via BACK. */
-  document.querySelectorAll("#sus-row a.scale-tile").forEach(function (t) {
-    if (Number(t.dataset.sus) === current) {
-      t.classList.add("selected");
-      enableNext();
-    }
-    if (t.dataset.bound === "1") return;
-    t.dataset.bound = "1";
-    t.addEventListener("click", function (e) {
-      e.preventDefault();
-      e.stopPropagation();
-      document.querySelectorAll("#sus-row a.scale-tile").forEach(function (x) {
-        x.classList.remove("selected");
-      });
-      t.classList.add("selected");
-      var arr = State.variables.susAnswers || [];
-      arr[idx - 1] = Number(t.dataset.sus);
-      State.variables.susAnswers = arr;
-      enableNext();
-    });
-  });
-
-  /* NEXT: advance susIdx and re-render this passage, OR jump
-     to Three Words on Q4. */
-  if (nextBtn && nextBtn.dataset.bound !== "1") {
-    nextBtn.dataset.bound = "1";
-    nextBtn.addEventListener("click", function (e) {
-      e.preventDefault();
-      e.stopPropagation();
-      if (nextBtn.classList.contains("disabled")) return;
-      if (idx >= 4) {
-        Engine.play("Three Words");
-      } else {
-        State.variables.susIdx = idx + 1;
-        Engine.play("SUS Q");
-      }
-    });
-  }
-
-  /* BACK: decrement susIdx and re-render, OR return to SUS Intro
-     on Q1. The participant's previous answer for the prior
-     question is restored by the render-time selected check above. */
-  if (backBtn && backBtn.dataset.bound !== "1") {
-    backBtn.dataset.bound = "1";
-    backBtn.addEventListener("click", function (e) {
-      e.preventDefault();
-      e.stopPropagation();
-      if (idx <= 1) {
-        Engine.play("SUS Intro");
-      } else {
-        State.variables.susIdx = idx - 1;
-        Engine.play("SUS Q");
-      }
-    });
-  }
-
-  if (setup.bindSpeak) setup.bindSpeak();
-}, 0);
-<</script>>
-
-
-::Three Words [nobr]
-/*
-STEP 11: Three words.
-Three text inputs. Neutral prompt, no example words shown.
-*/
-
-<div class="phone">
-<div class="header"><span>Three words</span><span class="header-progress">Step 11 of 12</span></div>
-<div class="progress-track"><div class="progress-fill" style="width: 90%;"></div></div>
-<div class="content">
-
-<div class="q-section">
-<p class="q-step">Step 11</p>
-<h2 class="q-text">What three words would you use to describe CardioCare Quest?</h2>
-<a class="speak-btn" data-speak="What three words would you use to describe CardioCare Quest?"><span class="speak-btn-icon">🔊</span> Read aloud</a>
-</div>
-
-<div class="three-input-stack">
-<div class="three-input-row"><span class="three-input-num">1</span><input type="text" id="word-1"></div>
-<div class="three-input-row"><span class="three-input-num">2</span><input type="text" id="word-2"></div>
-<div class="three-input-row"><span class="three-input-num">3</span><input type="text" id="word-3"></div>
-</div>
-
-<div class="spacer"></div>
-
-<a class="btn-primary" data-passage="Rank Fun">NEXT</a>
-<a class="btn-secondary" data-passage="SUS Q">BACK</a>
-
-</div>
-</div>
-
-<<script>>
-setTimeout(function () {
-  var inputs = [
-    document.getElementById("word-1"),
-    document.getElementById("word-2"),
-    document.getElementById("word-3")
-  ];
-  inputs.forEach(function (el, i) {
-    if (!el) return;
-    if (State.variables.threeWords && State.variables.threeWords[i]) {
-      el.value = State.variables.threeWords[i];
-    }
-    if (el.dataset.bound !== "1") {
-      el.dataset.bound = "1";
-      el.addEventListener("input", function () {
-        var arr = (State.variables.threeWords || ["", "", ""]).slice();
-        arr[i] = el.value;
-        State.variables.threeWords = arr;
-      });
-    }
-  });
-  if (setup.bindSpeak) setup.bindSpeak();
-}, 0);
-<</script>>
-
-
-::Rank Fun [nobr]
-/*
-STEP 12 PASS 1: Rank by fun.
-Position 1 (top) = most fun, Position 5 (bottom) = least fun.
-*/
-
-<div class="phone">
-<div class="header"><span>Most fun</span><span class="header-progress">Step 12 · 1 of 2</span></div>
-<div class="progress-track"><div class="progress-fill" style="width: 94%;"></div></div>
-<div class="content">
-
-<div class="q-section">
-<p class="q-step">Ranking · by fun</p>
-<h2 class="q-text">Put these in order. Most fun at the top.</h2>
-<a class="speak-btn" data-speak="Put these in order. Most fun at the top. Least fun at the bottom."><span class="speak-btn-icon">🔊</span> Read aloud</a>
-</div>
-
-<div class="rank-edges"><span>Most fun</span><span>Least fun</span></div>
-
-<div class="rank-list" id="rank-fun-list"></div>
-
-<p class="rank-hint">Tap up or down to move a game.</p>
-
-<a class="btn-primary" data-passage="Rank Health">NEXT RANKING</a>
-<a class="btn-secondary" data-passage="Three Words">BACK</a>
-
-</div>
-</div>
-
-<<script>>
-setTimeout(function () {
-  if (setup.renderRank) setup.renderRank("rank-fun-list", "rankFun");
-  if (setup.bindSpeak) setup.bindSpeak();
-}, 0);
-<</script>>
-
-
-::Rank Health [nobr]
-/*
-STEP 12 PASS 2: Rank by importance for health.
-*/
-
-<div class="phone">
-<div class="header"><span>Most important</span><span class="header-progress">Step 12 · 2 of 2</span></div>
-<div class="progress-track"><div class="progress-fill" style="width: 98%;"></div></div>
-<div class="content">
-
-<div class="q-section">
-<p class="q-step">Ranking · for health</p>
-<h2 class="q-text">Now order them by which one felt most important for your health.</h2>
-<a class="speak-btn" data-speak="Now order them by which one felt most important for your health."><span class="speak-btn-icon">🔊</span> Read aloud</a>
-</div>
-
-<div class="rank-edges"><span>Most important</span><span>Least important</span></div>
-
-<div class="rank-list" id="rank-health-list"></div>
-
-<p class="rank-hint">Tap up or down to move a game.</p>
-
-<a class="btn-primary" data-passage="Done">FINISH</a>
-<a class="btn-secondary" data-passage="Rank Fun">BACK</a>
-
-</div>
-</div>
-
-<<script>>
-setTimeout(function () {
-  if (setup.renderRank) setup.renderRank("rank-health-list", "rankHealth");
-  if (setup.bindSpeak) setup.bindSpeak();
-}, 0);
-<</script>>
-
-
-::Done [nobr]
-/*
-DONE. Persist payload, submit once, show thank-you.
-The four usability questions are all positively worded, so their
-raw 1–5 ratings are stored directly under `usability` — no reverse
-scoring, no composite score.
-*/
-
-<<script>>
-(function () {
-  var ans = State.variables.susAnswers || [];
-
-  var payload = {
-    endSurvey: {
-      favoriteGame: State.variables.favoriteGame,
-      funReasons: State.variables.funReasons,
-      feeling: State.variables.feeling,
-      playAgain: State.variables.playAgain,
-      wishOpen: State.variables.wishOpen
-    },
-    usability: {
-      easy: State.variables.susAnswers[0],
-      keepPlaying: State.variables.susAnswers[1],
-      knewProgress: State.variables.susAnswers[2],
-      confident: State.variables.susAnswers[3]
-    },
-    threeWords: State.variables.threeWords,
-    rankFun: State.variables.rankFun,
-    rankHealth: State.variables.rankHealth,
-    rankFunTouched: State.variables.rankFunTouched,
-    rankHealthTouched: State.variables.rankHealthTouched,
-    touched: {
-      favorite: State.variables.favoriteTouched,
-      feeling: State.variables.feelingTouched,
-      playAgain: State.variables.playAgainTouched,
-      rankFun: State.variables.rankFunTouched,
-      rankHealth: State.variables.rankHealthTouched
-    },
-    submissionKey: State.variables.startedAt,
-    startedAt: State.variables.startedAt,
-    completedAt: Date.now()
   };
-  try {
-    window.localStorage.setItem("cardiocarequest_survey", JSON.stringify(payload));
-  } catch (e) {}
-  /* CCQ — push the full payload to Flutter so it lands in
-     surveys/post_play_v1/responses/{auto} via SurveyHooks.submitResponse.
-     localStorage above is just a defensive backup on the device.
-
-     One-shot guard: the Done passage re-renders on every visit /
-     :passagestart, which previously fired submitResponse each time
-     and wrote a duplicate response row. Guard on
-     $submittedThisSession so the network submit fires exactly once
-     per session; `submissionKey` (the story's startedAt) lets any
-     stray re-fire coalesce onto the same logical response. */
-  if (!State.variables.submittedThisSession) {
-    State.variables.submittedThisSession = true;
-    try {
-      if (window.CCQ && typeof window.CCQ.submitResponse === "function") {
-        window.CCQ.submitResponse(payload, { pointsEarned: 25 });
-      }
-    } catch (e) { /* swallow */ }
-  }
-})();
-<</script>>
-
-<div class="phone">
-<div class="header"><span>All done</span><span class="header-progress">Complete</span></div>
-<div class="progress-track"><div class="progress-fill" style="width: 100%;"></div></div>
-<div class="content">
-
-<div class="done-card">
-<div class="done-emoji">🎉</div>
-<div class="done-headline">Thank you</div>
-<p class="done-message">You finished the survey. Your answers are saved on this device.</p>
-<div>
-<<if $favoriteGame isnot "">><span class="done-stat">Favorite: $favoriteGame</span><</if>>
-</div>
-</div>
-
-<p class="narrative center">A researcher will collect your responses from the device.</p>
-
-<div class="spacer"></div>
-
-<a class="btn-primary ccq-home-trigger">DONE</a>
-
-</div>
-</div>
-
-::UserScript [script]
-
+  draw();
+};
+/* twine-user-script #2: "UserScript" */
 /* CardioCare Quest — auto passage telemetry.
    Fires `passage_entered` for every passage entry via the FlutterBridge.
    Snapshots SugarCube state.variables so researchers see the player's
@@ -1632,4 +1638,3 @@ $(document).on(":passagestart", function (ev) {
     }
   } catch (e) { /* swallow */ }
 });
-

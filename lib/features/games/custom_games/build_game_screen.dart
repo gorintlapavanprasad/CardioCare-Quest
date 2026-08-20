@@ -1,5 +1,7 @@
-// BuildGameScreen - the form where a user creates their own game.
-// Pick a type (walk or quiz), name it, choose settings, tap CREATE.
+// BuildGameScreen - the simple "build your own game" screen.
+// Tap the healthy things you want in your game, give it a name, tap CREATE.
+// Behind the scenes each tapped activity becomes one step of a real Twine
+// story, so the finished game plays in the WebView with the full hooks.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -12,7 +14,93 @@ import '../game_stories.dart';
 import 'custom_game.dart';
 import 'custom_games_repository.dart';
 
-// The build-your-own-game form screen.
+// One part a patient can add to their game. Each becomes a story step. `kind`
+// decides how the step plays:
+//   walk    - tap-to-walk mini-game, logs exercise
+//   plate   - tap-to-collect-foods mini-game, logs a meal
+//   pill    - tap-the-pill mini-game, logs medication
+//   bp      - blood-pressure entry, logs a reading
+//   breathe - paced-breathing calm break (no log)
+//   choice  - a simple yes/no question (used where a mini-game doesn't fit)
+class _Activity {
+  final String emoji;
+  final String label; // shown on the card
+  final String question; // the story step's prompt
+  final GameCategory category;
+  final String kind;
+
+  const _Activity(
+    this.emoji,
+    this.label,
+    this.question,
+    this.category, {
+    this.kind = 'choice',
+  });
+}
+
+// The menu of playable parts to assemble a game from - "build your meal" style,
+// grouped by health area. Order here is the order they appear under each heading.
+const List<_Activity> _activities = [
+  // Exercise - tap-to-walk mini-games.
+  _Activity('🐕', 'Dog walk', 'Walk the dog!',
+      GameCategory.exercise, kind: 'walk'),
+  _Activity('🚶', 'Go for a walk', 'Take a walk!',
+      GameCategory.exercise, kind: 'walk'),
+  // Diet - build-a-plate mini-games.
+  _Activity('🍽️', 'Healthy plate', 'Build a healthy plate',
+      GameCategory.diet, kind: 'plate'),
+  _Activity('🥗', 'Eat your veggies', 'Fill your plate with good food',
+      GameCategory.diet, kind: 'plate'),
+  // Medication - tap-the-pill mini-game.
+  _Activity('💊', 'Take medicine', 'Time for your medicine',
+      GameCategory.medication, kind: 'pill'),
+  // Measurements - blood-pressure entry.
+  _Activity('🩺', 'Blood pressure', 'Enter your blood pressure',
+      GameCategory.measurements, kind: 'bp'),
+  // Wellbeing - a calm break plus a couple of simple check-ins.
+  _Activity('🧘', 'Calm breathing', 'Breathe in as it grows, out as it shrinks',
+      GameCategory.education, kind: 'breathe'),
+  _Activity('😊', 'Check your mood', 'Are you feeling good today?',
+      GameCategory.education),
+  _Activity('☎️', 'Call someone', 'Did you talk to a friend or family?',
+      GameCategory.education),
+];
+
+// Heading emoji for each of the five health factors. The text is the factor's
+// own name (category.label) so the sections read as the five standard areas.
+String _categoryEmoji(GameCategory c) {
+  switch (c) {
+    case GameCategory.exercise:
+      return '🏃';
+    case GameCategory.diet:
+      return '🥗';
+    case GameCategory.medication:
+      return '💊';
+    case GameCategory.measurements:
+      return '🩺';
+    case GameCategory.education:
+      return '💜';
+  }
+}
+
+// Which daily-log hook a "Yes" answer for a plain 'choice' step should fire.
+// The mini-game kinds (walk, plate, pill, bp) log themselves inside their own
+// story passage, so this only maps the leftover wellbeing check-ins.
+String _logKindFor(_Activity a) {
+  switch (a.category) {
+    case GameCategory.exercise:
+      return 'exercise';
+    case GameCategory.diet:
+      return 'meal';
+    case GameCategory.medication:
+      return 'medication';
+    case GameCategory.measurements:
+    case GameCategory.education:
+      return 'none';
+  }
+}
+
+// The build-your-own-game screen.
 class BuildGameScreen extends StatefulWidget {
   const BuildGameScreen({super.key});
 
@@ -21,51 +109,39 @@ class BuildGameScreen extends StatefulWidget {
 }
 
 class _BuildGameScreenState extends State<BuildGameScreen> {
-  final _formKey = GlobalKey<FormState>(); // checks the form is filled in
-  final _titleController = TextEditingController();
-  final _descriptionController = TextEditingController();
+  final _nameController = TextEditingController();
 
-  // Starts with one question; user can add up to _maxQuestions.
-  final List<_QuestionDraft> _quizQuestions = [_QuestionDraft()];
+  // Which activities the patient has tapped, kept in tap order so the story
+  // steps flow in the order they picked.
+  final List<_Activity> _picked = [];
 
-  CustomGameType _gameType = CustomGameType.walk;
-  GameCategory _category = GameCategory.exercise;
-  int _pointsReward = 25;
-  int _targetDistance = 500; // walk goal in meters
-  bool _saving = false; // true while the game is being saved
-
-  // Fixed choices so it's quick to pick and no silly amounts get entered.
-  static const _pointOptions = <int>[10, 25, 50, 75, 100];
-
-  static const _maxQuestions = 5;
+  bool _saving = false;
 
   @override
   void dispose() {
-    _titleController.dispose();
-    _descriptionController.dispose();
-    for (final q in _quizQuestions) {
-      q.dispose();
-    }
+    _nameController.dispose();
     super.dispose();
   }
 
-  // Add a blank quiz question (up to _maxQuestions).
-  void _addQuestion() {
-    if (_quizQuestions.length >= _maxQuestions) return;
-    setState(() => _quizQuestions.add(_QuestionDraft()));
-  }
-
-  // Remove a question (minimum 1 must remain).
-  void _removeQuestion(int index) {
-    if (_quizQuestions.length <= 1) return;
+  // Tap a card to add or remove that activity.
+  void _toggle(_Activity activity) {
     setState(() {
-      _quizQuestions.removeAt(index).dispose();
+      if (_picked.contains(activity)) {
+        _picked.remove(activity);
+      } else {
+        _picked.add(activity);
+      }
     });
   }
 
-  // Validates the form, saves the game, then pops back to the dashboard.
+  // Turns the picked activities into a linear story, saves it, pops back.
   Future<void> _handleCreate() async {
-    if (!(_formKey.currentState?.validate() ?? false)) return;
+    if (_picked.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Tap at least one thing to add it to your game.'),
+      ));
+      return;
+    }
     setState(() => _saving = true);
 
     final messenger = ScaffoldMessenger.of(context);
@@ -81,52 +157,53 @@ class _BuildGameScreenState extends State<BuildGameScreen> {
       return;
     }
 
-    // Quiz: each question needs a prompt and at least 2 choices.
-    final List<QuizQuestion> questions;
-    if (_gameType == CustomGameType.quiz) {
-      final collected = <QuizQuestion>[];
-      for (var i = 0; i < _quizQuestions.length; i++) {
-        final draft = _quizQuestions[i];
-        final prompt = draft.promptController.text.trim();
-        final opts = draft.collectOptions();
-        if (prompt.isEmpty) {
-          messenger.showSnackBar(SnackBar(
-            content: Text('Question ${i + 1} needs a prompt.'),
-          ));
-          setState(() => _saving = false);
-          return;
-        }
-        if (opts.length < 2) {
-          messenger.showSnackBar(SnackBar(
-            content: Text(
-                'Question ${i + 1} needs at least two answer choices.'),
-          ));
-          setState(() => _saving = false);
-          return;
-        }
-        collected.add(QuizQuestion(prompt: prompt, options: opts));
+    // Each picked activity is one story step, in the order they picked. The
+    // mini-game parts (walk, plate, pill, bp, breathe) play out and log
+    // themselves; the plain check-ins are a simple yes/no that moves on.
+    final scenes = <StoryScene>[];
+    for (var i = 0; i < _picked.length; i++) {
+      final activity = _picked[i];
+      final isLast = i == _picked.length - 1;
+      final next = isLast ? -1 : i + 1;
+      final prompt = '${activity.question} ${activity.emoji}';
+      if (activity.kind == 'choice') {
+        scenes.add(StoryScene(
+          prompt: prompt,
+          // A "Yes" answer fires the matching daily-log hook; logLabel is the
+          // readable activity saved with it.
+          logKind: _logKindFor(activity),
+          logLabel: activity.label,
+          options: [
+            StoryOption(label: 'Yes 👍', nextScene: next),
+            StoryOption(label: 'Not yet 🙌', nextScene: next),
+          ],
+        ));
+      } else {
+        // Interactive mini-game step. It advances to the next step (or the
+        // finish) on its own, so it needs no options. logLabel names the
+        // activity the step logs (walk, meal, etc).
+        scenes.add(StoryScene(
+          kind: activity.kind,
+          prompt: prompt,
+          logLabel: activity.label,
+        ));
       }
-      questions = collected;
-    } else {
-      questions = const <QuizQuestion>[];
     }
+
+    final title = _nameController.text.trim().isEmpty
+        ? 'My Health Game'
+        : _nameController.text.trim();
+    // Use the first activity's area as the game's category.
+    final category = _picked.first.category;
 
     // id is blank here; the save step assigns a real one.
     final draft = CustomGame(
       id: '',
-      title: _titleController.text.trim(),
-      description: _descriptionController.text.trim(),
-      category: _category,
-      pointsReward: _pointsReward,
-      gameType: _gameType,
-      // Quiz games save 0 here.
-      targetDistance:
-          _gameType == CustomGameType.walk ? _targetDistance : 0,
-      // Also copy into old-style fields for backward compatibility.
-      questions: questions,
-      prompt: questions.isNotEmpty ? questions.first.prompt : '',
-      options:
-          questions.isNotEmpty ? questions.first.options : const <String>[],
+      title: title,
+      description: '',
+      category: category,
+      gameType: CustomGameType.story,
+      scenes: scenes,
     );
 
     try {
@@ -140,17 +217,15 @@ class _BuildGameScreenState extends State<BuildGameScreen> {
         'custom_game_created',
         parameters: {
           'gameId': id,
-          'category': _category.name,
-          'pointsReward': _pointsReward,
-          'titleLength': draft.title.length,
-          'hasDescription': draft.description.isNotEmpty,
+          'category': category.name,
+          'stepCount': scenes.length,
         },
         userId: uid,
       );
 
       if (!mounted) return;
       messenger.showSnackBar(SnackBar(
-        content: Text('Created "${draft.title}"'),
+        content: Text('Created "$title"'),
         duration: const Duration(seconds: 2),
       ));
       navigator.pop(true);
@@ -169,7 +244,7 @@ class _BuildGameScreenState extends State<BuildGameScreen> {
       backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text(
-          'Design Your Own Game',
+          'Build Your Own Game',
           style: TextStyle(color: AppColors.title),
         ),
         backgroundColor: Colors.transparent,
@@ -177,144 +252,191 @@ class _BuildGameScreenState extends State<BuildGameScreen> {
         iconTheme: const IconThemeData(color: AppColors.title),
       ),
       body: SafeArea(
-        child: Form(
-          key: _formKey,
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
-            children: [
-              const _Hint(
-                text:
-                    'Build a personal goal that fits your day. Pick a category, name the goal, and choose how many points it should be worth. Tap your goal on the dashboard each time you do it to earn the points.',
-              ),
-              const SizedBox(height: 24),
-              _SectionLabel('What do you want to do?'),
-              const SizedBox(height: 8),
-              TextFormField(
-                controller: _titleController,
-                textCapitalization: TextCapitalization.sentences,
-                maxLength: 60,
-                inputFormatters: [LengthLimitingTextInputFormatter(60)],
-                decoration: _inputDecoration(
-                  hint: 'e.g. Walk to the mailbox',
-                ),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Give your goal a short name.';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              _SectionLabel('Add a note (optional)'),
-              const SizedBox(height: 8),
-              TextFormField(
-                controller: _descriptionController,
-                textCapitalization: TextCapitalization.sentences,
-                maxLength: 160,
-                maxLines: 3,
-                inputFormatters: [LengthLimitingTextInputFormatter(160)],
-                decoration: _inputDecoration(
-                  hint:
-                      'A reminder or detail - e.g. "after lunch, twice around the block"',
-                ),
-              ),
-              const SizedBox(height: 24),
-              _SectionLabel('What kind of game?'),
-              const SizedBox(height: 8),
-              _GameTypePicker(
-                selected: _gameType,
-                onChanged: (type) => setState(() => _gameType = type),
-              ),
-              const SizedBox(height: 24),
-              // Walk games: pick how far to walk. Only shown for walks.
-              if (_gameType == CustomGameType.walk) ...[
-                _SectionLabel('How far do you want to walk?'),
-                const SizedBox(height: 8),
-                _DistancePicker(
-                  selected: _targetDistance,
-                  onChanged: (d) => setState(() => _targetDistance = d),
-                ),
-                const SizedBox(height: 24),
-              ],
-              // Quiz games: write the questions here. Only shown for quizzes.
-              if (_gameType == CustomGameType.quiz) ...[
-                for (var i = 0; i < _quizQuestions.length; i++)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 14),
-                    child: _QuestionCard(
-                      index: i,
-                      draft: _quizQuestions[i],
-                      canRemove: _quizQuestions.length > 1,
-                      onRemove: () => _removeQuestion(i),
-                      buildInputDecoration: _inputDecoration,
-                    ),
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+          children: [
+            const _Hint(
+              text:
+                  'Tap the healthy things you want in your game. Each one becomes a step. Pick as many as you like, then give your game a name.',
+            ),
+            const SizedBox(height: 24),
+            _SectionLabel('Tap to add to your game'),
+            const SizedBox(height: 4),
+            // One section per health area, only showing areas that have cards.
+            for (final category in GameCategory.values)
+              if (_activities.any((a) => a.category == category)) ...[
+                const SizedBox(height: 16),
+                Text(
+                  '${_categoryEmoji(category)}  ${category.label}',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: AppColors.primary,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0.3,
                   ),
-                if (_quizQuestions.length < _maxQuestions)
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: OutlinedButton.icon(
-                      onPressed: _addQuestion,
-                      icon: const Icon(Icons.add, size: 18),
-                      label: Text(
-                          'Add another question (${_quizQuestions.length}/$_maxQuestions)'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.primary,
-                        side: BorderSide(color: AppColors.primary, width: 1.5),
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 10),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                ),
+                const SizedBox(height: 10),
+                Wrap(
+                  alignment: WrapAlignment.center,
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: _activities
+                      .where((a) => a.category == category)
+                      .map((activity) {
+                    return _ActivityCard(
+                      activity: activity,
+                      selected: _picked.contains(activity),
+                      order: _picked.indexOf(activity) + 1,
+                      onTap: () => _toggle(activity),
+                    );
+                  }).toList(),
+                ),
+              ],
+            const SizedBox(height: 28),
+            _SectionLabel('Name your game (optional)'),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _nameController,
+              textCapitalization: TextCapitalization.words,
+              maxLength: 40,
+              inputFormatters: [LengthLimitingTextInputFormatter(40)],
+              decoration: InputDecoration(
+                hintText: 'e.g. My Morning Routine',
+                filled: true,
+                fillColor: Colors.white,
+                counterText: '',
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: const BorderSide(color: AppColors.cardBorder),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide:
+                      const BorderSide(color: AppColors.primary, width: 2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 28),
+            SizedBox(
+              width: double.infinity,
+              height: 56,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  disabledBackgroundColor:
+                      AppColors.primary.withValues(alpha: 0.4),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  elevation: 2,
+                ),
+                onPressed: (_saving || _picked.isEmpty) ? null : _handleCreate,
+                child: _saving
+                    ? const SizedBox(
+                        height: 22,
+                        width: 22,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : Text(
+                        _picked.isEmpty
+                            ? 'PICK SOMETHING TO START'
+                            : 'CREATE GAME (${_picked.length})',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 1.2,
+                          fontSize: 15,
+                        ),
+                      ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// A big emoji card for one activity. Turns blue with a number when picked.
+class _ActivityCard extends StatelessWidget {
+  final _Activity activity;
+  final bool selected;
+  final int order; // its position in the game, shown when selected
+  final VoidCallback onTap;
+
+  const _ActivityCard({
+    required this.activity,
+    required this.selected,
+    required this.order,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = selected ? AppColors.primary : Colors.white;
+    final fg = selected ? Colors.white : AppColors.title;
+    final border = selected ? AppColors.primary : AppColors.cardBorder;
+
+    return Material(
+      color: bg,
+      borderRadius: BorderRadius.circular(18),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: onTap,
+        child: Container(
+          width: 150,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: border, width: 2),
+          ),
+          child: Column(
+            children: [
+              Stack(
+                alignment: Alignment.center,
+                children: [
+                  Text(
+                    activity.emoji,
+                    style: const TextStyle(fontSize: 40),
+                  ),
+                  if (selected)
+                    Positioned(
+                      right: 0,
+                      top: 0,
+                      child: Container(
+                        width: 24,
+                        height: 24,
+                        alignment: Alignment.center,
+                        decoration: const BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Text(
+                          '$order',
+                          style: const TextStyle(
+                            color: AppColors.primary,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w900,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                const SizedBox(height: 24),
-              ],
-              _SectionLabel('Which area is this about?'),
-              const SizedBox(height: 8),
-              _CategoryPicker(
-                selected: _category,
-                onChanged: (cat) => setState(() => _category = cat),
+                ],
               ),
-              const SizedBox(height: 24),
-              _SectionLabel('Points to earn each time you do it'),
-              const SizedBox(height: 8),
-              _PointsPicker(
-                selected: _pointsReward,
-                options: _pointOptions,
-                onChanged: (pts) => setState(() => _pointsReward = pts),
-              ),
-              const SizedBox(height: 32),
-              SizedBox(
-                width: double.infinity,
-                height: 54,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    elevation: 2,
-                  ),
-                  onPressed: _saving ? null : _handleCreate,
-                  child: _saving
-                      ? const SizedBox(
-                          height: 22,
-                          width: 22,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Text(
-                          'CREATE GOAL',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 1.2,
-                            fontSize: 15,
-                          ),
-                        ),
+              const SizedBox(height: 10),
+              Text(
+                activity.label,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 14.5,
+                  fontWeight: FontWeight.w800,
+                  color: fg,
                 ),
               ),
             ],
@@ -323,37 +445,9 @@ class _BuildGameScreenState extends State<BuildGameScreen> {
       ),
     );
   }
-
-  // Shared text-box style for this form.
-  InputDecoration _inputDecoration({required String hint}) {
-    return InputDecoration(
-      hintText: hint,
-      filled: true,
-      fillColor: Colors.white,
-      contentPadding:
-          const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      counterText: '',
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
-        borderSide: const BorderSide(color: AppColors.cardBorder),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
-        borderSide: const BorderSide(color: AppColors.primary, width: 2),
-      ),
-      errorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
-        borderSide: const BorderSide(color: Colors.redAccent, width: 1.5),
-      ),
-      focusedErrorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
-        borderSide: const BorderSide(color: Colors.redAccent, width: 2),
-      ),
-    );
-  }
 }
 
-// Bold heading above each form section.
+// Bold heading above each section.
 class _SectionLabel extends StatelessWidget {
   final String label;
   const _SectionLabel(this.label);
@@ -364,7 +458,7 @@ class _SectionLabel extends StatelessWidget {
       label,
       style: const TextStyle(
         color: AppColors.title,
-        fontSize: 15,
+        fontSize: 16,
         fontWeight: FontWeight.w800,
         letterSpacing: 0.2,
       ),
@@ -372,7 +466,7 @@ class _SectionLabel extends StatelessWidget {
   }
 }
 
-// Tip box at the top of the form.
+// Tip box at the top of the screen.
 class _Hint extends StatelessWidget {
   final String text;
   const _Hint({required this.text});
@@ -396,362 +490,13 @@ class _Hint extends StatelessWidget {
             child: Text(
               text,
               style: const TextStyle(
-                fontSize: 13.5,
+                fontSize: 14,
                 color: AppColors.title,
                 height: 1.45,
                 fontWeight: FontWeight.w500,
               ),
             ),
           ),
-        ],
-      ),
-    );
-  }
-}
-
-// Walk-vs-quiz chooser. Selected type is highlighted.
-class _GameTypePicker extends StatelessWidget {
-  final CustomGameType selected;
-  final ValueChanged<CustomGameType> onChanged;
-  const _GameTypePicker({required this.selected, required this.onChanged});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: CustomGameType.values.map((type) {
-        final isSelected = type == selected;
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 10),
-          child: Material(
-            color: isSelected ? AppColors.primary : Colors.white,
-            borderRadius: BorderRadius.circular(14),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(14),
-              onTap: () => onChanged(type),
-              child: Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                    color: isSelected ? AppColors.primary : AppColors.cardBorder,
-                    width: 1.5,
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      type.icon,
-                      size: 28,
-                      color: isSelected ? Colors.white : AppColors.primary,
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            type.label,
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w800,
-                              color: isSelected ? Colors.white : AppColors.title,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            type.tagline,
-                            style: TextStyle(
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w500,
-                              color: isSelected
-                                  ? Colors.white.withValues(alpha: 0.92)
-                                  : AppColors.subtitle,
-                              height: 1.35,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        );
-      }).toList(),
-    );
-  }
-}
-
-// Walk distance chooser: Easy / Medium / Hard (same distances as Dog Quest).
-class _DistancePicker extends StatelessWidget {
-  final int selected;
-  final ValueChanged<int> onChanged;
-  const _DistancePicker({required this.selected, required this.onChanged});
-
-  static const _options = <(int, String)>[
-    (500, 'Easy · 500m'),
-    (1000, 'Medium · 1km'),
-    (1500, 'Hard · 1.5km'),
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 10,
-      runSpacing: 10,
-      children: _options.map((opt) {
-        return _PickerChip(
-          label: opt.$2,
-          selected: opt.$1 == selected,
-          onTap: () => onChanged(opt.$1),
-        );
-      }).toList(),
-    );
-  }
-}
-
-// Category chooser (which health area this goal covers).
-class _CategoryPicker extends StatelessWidget {
-  final GameCategory selected;
-  final ValueChanged<GameCategory> onChanged;
-
-  const _CategoryPicker({required this.selected, required this.onChanged});
-
-  @override
-  Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 10,
-      runSpacing: 10,
-      children: GameCategory.values.map((cat) {
-        final isSelected = cat == selected;
-        return _PickerChip(
-          icon: cat.icon,
-          label: cat.label,
-          selected: isSelected,
-          onTap: () => onChanged(cat),
-        );
-      }).toList(),
-    );
-  }
-}
-
-// Points chooser for the goal.
-class _PointsPicker extends StatelessWidget {
-  final int selected;
-  final List<int> options;
-  final ValueChanged<int> onChanged;
-
-  const _PointsPicker({
-    required this.selected,
-    required this.options,
-    required this.onChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 10,
-      runSpacing: 10,
-      children: options.map((pts) {
-        return _PickerChip(
-          label: '$pts pts',
-          selected: pts == selected,
-          onTap: () => onChanged(pts),
-        );
-      }).toList(),
-    );
-  }
-}
-
-// Tappable chip used by the pickers. Turns blue when selected.
-class _PickerChip extends StatelessWidget {
-  final IconData? icon;
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _PickerChip({
-    this.icon,
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final bg = selected ? AppColors.primary : Colors.white;
-    final fg = selected ? Colors.white : AppColors.title;
-    final border = selected ? AppColors.primary : AppColors.cardBorder;
-
-    return Material(
-      color: bg,
-      borderRadius: BorderRadius.circular(14),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(14),
-        onTap: onTap,
-        child: Container(
-          padding: EdgeInsets.symmetric(
-            horizontal: icon != null ? 14 : 18,
-            vertical: icon != null ? 10 : 12,
-          ),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: border, width: 1.5),
-          ),
-          child: icon != null
-              ? Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(icon, size: 18, color: fg),
-                    const SizedBox(width: 8),
-                    Text(
-                      label,
-                      style: TextStyle(
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.w700,
-                        color: fg,
-                      ),
-                    ),
-                  ],
-                )
-              : Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
-                    color: fg,
-                  ),
-                ),
-        ),
-      ),
-    );
-  }
-}
-
-// Text-box state for one quiz question being written.
-class _QuestionDraft {
-  final TextEditingController promptController;
-  // 4 answer boxes. First two pre-filled with "Yes"/"No". Blanks are dropped.
-  final List<TextEditingController> optionControllers;
-
-  _QuestionDraft()
-      : promptController = TextEditingController(),
-        optionControllers = [
-          TextEditingController(text: 'Yes'),
-          TextEditingController(text: 'No'),
-          TextEditingController(),
-          TextEditingController(),
-        ];
-
-  void dispose() {
-    promptController.dispose();
-    for (final c in optionControllers) {
-      c.dispose();
-    }
-  }
-
-  // Answer choices with blank entries removed.
-  List<String> collectOptions() => optionControllers
-      .map((c) => c.text.trim())
-      .where((t) => t.isNotEmpty)
-      .toList();
-}
-
-// Form card for one quiz question: prompt, 4 answer boxes, optional remove button.
-class _QuestionCard extends StatelessWidget {
-  final int index;
-  final _QuestionDraft draft;
-  final bool canRemove;
-  final VoidCallback onRemove;
-  final InputDecoration Function({required String hint}) buildInputDecoration;
-
-  const _QuestionCard({
-    required this.index,
-    required this.draft,
-    required this.canRemove,
-    required this.onRemove,
-    required this.buildInputDecoration,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
-      decoration: BoxDecoration(
-        color: AppColors.primary.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: AppColors.primary.withValues(alpha: 0.18),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Question ${index + 1}',
-                  style: const TextStyle(
-                    color: AppColors.title,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.3,
-                  ),
-                ),
-              ),
-              if (canRemove)
-                TextButton.icon(
-                  onPressed: onRemove,
-                  icon: const Icon(Icons.delete_outline, size: 18),
-                  label: const Text('Remove'),
-                  style: TextButton.styleFrom(
-                    foregroundColor: Colors.redAccent,
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 4),
-                    minimumSize: const Size(0, 32),
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          TextFormField(
-            controller: draft.promptController,
-            textCapitalization: TextCapitalization.sentences,
-            maxLength: 120,
-            maxLines: 2,
-            inputFormatters: [LengthLimitingTextInputFormatter(120)],
-            decoration: buildInputDecoration(
-              hint: 'e.g. Did I take my medicine today?',
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Answer choices (at least two)',
-            style: TextStyle(
-              color: AppColors.subtitle,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.2,
-            ),
-          ),
-          const SizedBox(height: 6),
-          for (var i = 0; i < draft.optionControllers.length; i++)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: TextFormField(
-                controller: draft.optionControllers[i],
-                textCapitalization: TextCapitalization.sentences,
-                maxLength: 40,
-                inputFormatters: [LengthLimitingTextInputFormatter(40)],
-                decoration: buildInputDecoration(
-                  hint: i < 2
-                      ? 'Choice ${i + 1} (required)'
-                      : 'Choice ${i + 1} (optional)',
-                ),
-              ),
-            ),
         ],
       ),
     );

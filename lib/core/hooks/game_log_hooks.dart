@@ -19,7 +19,6 @@ abstract class GameLogHooks {
     required String uid,
     required String gameId,
     required String questId,
-    int pointsEarned = 0,
     String? sessionId,
     Map<String, dynamic>? data,
     bool countAsCompletion = true,
@@ -29,9 +28,6 @@ abstract class GameLogHooks {
     final logId = _uuid.v4();
 
     final userUpdates = <String, dynamic>{};
-    if (pointsEarned > 0) {
-      userUpdates['points'] = OfflineFieldValue.increment(pointsEarned);
-    }
     if (countAsCompletion) {
       userUpdates['surveysCompleted'] = OfflineFieldValue.increment(1);
       userUpdates['lastSurveyId'] = gameId;
@@ -48,7 +44,6 @@ abstract class GameLogHooks {
           'userId': uid,
           'gameId': gameId,
           'questId': questId,
-          'pointsEarned': pointsEarned,
           if (sessionId != null) 'sessionId': sessionId,
           if (data != null) 'data': data,
           'countAsCompletion': countAsCompletion,
@@ -71,7 +66,6 @@ abstract class GameLogHooks {
         'gameId': gameId,
         'questId': questId,
         'logId': logId,
-        'pointsEarned': pointsEarned,
         if (sessionId != null) 'sessionId': sessionId,
         'countAsCompletion': countAsCompletion,
         'timestamp': OfflineFieldValue.nowTimestamp(),

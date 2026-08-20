@@ -19,6 +19,17 @@ import 'package:cardio_care_quest/features/games/game_completion_signal.dart';
 // educational page) in a WebView. Handles BP logging, survey answers, and the
 // shared exit path. One host for all non-movement games.
 
+// Most game ids match their HTML file name, so LAUNCH_GAME can build the path
+// straight from the id. A few don't, so list those exceptions here.
+const Map<String, String> _launchGameAssetOverrides = {
+  'control_daily_checkin': 'assets/game/control_game.html',
+};
+
+// Turn a game id into its HTML asset path, using the overrides above when the
+// file name doesn't match the id.
+String _assetForGameId(String gameId) =>
+    _launchGameAssetOverrides[gameId] ?? 'assets/game/$gameId.html';
+
 // The widget you add to a screen. Holds settings for one game; real work is in the State.
 class TwineQuestionnaireHost extends StatefulWidget {
   // Unique id (also the default surveyId for SUBMIT_RESPONSE messages).
@@ -27,11 +38,12 @@ class TwineQuestionnaireHost extends StatefulWidget {
   // Title shown in the UI.
   final String title;
 
-  // Path to the Twine HTML file in assets.
-  final String htmlAsset;
+  // Path to the Twine HTML file in assets. Null when [htmlContent] is used.
+  final String? htmlAsset;
 
-  // Default points per SUBMIT_RESPONSE if the game doesn't send its own.
-  final int defaultPointsPerResponse;
+  // Raw HTML to load instead of an asset (used for runtime-built story games).
+  // Exactly one of [htmlAsset] / [htmlContent] must be provided.
+  final String? htmlContent;
 
   // Optional handler for game-specific bridge messages. Return true to claim.
   final Future<bool> Function(
@@ -48,12 +60,13 @@ class TwineQuestionnaireHost extends StatefulWidget {
     super.key,
     required this.surveyId,
     required this.title,
-    required this.htmlAsset,
-    this.defaultPointsPerResponse = 0,
+    this.htmlAsset,
+    this.htmlContent,
     this.onCustomBridgeMessage,
     this.appBarColor = const Color(0xFF4A1D6C),
     this.popResultOnly = false,
-  });
+  }) : assert((htmlAsset == null) != (htmlContent == null),
+            'Provide exactly one of htmlAsset or htmlContent.');
 
   @override
   State<TwineQuestionnaireHost> createState() => _TwineQuestionnaireHostState();
@@ -74,8 +87,9 @@ class _TwineQuestionnaireHostState extends State<TwineQuestionnaireHost> {
   // True while the HTML is loading. Shows a spinner.
   bool _loading = true;
 
-  // Did any submit this visit earn points? Used to decide if we owe a completion tick at exit.
-  bool _anyPointsEarned = false;
+  // Did the player log any activity this visit (exercise, meal, meds, a submit,
+  // a quest)? Used to decide if we owe a completion tick at exit.
+  bool _anyActivityLogged = false;
 
   // Prevents bumping the surveysCompleted count more than once per visit.
   bool _completionAlreadyBumped = false;
@@ -134,6 +148,11 @@ class _TwineQuestionnaireHostState extends State<TwineQuestionnaireHost> {
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setUserAgent('CCQApp/$pid')
       ..setBackgroundColor(Colors.white)
+      ..setOnConsoleMessage((msg) {
+        // Surfaces SugarCube boot errors and any in-game console output so a
+        // blank WebView can be diagnosed from the Flutter logs.
+        debugPrint('WEBVIEW[${widget.surveyId}] ${msg.level.name}: ${msg.message}');
+      })
       ..setNavigationDelegate(
         NavigationDelegate(
           onPageFinished: (_) async {
@@ -183,8 +202,21 @@ class _TwineQuestionnaireHostState extends State<TwineQuestionnaireHost> {
             debugPrint('TwineQuestionnaireHost bridge error: $e');
           }
         },
-      )
-      ..loadFlutterAsset(widget.htmlAsset);
+      );
+
+    // Story games built at runtime come in as raw HTML; everything else loads
+    // from a bundled asset. The bridge is injected the same way for both.
+    // The baseUrl gives the page a real web origin so the SugarCube engine's
+    // localStorage-backed boot works (a null origin makes it throw and render
+    // nothing).
+    if (widget.htmlContent != null) {
+      _controller.loadHtmlString(
+        widget.htmlContent!,
+        baseUrl: 'https://cardiocarequest.app/',
+      );
+    } else {
+      _controller.loadFlutterAsset(widget.htmlAsset!);
+    }
   }
 
   // Inject ccq_bridge.js so window.CCQ exists. Skips if the game already has its own.
@@ -215,6 +247,7 @@ class _TwineQuestionnaireHostState extends State<TwineQuestionnaireHost> {
         final dia = data['diastolic'];
         final mood = data['mood'];
         if (sys is num && dia is num && _uid.isNotEmpty) {
+          _anyActivityLogged = true;
           await DailyLogHooks.logBP(
             uid: _uid,
             systolic: sys.toInt(),
@@ -238,7 +271,6 @@ class _TwineQuestionnaireHostState extends State<TwineQuestionnaireHost> {
           }
           if (mounted) {
             PointsHooks.applyIncrements(context, const {
-              'points': 50,
               'totalSessions': 1,
               'measurementsTaken': 1,
             });
@@ -249,6 +281,82 @@ class _TwineQuestionnaireHostState extends State<TwineQuestionnaireHost> {
                   DateTime.now().toIso8601String().split('T')[0],
             });
           }
+        }
+        break;
+
+      // Player confirmed some physical activity. Save an exercise log and mirror
+      // the counters to the on-screen numbers.
+      case 'LOG_EXERCISE':
+        final activity = data['activity'];
+        final minutes = data['minutes'];
+        if (activity is String && activity.isNotEmpty && _uid.isNotEmpty) {
+          await DailyLogHooks.logExercise(
+            uid: _uid,
+            activity: activity,
+            minutes: minutes is num ? minutes.toInt() : 10,
+          );
+          if (mounted) {
+            _anyActivityLogged = true;
+            PointsHooks.applyIncrements(context, {
+              'exercisesLogged': 1,
+              if (minutes is num) 'totalExerciseMinutes': minutes.toInt(),
+            });
+          }
+        }
+        break;
+
+      // Player confirmed a healthy meal. Save a meal log and mirror the counter.
+      case 'LOG_MEAL':
+        if (_uid.isNotEmpty) {
+          final notes = data['notes'] is String ? data['notes'] as String : '';
+          final rating = data['rating'] is num ? (data['rating'] as num).toInt() : 4;
+          await DailyLogHooks.logMeal(
+            uid: _uid,
+            mealNotes: notes,
+            mealRating: rating,
+            hasMealPhoto: false,
+          );
+          if (mounted) {
+            _anyActivityLogged = true;
+            PointsHooks.applyIncrements(context, const {
+              'mealsLogged': 1,
+            });
+          }
+        }
+        break;
+
+      // Player checked in about their medicine. Save it (streak comes from the
+      // provider) and mirror the new streak.
+      case 'LOG_MEDICATION':
+        if (_uid.isNotEmpty) {
+          final taken = data['taken'] == true;
+          final provider =
+              Provider.of<UserDataProvider>(context, listen: false);
+          final currentStreak =
+              (provider.userData?['medicationStreak'] as num?)?.toInt() ?? 0;
+          await DailyLogHooks.logMedication(
+            uid: _uid,
+            taken: taken,
+            currentStreak: currentStreak,
+          );
+          if (mounted) {
+            _anyActivityLogged = true;
+            PointsHooks.applySets(
+              context, {'medicationStreak': taken ? currentStreak + 1 : 0});
+          }
+        }
+        break;
+
+      // Whole-play score summary. Records the trivia_completed event.
+      case 'LOG_TRIVIA':
+        if (_uid.isNotEmpty) {
+          final score = data['score'] is num ? (data['score'] as num).toInt() : 0;
+          final total = data['total'] is num ? (data['total'] as num).toInt() : 0;
+          await DailyLogHooks.logTrivia(
+            uid: _uid,
+            score: score,
+            totalQuestions: total,
+          );
         }
         break;
 
@@ -263,7 +371,7 @@ class _TwineQuestionnaireHostState extends State<TwineQuestionnaireHost> {
               builder: (_) => TwineQuestionnaireHost(
                 surveyId: gameId,
                 title: gameId,
-                htmlAsset: 'assets/game/$gameId.html',
+                htmlAsset: _assetForGameId(gameId),
                 appBarColor: widget.appBarColor,
                 // Sub-flow: pop straight back to THIS parent with the BP
                 // reading rather than jumping to the dashboard.
@@ -429,15 +537,12 @@ class _TwineQuestionnaireHostState extends State<TwineQuestionnaireHost> {
         }
         break;
 
-      // Player submitted survey answers. Award points; optionally count as one completion.
+      // Player submitted survey answers. Optionally count as one completion.
       case 'SUBMIT_RESPONSE':
         final answers = data['answers'];
         if (answers is Map) {
           // Mark done so the launcher can show the feedback popup.
           GameCompletionSignal.markCompleted(widget.surveyId);
-          final pointsEarned = (data['pointsEarned'] is num)
-              ? (data['pointsEarned'] as num).toInt()
-              : widget.defaultPointsPerResponse;
           // countAsCompletion: false means partial progress (e.g. a Vascular Village
           // mini-quest). _performExit fires the completion bump once at exit instead.
           final countAsCompletion = data['countAsCompletion'] != false;
@@ -457,19 +562,17 @@ class _TwineQuestionnaireHostState extends State<TwineQuestionnaireHost> {
             uid: _uid,
             surveyId: (data['surveyId'] as String?) ?? widget.surveyId,
             answers: enrichedAnswers,
-            pointsEarned: pointsEarned,
             countAsCompletion: countAsCompletion,
             respondent: respondent,
           );
 
-          if (mounted && pointsEarned > 0) {
-            _anyPointsEarned = true;
-            final increments = <String, int>{'points': pointsEarned};
+          if (mounted) {
+            _anyActivityLogged = true;
             if (countAsCompletion) {
-              increments['surveysCompleted'] = 1;
               _completionAlreadyBumped = true;
+              PointsHooks.applyIncrements(
+                  context, const <String, int>{'surveysCompleted': 1});
             }
-            PointsHooks.applyIncrements(context, increments);
           }
 
           // Capture vitals at the success screen for whole-game completions.
@@ -487,7 +590,6 @@ class _TwineQuestionnaireHostState extends State<TwineQuestionnaireHost> {
             '${widget.surveyId}_response_submitted',
             parameters: {
               'questionCount': answers.length,
-              'pointsEarned': pointsEarned,
               'gameId': widget.surveyId,
               'sessionId': _sessionId,
             },
@@ -505,9 +607,6 @@ class _TwineQuestionnaireHostState extends State<TwineQuestionnaireHost> {
           // Mark done so the launcher can show the feedback popup.
           GameCompletionSignal.markCompleted(
               (data['gameId'] as String?) ?? widget.surveyId);
-          final pointsEarned = (data['pointsEarned'] is num)
-              ? (data['pointsEarned'] as num).toInt()
-              : 0;
           final countAsCompletion = data['countAsCompletion'] != false;
           final gameId =
               (data['gameId'] as String?) ?? widget.surveyId;
@@ -519,20 +618,18 @@ class _TwineQuestionnaireHostState extends State<TwineQuestionnaireHost> {
             uid: _uid,
             gameId: gameId,
             questId: questId,
-            pointsEarned: pointsEarned,
             sessionId: _sessionId,
             data: questData,
             countAsCompletion: countAsCompletion,
           );
 
-          if (mounted && pointsEarned > 0) {
-            _anyPointsEarned = true;
-            final increments = <String, int>{'points': pointsEarned};
+          if (mounted) {
+            _anyActivityLogged = true;
             if (countAsCompletion) {
-              increments['surveysCompleted'] = 1;
               _completionAlreadyBumped = true;
+              PointsHooks.applyIncrements(
+                  context, const <String, int>{'surveysCompleted': 1});
             }
-            PointsHooks.applyIncrements(context, increments);
           }
 
           // Only fire for whole-game completions. Per-quest ones use _performExit's catch-all.
@@ -549,7 +646,6 @@ class _TwineQuestionnaireHostState extends State<TwineQuestionnaireHost> {
             '${gameId}_quest_completed',
             parameters: {
               'questId': questId,
-              'pointsEarned': pointsEarned,
               'gameId': gameId,
               'sessionId': _sessionId,
             },
@@ -595,9 +691,9 @@ class _TwineQuestionnaireHostState extends State<TwineQuestionnaireHost> {
     _exited = true;
 
     if (mounted) {
-      // If points were earned but no submit was marked as a completion (e.g. Vascular
-      // Village per-quest credits), bump surveysCompleted once now.
-      if (_anyPointsEarned && !_completionAlreadyBumped) {
+      // If the player logged activity but no submit was marked as a completion
+      // (e.g. Vascular Village per-quest credits), bump surveysCompleted once now.
+      if (_anyActivityLogged && !_completionAlreadyBumped) {
         PointsHooks.applyIncrements(
             context, const <String, int>{'surveysCompleted': 1});
         if (_uid.isNotEmpty) {
@@ -729,25 +825,6 @@ class _TwineQuestionnaireHostState extends State<TwineQuestionnaireHost> {
                   ),
                 ),
               ),
-            // Top-left Home button, inside the safe area. Align prevents
-            // StackFit.expand from stretching it across the full screen.
-            SafeArea(
-              child: Align(
-                alignment: Alignment.topLeft,
-                child: Padding(
-                  padding: const EdgeInsets.only(left: 8, top: 4),
-                  child: Material(
-                    color: Colors.black.withValues(alpha: 0.45),
-                    shape: const CircleBorder(),
-                    child: IconButton(
-                      tooltip: 'Home',
-                      icon: const Icon(Icons.home_rounded, color: Colors.white),
-                      onPressed: () => _performExit(exitReason: 'home_button'),
-                    ),
-                  ),
-                ),
-              ),
-            ),
           ],
         ),
       ),

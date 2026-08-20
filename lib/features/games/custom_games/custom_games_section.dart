@@ -138,24 +138,6 @@ class _CustomGameTile extends StatelessWidget {
                 children: [
                   Icon(game.iconData, color: AppColors.primary, size: 22),
                   const Spacer(),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 7,
-                      vertical: 3,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      '${game.pointsReward} pts',
-                      style: const TextStyle(
-                        color: AppColors.primary,
-                        fontSize: 10.5,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
                 ],
               ),
               const SizedBox(height: 10),
@@ -291,7 +273,7 @@ class _CustomGameTile extends StatelessWidget {
     );
   }
 
-  // Confirmation dialog before deleting. Earned points are kept.
+  // Confirmation dialog before deleting.
   Future<void> _confirmDelete(BuildContext context) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -299,7 +281,7 @@ class _CustomGameTile extends StatelessWidget {
         backgroundColor: Colors.white,
         title: const Text('Delete this goal?'),
         content: Text(
-          'This removes "${game.title}" from your dashboard. Points you have already earned stay.',
+          'This removes "${game.title}" from your dashboard.',
         ),
         actions: [
           TextButton(

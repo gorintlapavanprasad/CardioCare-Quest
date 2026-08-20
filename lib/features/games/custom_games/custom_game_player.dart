@@ -3,16 +3,20 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:get_it/get_it.dart';
 import 'package:provider/provider.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 
 import '../../../core/constants/firestore_paths.dart';
 import '../../../core/hooks/hooks.dart';
 import '../../../core/providers/user_data_manager.dart';
 import '../../../core/services/offline_queue.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/twine_questionnaire_host.dart';
 import 'custom_game.dart';
 import 'custom_games_repository.dart';
+import 'custom_twine_builder.dart';
 import 'custom_walk_game.dart';
 
 class CustomGamePlayer extends StatelessWidget {
@@ -22,11 +26,83 @@ class CustomGamePlayer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     switch (game.gameType) {
+      case CustomGameType.story:
+        return _StoryPlayer(game: game);
       case CustomGameType.walk:
         return CustomWalkGame(game: game);
       case CustomGameType.quiz:
         return _QuizPlayer(game: game);
     }
+  }
+}
+
+// Plays a story game: generates the Twine HTML from the scenes and runs it in
+// the shared WebView host, which injects the CCQ bridge so the story reaches the
+// full hooks API. The host fires SurveyHooks/health/telemetry for us; we
+// only bump the dashboard completion counter when the story submits.
+class _StoryPlayer extends StatefulWidget {
+  final CustomGame game;
+  const _StoryPlayer({required this.game});
+
+  @override
+  State<_StoryPlayer> createState() => _StoryPlayerState();
+}
+
+class _StoryPlayerState extends State<_StoryPlayer> {
+  late final Future<String> _htmlFuture;
+  bool _completionMarked = false; // so we bump the counter only once per play
+
+  @override
+  void initState() {
+    super.initState();
+    _htmlFuture = _buildHtml();
+  }
+
+  Future<String> _buildHtml() async {
+    final template =
+        await rootBundle.loadString('assets/game/custom_game_template.html');
+    return buildStoryHtml(widget.game, template: template);
+  }
+
+  // Watches the bridge for the story's submit, then increments completedCount.
+  // Returns false so the host still runs its standard survey/health work.
+  Future<bool> _onBridgeMessage(
+      Map<String, dynamic> data, WebViewController controller) async {
+    if (data['type'] == 'SUBMIT_RESPONSE' && !_completionMarked) {
+      _completionMarked = true;
+      final uid = Provider.of<UserDataProvider>(context, listen: false).uid;
+      if (uid.isNotEmpty) {
+        // ignore: unawaited_futures
+        CustomGamesRepository.instance.markCompleted(
+          uid: uid,
+          gameId: widget.game.id,
+        );
+      }
+    }
+    return false;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<String>(
+      future: _htmlFuture,
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Scaffold(
+            backgroundColor: Color(0xFF1a1b2e),
+            body: Center(
+              child: CircularProgressIndicator(color: Colors.white),
+            ),
+          );
+        }
+        return TwineQuestionnaireHost(
+          surveyId: 'custom_${widget.game.id}',
+          title: widget.game.title,
+          htmlContent: snapshot.data!,
+          onCustomBridgeMessage: _onBridgeMessage,
+        );
+      },
+    );
   }
 }
 
@@ -51,7 +127,7 @@ class _CustomGamePlayerState extends State<_QuizPlayer> {
   final List<String> _answers = [];
   late final String _sessionId; // ties all of this one play together
   late final DateTime _startedAt;
-  bool _resultHooksFired = false; // so we only award points once
+  bool _resultHooksFired = false; // so we only fire result hooks once
 
   @override
   void initState() {
@@ -94,7 +170,7 @@ class _CustomGamePlayerState extends State<_QuizPlayer> {
     await _fireCompletionHooks();
   }
 
-  // Called once when the quiz finishes. Saves results and awards points.
+  // Called once when the quiz finishes. Saves results.
   Future<void> _fireCompletionHooks() async {
     final uid = Provider.of<UserDataProvider>(context, listen: false).uid;
     final game = widget.game;
@@ -125,14 +201,12 @@ class _CustomGamePlayerState extends State<_QuizPlayer> {
           }),
           'questionCount': _questions.length,
         },
-        pointsEarned: game.pointsReward,
       );
     }
 
-    // 3. Update points on screen immediately.
+    // 3. Update session totals on screen immediately.
     if (mounted) {
       PointsHooks.applyIncrements(context, {
-        'points': game.pointsReward,
         'totalSessions': 1,
       });
     }
@@ -145,7 +219,6 @@ class _CustomGamePlayerState extends State<_QuizPlayer> {
         'gameId': game.id,
         'sessionId': _sessionId,
         'category': game.category.name,
-        'pointsReward': game.pointsReward,
         'questionCount': _questions.length,
         'answersCount': _answers.length,
         'durationMs':
@@ -182,7 +255,6 @@ class _CustomGamePlayerState extends State<_QuizPlayer> {
           'endedAt': OfflineFieldValue.nowTimestamp(),
           'durationMs':
               DateTime.now().difference(_startedAt).inMilliseconds,
-          'pointsEarned': game.pointsReward,
           'exitReason': 'completed',
           'questionCount': _questions.length,
           'isCustomGame': true,
@@ -410,7 +482,7 @@ class _QuestionScene extends StatelessWidget {
   }
 }
 
-// Results screen: points earned and a DONE button.
+// Results screen: a completion message and a DONE button.
 class _ResultScene extends StatelessWidget {
   final CustomGame game;
   final int questionTotal;
@@ -447,15 +519,12 @@ class _ResultScene extends StatelessWidget {
                   ),
                   child: Column(
                     children: [
-                      Text(
-                        '+${game.pointsReward}',
-                        style: const TextStyle(
-                          color: Color(0xFFfde725),
-                          fontSize: 42,
-                          fontWeight: FontWeight.bold,
-                        ),
+                      const Icon(
+                        Icons.check_circle,
+                        color: Color(0xFFfde725),
+                        size: 56,
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 8),
                       const Text(
                         'Great job',
                         style: TextStyle(

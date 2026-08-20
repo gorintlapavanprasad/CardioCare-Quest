@@ -29,10 +29,11 @@ typedef OnTwineBridgeMessage = Future<bool> Function(
   TwineGameHostController controller,
 );
 
-// Returns points for a finished walk. Default: 30 / 60 / 100 for short/medium/long.
+// Returns the number shown on the built-in game's own end screen for a finished
+// walk. Default: 30 / 60 / 100 for short/medium/long. Display only, not saved.
 typedef PointsCalculator = int Function(double targetDistance);
 
-// The default scoring rule if a game doesn't supply its own.
+// The default end-screen number if a game doesn't supply its own.
 int _defaultPointsCalculator(double target) =>
     target <= 500 ? 30 : (target <= 1000 ? 60 : 100);
 
@@ -55,7 +56,8 @@ class TwineGameHost extends StatefulWidget {
   // App bar color. Defaults to deep purple.
   final Color appBarColor;
 
-  // Optional custom points formula. Default: 30/60/100 for short/medium/long walks.
+  // Optional custom formula for the built-in game's end-screen number (display
+  // only). Default: 30/60/100 for short/medium/long walks.
   final PointsCalculator pointsCalculator;
 
   // Optional handler for game-specific bridge messages. Return true to claim a message.
@@ -644,7 +646,7 @@ class _TwineGameHostState extends State<TwineGameHost> {
 
   // ---- END OF GAME ----
 
-  // Finish a walk: stop tracking, award points, save the result, grab vitals.
+  // Finish a walk: stop tracking, save the result, grab vitals.
   // Guarded by _endingGame so it runs only once even if GPS + watchdog race.
   Future<void> _endGame() async {
     if (_endingGame) return; // already finishing - don't run twice
@@ -659,8 +661,9 @@ class _TwineGameHostState extends State<TwineGameHost> {
     // Mark done so the launcher can show the feedback popup on the dashboard.
     GameCompletionSignal.markCompleted(widget.gameId);
 
-    // Scale points by distance covered (max 1.0) so an early exit pays fairly.
-    // A full walk clamps to 1.0 and earns full points.
+    // Scale the built-in game's end-screen number by distance covered (max 1.0)
+    // so an early exit shows a fair amount. Only used for the compiled game's
+    // celebration; nothing is saved to Firestore.
     final fullPoints = widget.pointsCalculator(_targetDistance);
     final ratio = _targetDistance > 0
         ? (_distanceWalked / _targetDistance).clamp(0.0, 1.0)
@@ -676,7 +679,6 @@ class _TwineGameHostState extends State<TwineGameHost> {
         'movementSessionId': sessionId,
         'distance_walked': _distanceWalked.toInt(),
         'target_distance': _targetDistance.toInt(),
-        'points_earned': pointsGained,
         'buddy_name': _currentBuddyName,
       },
       phone: _phone,
@@ -691,14 +693,13 @@ class _TwineGameHostState extends State<TwineGameHost> {
         // accidentally resume from stale data.
         _justCompletedSessionByGame[widget.gameId] = sessionId;
 
-        // Save the finished walk (distance, points, path, etc.).
+        // Save the finished walk (distance, path, etc.).
         await MovementHooks.endSession(
           uid: uid,
           sessionId: sessionId,
           gameId: widget.gameId,
           distanceWalked: _distanceWalked,
           targetDistance: _targetDistance,
-          pointsEarned: pointsGained,
           buddyName: _currentBuddyName,
           pathCoordinates: List.unmodifiable(_pathCoordinates),
           completionEventName: '${widget.gameId}_completed',
@@ -717,7 +718,6 @@ class _TwineGameHostState extends State<TwineGameHost> {
       unawaited(_writeSessionSummary(
         exitReason: 'completed',
         distanceWalked: _distanceWalked.toInt(),
-        pointsEarned: pointsGained,
         movementSessionId: sessionId,
       ));
 
@@ -732,7 +732,6 @@ class _TwineGameHostState extends State<TwineGameHost> {
 
       if (mounted) {
         PointsHooks.applyIncrements(context, {
-          'points': pointsGained,
           'totalDistance': completedDistance,
           'totalSessions': 1,
           'distanceTraveled': completedDistance,
@@ -759,7 +758,6 @@ class _TwineGameHostState extends State<TwineGameHost> {
   Future<void> _writeSessionSummary({
     required String exitReason,
     int distanceWalked = 0,
-    int pointsEarned = 0,
     String? movementSessionId,
   }) async {
     if (_uid.isEmpty || _sessionSummaryWritten) return; // write it only once
@@ -780,7 +778,6 @@ class _TwineGameHostState extends State<TwineGameHost> {
           'durationMs': durationMs,
           'exitReason': exitReason,
           'distanceWalked': distanceWalked,
-          'pointsEarned': pointsEarned,
           if (movementSessionId != null)
             'movementSessionId': movementSessionId,
         },
@@ -933,29 +930,6 @@ class _TwineGameHostState extends State<TwineGameHost> {
                   ),
                 ),
               ),
-            // Always-visible Home button, even before the in-game menu has loaded.
-            SafeArea(
-              child: Align(
-                alignment: Alignment.topLeft,
-                child: Padding(
-                  padding: const EdgeInsets.only(left: 8, top: 4),
-                  child: Material(
-                    color: Colors.black.withValues(alpha: 0.45),
-                    shape: const CircleBorder(),
-                    child: IconButton(
-                      tooltip: 'Home',
-                      icon: const Icon(Icons.home_rounded, color: Colors.white),
-                      onPressed: () async {
-                        final shouldPop = await _confirmExit();
-                        if (shouldPop && context.mounted) {
-                          await _exitWithOptionalBpPrompt();
-                        }
-                      },
-                    ),
-                  ),
-                ),
-              ),
-            ),
           ],
         ),
       ),

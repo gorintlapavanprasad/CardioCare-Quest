@@ -19,7 +19,6 @@ abstract class SurveyHooks {
     required String uid,
     required String surveyId,
     required Map<String, dynamic> answers,
-    int pointsEarned = 0,
     bool countAsCompletion = true,
     String? respondent,
   }) {
@@ -30,9 +29,6 @@ abstract class SurveyHooks {
     final pairedSessionId = SessionManager.pairedSessionId;
 
     final userUpdates = <String, dynamic>{};
-    if (pointsEarned > 0) {
-      userUpdates['points'] = OfflineFieldValue.increment(pointsEarned);
-    }
     if (countAsCompletion) {
       userUpdates['surveysCompleted'] = OfflineFieldValue.increment(1);
       userUpdates['lastSurveyId'] = surveyId;
@@ -51,7 +47,6 @@ abstract class SurveyHooks {
           if (pairedSessionId != null) 'pairedSessionId': pairedSessionId,
           'surveyId': surveyId,
           'answers': answers,
-          'pointsEarned': pointsEarned,
           'countAsCompletion': countAsCompletion,
           'submittedAt': OfflineFieldValue.nowTimestamp(),
         },
@@ -73,7 +68,6 @@ abstract class SurveyHooks {
         'event': 'survey_response_submitted',
         'surveyId': surveyId,
         'responseId': responseId,
-        'pointsEarned': pointsEarned,
         'questionCount': answers.length,
         'countAsCompletion': countAsCompletion,
         'timestamp': OfflineFieldValue.nowTimestamp(),

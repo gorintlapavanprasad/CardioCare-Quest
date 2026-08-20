@@ -3,12 +3,12 @@ import 'package:provider/provider.dart';
 
 import 'package:cardio_care_quest/core/providers/user_data_manager.dart';
 
-// PointsHooks - updates on-screen numbers (points, totals) immediately.
+// PointsHooks - updates on-screen counters (totals) immediately.
 // Use these after saving so the dashboard doesn't wait on the cloud.
 // Cloud values reconcile on the next fetch.
 abstract class PointsHooks {
   // Add to on-screen counters. Pass the amount to add, not the new total.
-  // Example: PointsHooks.applyIncrements(context, {'points': 50});
+  // Example: PointsHooks.applyIncrements(context, {'totalSessions': 1});
   static void applyIncrements(
     BuildContext context,
     Map<String, num> increments,

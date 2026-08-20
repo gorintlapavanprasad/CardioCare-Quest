@@ -120,7 +120,6 @@ class _GameFeedbackScreenState extends State<GameFeedbackScreen> {
         uid: _uid,
         surveyId: 'game_feedback',
         answers: enriched,
-        pointsEarned: 5,
       );
     }
 

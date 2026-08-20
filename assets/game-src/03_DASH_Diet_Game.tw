@@ -1,17 +1,494 @@
-::StoryTitle
+:: StoryTitle
 DASH Diet Game
 
-::StoryData
+:: StoryData
 {
   "ifid": "C3D4E5F6-A7B8-4012-9DEF-123456789012",
   "format": "SugarCube",
-  "format-version": "2.37.3",
+  "format-version": "2.30.0",
   "start": "Story innit",
   "zoom": 1
 }
 
+:: Story innit [Important/Needed] {"position": "100,100", "size": "100,100"}
+/*
+SYSTEM CODE: runs once at the very start.
 
-::UserStylesheet [stylesheet]
+Variables:
+- $playerName  : player name
+- $score       : total correct quiz answers (0 to 6)
+- $wrong       : total wrong quiz answers (0 to 6)
+- $mealScore   : meal builder running score
+- $round       : current quiz round 1 to 6
+- $lastFood    : the food just classified
+- $lastCorrect : whether the last answer was right
+- $meal        : list of ingredients picked
+
+You do not need to edit this.
+*/
+
+<<set $playerName to "Explorer">>
+<<set $score to 0>>
+<<set $wrong to 0>>
+<<set $mealScore to 0>>
+<<set $round to 1>>
+<<set $lastFood to "">>
+<<set $lastCorrect to false>>
+<<set $meal to []>>
+/* Food-pool state (UPDATE6/7/8): seenFoods tracks which pool ids have
+   already been shown this play-through; currentFood is the object the
+   generic Food Card / Food Result render. Reset here so PLAY AGAIN
+   starts from a full, unshuffled-order pool. */
+<<set $seenFoods to []>>
+<<set $currentFood to null>>
+/* Meal-builder random subset: null here so each fresh game (and PLAY
+   AGAIN) re-rolls which foods appear in the build-your-own-meal grids. */
+<<set $mealPick to null>>
+/* Diet choice (everything / vegetarian / vegan). Set on the Diet Choice
+   screen right after Welcome. Foods tagged diet:"meat"/"dairy" are hidden
+   for the matching diet so no one is shown food they do not eat. */
+<<set $playerDiet to "everything">>
+/* One-shot guard so Meal Result's submitResponse fires exactly once
+   per play-through. Reset on Story innit so PLAY AGAIN gets a fresh
+   shot. See ::Meal Result for the submit body. */
+<<set $submittedThisSession to false>>
+
+/* DAILY GATE: DASH is a once-per-day quest. localStorage holds the last
+   calendar date the participant finished it; if that matches today,
+   route to the Already Today screen instead of the quiz. Tomorrow the
+   date differs, the gate falls off, and a fresh round is available. */
+<<set $dashDone to false>>
+<<script>>
+State.variables.todayDate = (new Date()).toISOString().slice(0, 10);
+try {
+  var ua = (typeof navigator !== "undefined" && navigator.userAgent) || "";
+  var m = ua.match(/CCQApp\/([^\s]+)/);
+  State.variables.currentPid = m ? m[1] : "";
+  var sav = window.localStorage.getItem("dash_save");
+  if (sav) {
+    var s = JSON.parse(sav);
+    var samePid = (s.pid || "") === State.variables.currentPid;
+    if (samePid && s.dashDate && s.dashDate === State.variables.todayDate) {
+      State.variables.dashDone = true;
+    }
+  }
+} catch (e) { /* keep $dashDone false */ }
+<</script>>
+<<if $dashDone>><<goto "Already Today">><<else>><<goto "Welcome">><</if>>
+
+:: Already Today [Important/Needed nobr] {"position": "100,225", "size": "100,100"}
+/*
+DAILY GATE SCREEN: shown when the participant already finished DASH
+today. Friendly come-back-tomorrow message with a single Home button.
+The gate is set in Story innit from the localStorage `dash_save` date
+stamp written at the end of Meal Result.
+*/
+
+<div class="phone">
+<div class="header"><span>DASH Game</span></div>
+<div class="content">
+
+<span class="hero-emoji">✅</span>
+
+<h1 class="intro-title">All done for today</h1>
+
+<p class="narrative center">You finished today's DASH diet quest. Nice work.</p>
+
+<p class="narrative center">Come back tomorrow for 10 new foods.</p>
+
+<div class="spacer"></div>
+
+<a class="btn-primary ccq-home-trigger" href="javascript:void(0)">BACK TO CARDIOCARE QUEST</a>
+
+</div>
+</div>
+
+:: Welcome [Important/Needed nobr] {"position": "225,100", "size": "100,100"}
+/*
+INCITING MOMENT: Greeting + hook. One button.
+Card 1 of 2 before gameplay starts.
+*/
+
+<div class="phone">
+<div class="header"><span>DASH Game</span></div>
+<div class="content">
+
+<span class="hero-emoji">🥗</span>
+
+<h1 class="intro-title">DASH Diet Game</h1>
+
+<p class="narrative center">Hey $playerName.</p>
+
+<p class="narrative">DASH is a way of eating that is proven to lower high blood pressure.</p>
+
+<p class="narrative">This game shows you which everyday foods help and which ones work against you.</p>
+
+<div class="spacer"></div>
+
+<a class="btn-primary" data-passage="Diet Choice">NEXT</a>
+
+</div>
+</div>
+
+:: Diet Choice [Important/Needed nobr] {"position": "225,225", "size": "100,100"}
+/*
+DIET CHOICE: Ask once what the player eats. Sets $playerDiet, which
+setup.dash.fitsDiet() reads to hide meat/dairy foods for vegetarian /
+vegan players in both the quiz and the meal builder.
+*/
+
+<div class="phone">
+<div class="header"><span>DASH Game</span></div>
+<div class="content">
+
+<span class="hero-emoji">🍽️</span>
+
+<h2 class="intro-title">What do you eat?</h2>
+
+<p class="narrative center">Pick one. We will only show you foods you actually eat.</p>
+
+<div class="spacer"></div>
+
+<<link '🍗  I eat everything'>><<set $playerDiet to "everything">><<goto "How To Play">><</link>>
+
+<<link '🥗  Vegetarian (no meat)'>><<set $playerDiet to "vegetarian">><<goto "How To Play">><</link>>
+
+<<link '🌱  Vegan (no meat or dairy)'>><<set $playerDiet to "vegan">><<goto "How To Play">><</link>>
+
+</div>
+</div>
+
+<<script>>
+setTimeout(function () {
+  var links = document.querySelectorAll('.content a.macro-link, .content a.link-internal');
+  for (var i = 0; i < links.length; i++) {
+    links[i].classList.add('btn-primary');
+    links[i].style.marginBottom = '12px';
+  }
+}, 0);
+<</script>>
+
+:: How To Play [Important/Needed nobr] {"position": "350,100", "size": "100,100"}
+/*
+RULES in one screen.
+Card 2 of 2 before gameplay starts.
+*/
+
+<div class="phone">
+<div class="header"><span>DASH Game</span></div>
+<div class="content">
+
+<span class="hero-emoji">🍎</span>
+
+<h2 class="intro-title">Two Parts</h2>
+
+<p class="narrative"><strong>Part 1:</strong> Six food cards. Tap whether each food lowers or raises blood pressure. Learn why.</p>
+
+<p class="narrative"><strong>Part 2:</strong> Build a meal. Pick ingredients. See what they do together.</p>
+
+<p class="narrative">Right or wrong, you leave knowing more than you came with.</p>
+
+<div class="spacer"></div>
+
+<a class="btn-primary" data-passage="Round Start">START ROUND 1</a>
+
+</div>
+</div>
+
+:: Round Start [Important/Needed nobr] {"position": "475,100", "size": "100,100"}
+/*
+ROUND ROUTER (UPDATE6/7/8).
+No longer a UI screen. Draws the next food from the weighted,
+non-repeating pool via setup.dash.pickFood(). When the pool is
+exhausted pickFood() returns null and we advance to the meal builder
+(the same phase the old Food Result advanced to after the last card).
+Otherwise we render the single generic Food Card for $currentFood.
+*/
+<<set _f to setup.dash.pickFood()>>
+<<if _f is null>><<goto "Meal Builder Intro">><<else>><<goto "Food Card">><</if>>
+
+:: Food Card [Important/Needed nobr] {"position": "600,100", "size": "100,100"}
+/*
+GENERIC FOOD CARD (UPDATE6/7/8).
+Renders whatever setup.dash.pickFood() stashed in $currentFood. The two
+choices score against $currentFood.correct: a matching answer bumps
+$score and sets $lastCorrect true; a mismatch bumps $wrong and sets it
+false. Then on to Food Result. Replaces the old hardcoded Food Card 1..6.
+*/
+
+<div class="phone">
+<div class="header"><span>DASH Game</span><span class="round-label">Round $round of <<print setup.dash.eligibleCount()>></span></div>
+
+<div class="meters-wrap">
+<div class="meter-row"><div class="meter-label">Correct</div><div class="meter-bar"><div class="meter-bar-fill correct" @style="'width: ' + Math.min(100, ($score / 6) * 100) + '%'"></div></div></div>
+<div class="meter-row"><div class="meter-label">Wrong</div><div class="meter-bar"><div class="meter-bar-fill wrong" @style="'width: ' + Math.min(100, ($wrong / 6) * 100) + '%'"></div></div></div>
+</div>
+
+<div class="content">
+
+<div class="quiz-card">
+<span class="quiz-emoji"><<print $currentFood.emoji>></span>
+<h2 class="quiz-name"><<print $currentFood.name>></h2>
+<p class="quiz-desc"><<print $currentFood.desc>></p>
+</div>
+
+<div class="question-prompt">What does it do to blood pressure?</div>
+
+<div class="choice-row">
+
+<<link '<span>LOWERS BP</span>'>>
+<<set $lastFood to $currentFood.id>>
+<<if $currentFood.correct is "lowers">>
+<<set $lastCorrect to true>>
+<<set $score to $score + 1>>
+<<else>>
+<<set $lastCorrect to false>>
+<<set $wrong to $wrong + 1>>
+<</if>>
+<<goto "Food Result">>
+<</link>>
+
+<<link '<span>RAISES BP</span>'>>
+<<set $lastFood to $currentFood.id>>
+<<if $currentFood.correct is "raises">>
+<<set $lastCorrect to true>>
+<<set $score to $score + 1>>
+<<else>>
+<<set $lastCorrect to false>>
+<<set $wrong to $wrong + 1>>
+<</if>>
+<<goto "Food Result">>
+<</link>>
+
+</div>
+</div>
+</div>
+
+<<script>>
+setTimeout(function () {
+  var btns = document.querySelectorAll('.choice-row a.macro-link, .choice-row a.link-internal');
+  if (btns.length >= 1) btns[0].classList.add('choice-btn', 'lowers');
+  if (btns.length >= 2) btns[1].classList.add('choice-btn', 'raises');
+}, 0);
+<</script>>
+
+:: Food Result [Important/Needed nobr] {"position": "725,100", "size": "100,100"}
+/*
+RESULT OF EACH FOOD CARD.
+Tells the player whether they were right and explains why.
+Moves to next round or meal builder after round 6.
+*/
+
+<div class="phone">
+<div class="header"><span>DASH Game</span><span class="round-label">Round $round of <<print setup.dash.eligibleCount()>></span></div>
+
+<div class="meters-wrap">
+<div class="meter-row"><div class="meter-label">Correct</div><div class="meter-bar"><div class="meter-bar-fill correct" @style="'width: ' + Math.min(100, ($score / 6) * 100) + '%'"></div></div></div>
+<div class="meter-row"><div class="meter-label">Wrong</div><div class="meter-bar"><div class="meter-bar-fill wrong" @style="'width: ' + Math.min(100, ($wrong / 6) * 100) + '%'"></div></div></div>
+</div>
+
+<div class="content">
+
+<div class="result-card">
+<span class="result-emoji"><<print $currentFood.emoji>></span>
+
+<<if $lastCorrect is true>><div class="result-verdict correct">Correct</div><<else>><div class="result-verdict wrong">Not quite</div><</if>>
+
+<p class="result-explain"><<print $currentFood.explain>></p>
+</div>
+
+<!-- Termination is decided by the pool, not by $round: Round Start's
+     pickFood() returns null once every food has been seen and routes to
+     Meal Builder Intro. So Food Result always just advances the round
+     counter and hands back to Round Start for the next draw.
+     Per-round "BACK TO CARDIOCAREQUEST" stays removed — the burger
+     menu (≡) already exposes "Go to dashboard" on every screen. -->
+<<set $round to $round + 1>>
+<a class="btn-primary" data-passage="Round Start">NEXT FOOD</a>
+
+</div>
+</div>
+
+:: Meal Builder Intro [Important/Needed nobr] {"position": "850,100", "size": "100,100"}
+/*
+TRANSITION: Cards done. Introduce meal building.
+*/
+
+<div class="phone">
+<div class="header"><span>DASH Game</span><span class="round-label">Part 2</span></div>
+<div class="content">
+
+<span class="hero-emoji">🍽️</span>
+
+<h2 class="intro-title">Build a Meal</h2>
+
+<p class="narrative center">You scored $score out of <<print setup.dash.eligibleCount()>> on the cards.</p>
+
+<p class="narrative">Now pick ingredients to build a meal. Tap each one to add it. The score bar fills as you choose.</p>
+
+<p class="narrative">No wrong answers here. The point is to see what each choice does.</p>
+
+<div class="spacer"></div>
+
+<a class="btn-primary" data-passage="Meal Builder">START BUILDING</a>
+
+</div>
+</div>
+
+:: Meal Builder [Important/Needed nobr] {"position": "975,100", "size": "100,100"}
+/*
+MEAL BUILDER: Player picks ingredients.
+Each <<linkreplace>> can be triggered once.
+Score bar reflects $mealScore.
+*/
+
+<div class="phone">
+<div class="header"><span>DASH Game</span><span class="round-label">Build a meal</span></div>
+
+<div class="score-bar-wrap">
+<span class="score-label">Meal score</span>
+<div class="score-bar"><div class="score-bar-fill" @style="'width: ' + Math.max(0, Math.min(100, $mealScore * 1.25)) + '%'"></div></div>
+</div>
+
+<div class="content">
+
+<!-- Each ingredient is a plain `<span class="ing-wrap">` with the
+     food's emoji / display name / score delta as data-attributes.
+     The `:passagedisplay` handler in UserScript wires up TOGGLE
+     behaviour on click — earlier this used SugarCube `<<linkreplace>>`
+     which is one-way (commits on first tap, no undo) so a player
+     who fat-fingered an item couldn't remove it. -->
+<div class="section-label">Proteins</div>
+<div class="ingredients-grid">
+<span class="ing-wrap" data-ing-name="Brown rice" data-ing-emoji="🍚" data-ing-score="10"><span class="ing-emoji">🍚</span><span class="ing-name">Brown rice</span></span><span class="ing-wrap" data-ing-name="Beans" data-ing-emoji="🍲" data-ing-score="15"><span class="ing-emoji">🍲</span><span class="ing-name">Beans</span></span><span class="ing-wrap" data-ing-name="Bacon" data-ing-emoji="🥓" data-ing-score="-15" data-ing-diet="meat"><span class="ing-emoji">🥓</span><span class="ing-name">Bacon</span></span><span class="ing-wrap" data-ing-name="Yogurt" data-ing-emoji="🥛" data-ing-score="10" data-ing-diet="dairy"><span class="ing-emoji">🥛</span><span class="ing-name">Yogurt</span></span><span class="ing-wrap" data-ing-name="Lentils" data-ing-emoji="🫘" data-ing-score="15" data-ing-diet="plant"><span class="ing-emoji">🫘</span><span class="ing-name">Lentils</span></span><span class="ing-wrap" data-ing-name="Chickpeas" data-ing-emoji="🫛" data-ing-score="15"><span class="ing-emoji">🫛</span><span class="ing-name">Chickpeas</span></span><span class="ing-wrap" data-ing-name="Oats" data-ing-emoji="🥣" data-ing-score="10"><span class="ing-emoji">🥣</span><span class="ing-name">Oats</span></span><span class="ing-wrap" data-ing-name="Grilled chicken" data-ing-emoji="🍗" data-ing-score="5" data-ing-diet="meat"><span class="ing-emoji">🍗</span><span class="ing-name">Grilled chicken</span></span><span class="ing-wrap" data-ing-name="Salmon" data-ing-emoji="🐟" data-ing-score="10" data-ing-diet="meat"><span class="ing-emoji">🐟</span><span class="ing-name">Salmon</span></span>
+</div>
+
+<div class="section-label">Vegetables and Fruit</div>
+<div class="ingredients-grid">
+<span class="ing-wrap" data-ing-name="Spinach" data-ing-emoji="🥬" data-ing-score="15"><span class="ing-emoji">🥬</span><span class="ing-name">Spinach</span></span><span class="ing-wrap" data-ing-name="Tomato" data-ing-emoji="🍅" data-ing-score="10"><span class="ing-emoji">🍅</span><span class="ing-name">Tomato</span></span><span class="ing-wrap" data-ing-name="Banana" data-ing-emoji="🍌" data-ing-score="10"><span class="ing-emoji">🍌</span><span class="ing-name">Banana</span></span><span class="ing-wrap" data-ing-name="Potato chips" data-ing-emoji="🍟" data-ing-score="-10"><span class="ing-emoji">🍟</span><span class="ing-name">Potato chips</span></span><span class="ing-wrap" data-ing-name="Broccoli" data-ing-emoji="🥦" data-ing-score="15"><span class="ing-emoji">🥦</span><span class="ing-name">Broccoli</span></span><span class="ing-wrap" data-ing-name="Avocado" data-ing-emoji="🥑" data-ing-score="10"><span class="ing-emoji">🥑</span><span class="ing-name">Avocado</span></span><span class="ing-wrap" data-ing-name="Orange" data-ing-emoji="🍊" data-ing-score="10"><span class="ing-emoji">🍊</span><span class="ing-name">Orange</span></span><span class="ing-wrap" data-ing-name="Pickles" data-ing-emoji="🥒" data-ing-score="-10"><span class="ing-emoji">🥒</span><span class="ing-name">Pickles</span></span>
+</div>
+
+<div class="section-label">Extras</div>
+<div class="ingredients-grid">
+<span class="ing-wrap" data-ing-name="Dark chocolate" data-ing-emoji="🍫" data-ing-score="5"><span class="ing-emoji">🍫</span><span class="ing-name">Dark chocolate</span></span><span class="ing-wrap" data-ing-name="Instant noodles" data-ing-emoji="🍜" data-ing-score="-20"><span class="ing-emoji">🍜</span><span class="ing-name">Instant noodles</span></span><span class="ing-wrap" data-ing-name="Water" data-ing-emoji="💧" data-ing-score="5"><span class="ing-emoji">💧</span><span class="ing-name">Water</span></span><span class="ing-wrap" data-ing-name="Hot dog" data-ing-emoji="🌭" data-ing-score="-15" data-ing-diet="meat"><span class="ing-emoji">🌭</span><span class="ing-name">Hot dog</span></span><span class="ing-wrap" data-ing-name="Salted crackers" data-ing-emoji="🍘" data-ing-score="-10" data-ing-diet="plant"><span class="ing-emoji">🍘</span><span class="ing-name">Salted crackers</span></span><span class="ing-wrap" data-ing-name="Nuts" data-ing-emoji="🥜" data-ing-score="10"><span class="ing-emoji">🥜</span><span class="ing-name">Nuts</span></span><span class="ing-wrap" data-ing-name="Pretzels" data-ing-emoji="🥨" data-ing-score="-15"><span class="ing-emoji">🥨</span><span class="ing-name">Pretzels</span></span><span class="ing-wrap" data-ing-name="Soda" data-ing-emoji="🥤" data-ing-score="-10"><span class="ing-emoji">🥤</span><span class="ing-name">Soda</span></span><span class="ing-wrap" data-ing-name="Salt" data-ing-emoji="🧂" data-ing-score="-20"><span class="ing-emoji">🧂</span><span class="ing-name">Salt</span></span>
+</div>
+
+<a class="btn-primary" data-passage="Meal Result">SEE MY MEAL RESULT</a>
+
+</div>
+</div>
+
+:: Meal Result [Important/Needed nobr] {"position": "1100,100", "size": "100,100"}
+/*
+MEAL RESULT: Shows what meal does to BP.
+Personalized message based on $mealScore.
+Lists what player picked.
+
+The <<run>> below fires the canonical SUBMIT_RESPONSE event so
+research data sees a DASH Diet play landing in
+`surveys/dash_diet_game/responses/{auto}` and a
+`survey_response_submitted` event with surveyId='dash_diet_game'.
+The Community Stats engagement-bar query keys on the surveyId,
+so without this firing the Diet category bar would stay at 0
+no matter how many participants finish the game. Guarded by a
+session flag so PLAY AGAIN doesn't double-credit.
+*/
+
+<<if not $submittedThisSession>>
+<<set $submittedThisSession to true>>
+<<run
+  try {
+    if (window.CCQ && typeof window.CCQ.submitResponse === "function") {
+      var verdict = "weak";
+      if (State.variables.mealScore >= 30) { verdict = "strong"; }
+      else if (State.variables.mealScore >= 10) { verdict = "moderate"; }
+      else if (State.variables.mealScore >= 0) { verdict = "mixed"; }
+      window.CCQ.submitResponse({
+        playerName: State.variables.playerName,
+        quizScore: State.variables.score,
+        quizWrong: State.variables.wrong,
+        mealScore: State.variables.mealScore,
+        meal: State.variables.meal,
+        verdict: verdict
+      }, { pointsEarned: 50, countAsCompletion: true });
+    }
+  } catch (e) { /* swallow */ }
+>>
+<!-- DAILY GATE: stamp today so Story innit locks the game until tomorrow. -->
+<<run try { window.localStorage.setItem("dash_save", JSON.stringify({ dashDate: State.variables.todayDate, pid: State.variables.currentPid })); } catch (e) {} >>
+<<set $dashDone to true>>
+<</if>>
+
+<div class="phone">
+<div class="header"><span>DASH Game</span><span class="round-label">Your meal</span></div>
+
+<div class="score-bar-wrap">
+<span class="score-label">Meal score</span>
+<div class="score-bar"><div class="score-bar-fill" @style="'width: ' + Math.max(0, Math.min(100, $mealScore * 1.25)) + '%'"></div></div>
+</div>
+
+<div class="content">
+
+<div class="meal-list-card">
+<<if $meal.length gt 0>><div class="meal-emojis"><<for _item range $meal>><<print _item.split(" ")[0]>> <</for>></div><</if>>
+
+<<if $mealScore gte 30>>
+<div class="meal-verdict strong">Strong DASH meal</div>
+<p class="meal-explain">Your choices are packed with the potassium, fiber, and minerals that help lower blood pressure. Eating meals like this often makes a real difference over a few weeks.</p>
+<<elseif $mealScore gte 10>>
+<div class="meal-verdict moderate">Good meal</div>
+<p class="meal-explain">Some good picks in there. Trading one salty item for a healthy one would move this meal a lot in the right direction.</p>
+<<elseif $mealScore gte 0>>
+<div class="meal-verdict mixed">Mixed meal</div>
+<p class="meal-explain">Your healthy picks are being cancelled out by the salty ones. Small swaps make a real difference here.</p>
+<<else>>
+<div class="meal-verdict weak">Working against you</div>
+<p class="meal-explain">This meal puts pressure on your heart. It has too much salt and not enough potassium. Try replacing one item and see what changes.</p>
+<</if>>
+</div>
+
+<div class="spacer"></div>
+
+<!-- Single exit button. Direct goHome via the ccq-home-trigger class — the
+     bridge intercepts the click and fires CCQ.goHome() to pop the WebView
+     route back to the dashboard. -->
+<a class="btn-primary ccq-home-trigger" href="javascript:void(0)">BACK TO CARDIOCARE QUEST</a>
+
+</div>
+</div>
+
+:: Central Hub [Important/Needed nobr] {"position": "1225,100", "size": "100,100"}
+/*
+EXIT HATCH. Hit when the player taps "BACK TO CARDIOCAREQUEST" on
+either the Final Result or Meal Result screens. Fires CCQ.goHome() so
+the Flutter host pops the WebView route back to the dashboard.
+Previously had a "PLAY DASH GAME AGAIN" button that just looped back
+to Story innit, leaving participants no way to exit.
+*/
+<<run
+  try {
+    if (window.CCQ && typeof window.CCQ.goHome === "function") {
+      window.CCQ.goHome();
+    }
+  } catch (e) { /* swallow */ }
+>>
+
+<div class="phone">
+<div class="header"><span>DASH Game</span></div>
+<div class="content">
+
+<span class="hero-emoji">🏠</span>
+
+<h2 class="intro-title">Returning</h2>
+
+<p class="narrative center">Going back to CardioCareQuest.</p>
+
+<div class="spacer"></div>
+
+</div>
+</div>
+
+:: UserStylesheet [stylesheet]
 /* ============================================================
    DASH DIET GAME — visual stylesheet
    Phone-frame UI, viridis dark gradient (purple-blue-teal-green-yellow),
@@ -32,14 +509,18 @@ body {
   font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, "Segoe UI", sans-serif;
   background-color: #f4f1d8;
   margin: 0;
-  padding: 1.5em 0;
+  /* No outer padding: the game fills the screen edge-to-edge on every
+     device instead of floating as a card on a cream border. */
+  padding: 0;
 }
 
 #ui-bar { display: none; }
 
 #story {
   margin: 0 auto;
-  max-width: 380px;
+  /* Fill the full width on phones (was a fixed 380px card, which left
+     cream strips on wider screens). */
+  max-width: 100%;
   padding: 0;
 }
 
@@ -50,15 +531,21 @@ body {
   line-height: 1.5;
 }
 
-/* Phone frame — viridis purple-blue gradient */
+/* Full-screen frame — viridis purple-blue gradient */
 .phone {
   background: linear-gradient(180deg, #440154 0%, #3b528b 50%, #21918c 100%);
-  border-radius: 32px;
+  /* Edge-to-edge: no rounded corners / card shadow now that the gradient
+     fills the whole screen. */
+  border-radius: 0;
   overflow: hidden;
-  box-shadow: 0 8px 30px rgba(0,0,0,0.18);
   color: #ffffff;
   position: relative;
-  min-height: 660px;
+  /* Fill the viewport height on every device. dvh tracks the *visible*
+     viewport (handles the iOS status/nav bars); vh is the fallback for
+     any engine without dvh support. min-height (not height) lets tall
+     content still grow and scroll. */
+  min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -576,10 +1063,8 @@ body {
   color: #fde725;
 }
 
-
-
-::UserScript [script]
-
+:: UserScript [script]
+/* twine-user-script #1: "UserScript" */
 /* CardioCare Quest — auto passage telemetry.
    Fires `passage_entered` for every passage entry via the FlutterBridge.
    Snapshots SugarCube state.variables so researchers see the player's
@@ -646,6 +1131,66 @@ $(document).on(":passagedisplay", function (ev) {
     }
   }
 
+  // Diet filter: hide meal-builder items the player does not eat, and only
+  // show the plant stand-ins (Lentils, Salted crackers) when a diet has
+  // removed a meat item, so the "I eat everything" grid stays unchanged.
+  var diet = (State.variables && State.variables.playerDiet) || "everything";
+  var allWraps = document.querySelectorAll(".ing-wrap");
+  for (var w = 0; w < allWraps.length; w++) {
+    var wr = allWraps[w];
+    var wDiet = wr.dataset.ingDiet || "";
+    var hide = false;
+    if (wDiet === "meat" && (diet === "vegetarian" || diet === "vegan")) hide = true;
+    if (wDiet === "dairy" && diet === "vegan") hide = true;
+    // Plant stand-ins only appear for the veg/vegan diets.
+    if (wDiet === "plant" && diet === "everything") hide = true;
+    // Must use "important" priority: the stylesheet rule
+    // `.ingredients-grid .ing-wrap { display: flex !important; }` would
+    // otherwise override a plain inline display:none and keep the item visible.
+    if (hide) {
+      wr.style.setProperty("display", "none", "important");
+    } else {
+      wr.style.removeProperty("display");
+    }
+  }
+
+  // Random subset: show only a handful of eligible foods per grid so the
+  // menu looks different every play-through. $mealPick is the chosen set,
+  // stored so it stays stable while the player is inside this build (e.g.
+  // toggling items or navigating away and back). It is reset to null in
+  // Story innit and on PLAY AGAIN, so a fresh game re-rolls the choices.
+  var SHOW_PER_GRID = 4;
+  if (!State.variables.mealPick) {
+    var picked = [];
+    var grids = document.querySelectorAll(".ingredients-grid");
+    for (var g = 0; g < grids.length; g++) {
+      var pool = [];
+      var kids = grids[g].querySelectorAll(".ing-wrap");
+      for (var k = 0; k < kids.length; k++) {
+        if (kids[k].style.display === "none") continue; // diet-hidden
+        pool.push(kids[k].dataset.ingEmoji + " " + kids[k].dataset.ingName);
+      }
+      // Fisher-Yates shuffle, then take the first SHOW_PER_GRID.
+      for (var s = pool.length - 1; s > 0; s--) {
+        var rr = Math.floor(Math.random() * (s + 1));
+        var tmp = pool[s]; pool[s] = pool[rr]; pool[rr] = tmp;
+      }
+      for (var p = 0; p < Math.min(SHOW_PER_GRID, pool.length); p++) {
+        picked.push(pool[p]);
+      }
+    }
+    State.variables.mealPick = picked;
+  }
+  var mealPick = State.variables.mealPick || [];
+  var poolWraps = document.querySelectorAll(".ing-wrap");
+  for (var pw = 0; pw < poolWraps.length; pw++) {
+    if (poolWraps[pw].style.display === "none") continue; // already diet-hidden
+    var plbl = poolWraps[pw].dataset.ingEmoji + " " + poolWraps[pw].dataset.ingName;
+    if (mealPick.indexOf(plbl) === -1) {
+      poolWraps[pw].style.setProperty("display", "none", "important");
+    }
+  }
+
   var wraps = document.querySelectorAll(".ing-wrap");
   for (var i = 0; i < wraps.length; i++) {
     var wrap = wraps[i];
@@ -688,10 +1233,7 @@ $(document).on(":passagedisplay", function (ev) {
     })(wrap, name, emoji, fullLabel));
   }
 });
-
-
-
-::DashHelpers [script]
+/* twine-user-script #2: "DashHelpers" */
 /*
 DASH Diet Game — food POOL + weighted, non-repeating picker.
 Convention: game logic lives here in a [script] passage's setup.*
@@ -715,7 +1257,7 @@ setup.dash.foods = [
     name: "Banana",
     desc: "A common fruit. Sweet. Easy to find. You probably already know someone who eats one every morning.",
     correct: "lowers",
-    explain: "Bananas are high in potassium, which helps your kidneys flush excess sodium out. Less sodium means less pressure on your artery walls. A banana a day is a real cardiovascular tool.",
+    explain: "Bananas are high in potassium, a mineral that helps your body remove extra salt. Less salt means less pressure on your blood vessels. A banana a day is a real heart-health tool.",
     packaged: false
   },
   {
@@ -724,7 +1266,7 @@ setup.dash.foods = [
     name: "Instant Noodles",
     desc: "Quick to make. Inexpensive. A meal that shows up in most kitchens at some point.",
     correct: "raises",
-    explain: "One packet of instant noodles can contain 1500 milligrams of sodium. The recommended daily limit is 2300. One packet gets you halfway there before anything else.",
+    explain: "One packet of instant noodles has about two thirds of all the salt you should eat in a whole day. One packet, before anything else you eat.",
     packaged: true
   },
   {
@@ -733,17 +1275,18 @@ setup.dash.foods = [
     name: "Dark Chocolate",
     desc: "Not milk chocolate. Dark, seventy percent cacao or higher. A small square. Not a whole bar.",
     correct: "lowers",
-    explain: "Dark chocolate contains flavonoids that help blood vessels relax and widen. A small amount, around one square, can produce a measurable drop in blood pressure. The key word is small.",
+    explain: "Dark chocolate has natural plant compounds that help blood vessels relax and open up. A small amount, around one square, can lower blood pressure a little. The key word is small.",
     packaged: false
   },
   {
     id: "bacon",
     emoji: "🥓",
     name: "Bacon",
-    desc: "Cured in salt. High in saturated fat. A food that appears on a lot of breakfast plates.",
+    desc: "Soaked in salt. Full of unhealthy fat. A food that appears on a lot of breakfast plates.",
     correct: "raises",
-    explain: "Bacon is cured in salt and high in saturated fat. Sodium increases blood volume. Saturated fat stiffens artery walls. Together they are a real cardiovascular load.",
-    packaged: true
+    explain: "Bacon is soaked in salt and full of unhealthy fat. The salt pulls extra water into your blood. The fat makes your blood vessels stiff. Together they make your heart work much harder.",
+    packaged: true,
+    diet: "meat"
   },
   {
     id: "spinach",
@@ -751,7 +1294,7 @@ setup.dash.foods = [
     name: "Spinach",
     desc: "A leafy green. Eaten raw or cooked. Shows up in salads, soups, side dishes.",
     correct: "lowers",
-    explain: "Spinach is high in potassium and magnesium, two minerals that directly support healthy blood pressure. One of the most nutrient-dense foods for the heart.",
+    explain: "Spinach is high in potassium and magnesium, two minerals that help keep blood pressure healthy. One of the best foods you can eat for your heart.",
     packaged: false
   },
   {
@@ -760,7 +1303,7 @@ setup.dash.foods = [
     name: "Canned Soup",
     desc: "Warm. Convenient. A common meal for busy days or cold evenings.",
     correct: "raises",
-    explain: "One serving of canned soup often contains 800 to 1200 milligrams of sodium. Many cans hold two servings. Checking labels on canned food is one of the best things you can do for blood pressure.",
+    explain: "One bowl of canned soup often has a third to a half of a whole day's salt. And many cans hold two bowls. Checking the salt on food labels is one of the best things you can do for your blood pressure.",
     packaged: true
   },
   {
@@ -769,17 +1312,18 @@ setup.dash.foods = [
     name: "Salted Pretzels",
     desc: "A crunchy snack straight from the bag. Twisted, golden, coated in coarse salt.",
     correct: "raises",
-    explain: "Those salt crystals on top are the giveaway. A single serving of pretzels carries several hundred milligrams of sodium, and the bag rarely holds just one serving.",
+    explain: "Those salt crystals on top are the giveaway. One handful of pretzels carries a lot of salt, and the bag rarely holds just one handful.",
     packaged: true
   },
   {
     id: "frozenpizza",
     emoji: "🍕",
     name: "Frozen Pizza",
-    desc: "Straight from the freezer to the oven. Cheese, cured toppings, a salted crust.",
+    desc: "Straight from the freezer to the oven. Cheese, salty toppings, a salted crust.",
     correct: "raises",
-    explain: "Between the cheese, the processed meat, and the dough, one frozen pizza can hold most of a day's sodium in a single meal.",
-    packaged: true
+    explain: "Between the cheese, the packaged meat, and the dough, one frozen pizza can hold most of a whole day's salt in a single meal.",
+    packaged: true,
+    diet: "dairy"
   },
   {
     id: "deliham",
@@ -787,8 +1331,9 @@ setup.dash.foods = [
     name: "Deli Ham",
     desc: "Sliced at the deli counter. Pink, thin, ready for a sandwich.",
     correct: "raises",
-    explain: "Processed deli meats are cured and preserved with salt. A few slices deliver a surprising sodium load before the bread is even added.",
-    packaged: true
+    explain: "Packaged deli meats are preserved with a lot of salt. A few slices carry a surprising amount of salt before the bread is even added.",
+    packaged: true,
+    diet: "meat"
   },
   {
     id: "sweetpotato",
@@ -796,20 +1341,172 @@ setup.dash.foods = [
     name: "Sweet Potato",
     desc: "An orange root vegetable. Baked, roasted, or mashed. Naturally sweet.",
     correct: "lowers",
-    explain: "Sweet potato is quietly one of the best blood pressure foods. High in potassium, low in sodium. Your arteries appreciate it.",
+    explain: "Sweet potato is quietly one of the best blood pressure foods. Lots of potassium, very little salt. Your blood vessels love it.",
+    packaged: false
+  },
+  {
+    id: "beans",
+    emoji: "🫘",
+    name: "Beans",
+    desc: "Black beans, kidney beans, chickpeas. In stews, salads, and on toast.",
+    correct: "lowers",
+    explain: "Beans are full of potassium and fiber and have almost no salt when cooked from dry. They help your body handle salt and keep your heart steady.",
+    packaged: false
+  },
+  {
+    id: "oats",
+    emoji: "🥣",
+    name: "Oats",
+    desc: "Plain porridge oats. Cooked with milk or water for breakfast.",
+    correct: "lowers",
+    explain: "Plain oats are low in salt and high in fiber. That fiber helps lower blood pressure over time. Just watch the flavored packets, which often add sugar and salt.",
+    packaged: false
+  },
+  {
+    id: "salmon",
+    emoji: "🐟",
+    name: "Salmon",
+    desc: "A pink fish. Baked, grilled, or pan-cooked. A common dinner.",
+    correct: "lowers",
+    explain: "Salmon has healthy fats that help keep your blood vessels soft and flexible. Fresh fish is low in salt and one of the best foods for your heart.",
+    packaged: false,
+    diet: "meat"
+  },
+  {
+    id: "avocado",
+    emoji: "🥑",
+    name: "Avocado",
+    desc: "A green, creamy fruit. Mashed on toast or sliced into a salad.",
+    correct: "lowers",
+    explain: "Avocado is rich in potassium, even more than a banana. Potassium helps your body clear extra salt, which eases pressure on your blood vessels.",
+    packaged: false
+  },
+  {
+    id: "oranges",
+    emoji: "🍊",
+    name: "Oranges",
+    desc: "A sweet, juicy fruit you peel. Eaten as a snack or squeezed for juice.",
+    correct: "lowers",
+    explain: "Oranges are full of potassium and vitamin C. Whole oranges are best. They give you the potassium with the fiber and none of the added sugar of some juices.",
+    packaged: false
+  },
+  {
+    id: "yogurt",
+    emoji: "🥛",
+    name: "Plain Yogurt",
+    desc: "Plain, unsweetened yogurt. Eaten on its own or with fruit.",
+    correct: "lowers",
+    explain: "Plain low-fat yogurt gives you calcium, which helps keep blood pressure healthy. Choose plain over the sweetened cups, which pack in a lot of sugar.",
+    packaged: false,
+    diet: "dairy"
+  },
+  {
+    id: "tomato",
+    emoji: "🍅",
+    name: "Tomato",
+    desc: "A red fruit used like a vegetable. Fresh in salads and sandwiches.",
+    correct: "lowers",
+    explain: "Fresh tomatoes are low in salt and high in potassium. Just note that ketchup and canned tomato sauce are different, as they often have a lot of added salt.",
+    packaged: false
+  },
+  {
+    id: "soysauce",
+    emoji: "🍶",
+    name: "Soy Sauce",
+    desc: "A dark, salty liquid. Splashed over rice, noodles, and stir-fries.",
+    correct: "raises",
+    explain: "One tablespoon of soy sauce can hold almost half a day's worth of salt. A few splashes add up fast. Low-salt soy sauce is an easy swap that helps.",
+    packaged: true
+  },
+  {
+    id: "chips",
+    emoji: "🍟",
+    name: "Potato Chips",
+    desc: "Thin, crispy, salty slices from a bag. A snack that is hard to stop eating.",
+    correct: "raises",
+    explain: "Chips are coated in salt and easy to eat by the handful. One small bag can carry a big part of a day's salt before you notice.",
+    packaged: true
+  },
+  {
+    id: "pickles",
+    emoji: "🥒",
+    name: "Pickles",
+    desc: "Cucumbers soaked in salty brine. Crunchy and sour, often with a sandwich.",
+    correct: "raises",
+    explain: "Pickles sit in salty water for days, so they soak up a lot of salt. Even one large pickle can hold a big share of your daily limit.",
+    packaged: true
+  },
+  {
+    id: "cheese",
+    emoji: "🧀",
+    name: "Cheese",
+    desc: "A firm, tasty dairy food. Sliced on sandwiches or melted over meals.",
+    correct: "raises",
+    explain: "Cheese is saltier than most people expect, and it is easy to eat a lot. A little goes a long way, so smaller amounts are kinder to your blood pressure.",
+    packaged: true,
+    diet: "dairy"
+  },
+  {
+    id: "hotdog",
+    emoji: "🌭",
+    name: "Hot Dog",
+    desc: "A pink sausage in a soft bun. A common food at ball games and cookouts.",
+    correct: "raises",
+    explain: "Hot dogs are processed meat, preserved with a lot of salt. One hot dog, before the bun and toppings, already carries a big share of a day's salt.",
+    packaged: true,
+    diet: "meat"
+  },
+  {
+    id: "beets",
+    emoji: "🫜",
+    name: "Beets",
+    desc: "A deep red root vegetable. Roasted, boiled, or grated into a salad.",
+    correct: "lowers",
+    explain: "Beets have natural nitrates that help your blood vessels relax and open up. Studies show a cup of beets can gently lower blood pressure.",
     packaged: false
   }
 ];
 
+/* True if a food fits the player's diet choice.
+   - "meat" foods (bacon, ham) are hidden for vegetarian and vegan.
+   - "dairy" foods (frozen pizza's cheese) are hidden for vegan.
+   - anything with no diet tag is a plant food, shown to everyone. */
+setup.dash.fitsDiet = function (f) {
+  var diet = State.variables.playerDiet || "everything";
+  if (diet === "vegan" && (f.diet === "meat" || f.diet === "dairy")) return false;
+  if (diet === "vegetarian" && f.diet === "meat") return false;
+  return true;
+};
+
+/* Foods shown per day. The quiz stops after this many cards even when
+   more foods still fit the player's diet, so each day is a short set and
+   there are fresh foods left to see tomorrow. */
+setup.dash.dailyLimit = 10;
+
+/* How many quiz foods this player will actually see, given their diet.
+   Used for the "Round X of N" labels so the count matches what they get.
+   Capped at the daily limit so the label never promises more than a day
+   actually serves. */
+setup.dash.eligibleCount = function () {
+  var fits = setup.dash.foods.filter(setup.dash.fitsDiet).length;
+  return Math.min(fits, setup.dash.dailyLimit);
+};
+
 /* Draw the next food:
-   - candidates = foods not yet in seenFoods (UPDATE6, no repeats)
+   - stop once the player has seen the daily limit of foods, so a day is
+     a short set and there are new foods left for tomorrow
+   - candidates = foods not yet in seenFoods (UPDATE6, no repeats) AND
+     that fit the player's diet choice (veg / vegan hide animal foods)
    - none left  -> return null so Round Start ends the quiz (UPDATE7)
    - otherwise weight packaged items 2.5x vs 1x for fresh (UPDATE8),
      record the pick in seenFoods, stash it in $currentFood, return it. */
 setup.dash.pickFood = function () {
   var seen = State.variables.seenFoods || [];
+  if (seen.length >= setup.dash.dailyLimit) {
+    return null;
+  }
   var candidates = setup.dash.foods.filter(function (f) {
-    return seen.indexOf(f.id) === -1;
+    return seen.indexOf(f.id) === -1 && setup.dash.fitsDiet(f);
   });
   if (candidates.length === 0) {
     return null;
@@ -835,400 +1532,3 @@ setup.dash.pickFood = function () {
   State.variables.currentFood = chosen;
   return chosen;
 };
-
-
-::Story innit [Important/Needed]
-/*
-SYSTEM CODE: runs once at the very start.
-
-Variables:
-- $playerName  : player name
-- $score       : total correct quiz answers (0 to 6)
-- $wrong       : total wrong quiz answers (0 to 6)
-- $mealScore   : meal builder running score
-- $round       : current quiz round 1 to 6
-- $lastFood    : the food just classified
-- $lastCorrect : whether the last answer was right
-- $meal        : list of ingredients picked
-
-You do not need to edit this.
-*/
-
-<<set $playerName to "Explorer">>
-<<set $score to 0>>
-<<set $wrong to 0>>
-<<set $mealScore to 0>>
-<<set $round to 1>>
-<<set $lastFood to "">>
-<<set $lastCorrect to false>>
-<<set $meal to []>>
-/* Food-pool state (UPDATE6/7/8): seenFoods tracks which pool ids have
-   already been shown this play-through; currentFood is the object the
-   generic Food Card / Food Result render. Reset here so PLAY AGAIN
-   starts from a full, unshuffled-order pool. */
-<<set $seenFoods to []>>
-<<set $currentFood to null>>
-/* One-shot guard so Meal Result's submitResponse fires exactly once
-   per play-through. Reset on Story innit so PLAY AGAIN gets a fresh
-   shot. See ::Meal Result for the submit body. */
-<<set $submittedThisSession to false>>
-
-<<goto "Welcome">>
-
-
-::Welcome [Important/Needed nobr]
-/*
-INCITING MOMENT: Greeting + hook. One button.
-Card 1 of 2 before gameplay starts.
-*/
-
-<div class="phone">
-<div class="header"><span>DASH Game</span></div>
-<div class="content">
-
-<span class="hero-emoji">🥗</span>
-
-<h1 class="intro-title">DASH Diet Game</h1>
-
-<p class="narrative center">Hey $playerName.</p>
-
-<p class="narrative">DASH means Dietary Approaches to Stop Hypertension. A way of eating proven to lower blood pressure.</p>
-
-<p class="narrative">This game shows you which everyday foods help and which ones work against you.</p>
-
-<div class="spacer"></div>
-
-<a class="btn-primary" data-passage="How To Play">HOW IT WORKS</a>
-
-</div>
-</div>
-
-
-::How To Play [Important/Needed nobr]
-/*
-RULES in one screen.
-Card 2 of 2 before gameplay starts.
-*/
-
-<div class="phone">
-<div class="header"><span>DASH Game</span></div>
-<div class="content">
-
-<span class="hero-emoji">🍎</span>
-
-<h2 class="intro-title">Two Parts</h2>
-
-<p class="narrative"><strong>Part 1:</strong> Six food cards. Tap whether each food lowers or raises blood pressure. Learn why.</p>
-
-<p class="narrative"><strong>Part 2:</strong> Build a meal. Pick ingredients. See what they do together.</p>
-
-<p class="narrative">Right or wrong, you leave knowing more than you came with.</p>
-
-<div class="spacer"></div>
-
-<a class="btn-primary" data-passage="Round Start">START ROUND 1</a>
-
-</div>
-</div>
-
-
-::Round Start [Important/Needed nobr]
-/*
-ROUND ROUTER (UPDATE6/7/8).
-No longer a UI screen. Draws the next food from the weighted,
-non-repeating pool via setup.dash.pickFood(). When the pool is
-exhausted pickFood() returns null and we advance to the meal builder
-(the same phase the old Food Result advanced to after the last card).
-Otherwise we render the single generic Food Card for $currentFood.
-*/
-<<set _f to setup.dash.pickFood()>>
-<<if _f is null>><<goto "Meal Builder Intro">><<else>><<goto "Food Card">><</if>>
-
-
-::Food Card [Important/Needed nobr]
-/*
-GENERIC FOOD CARD (UPDATE6/7/8).
-Renders whatever setup.dash.pickFood() stashed in $currentFood. The two
-choices score against $currentFood.correct: a matching answer bumps
-$score and sets $lastCorrect true; a mismatch bumps $wrong and sets it
-false. Then on to Food Result. Replaces the old hardcoded Food Card 1..6.
-*/
-
-<div class="phone">
-<div class="header"><span>DASH Game</span><span class="round-label">Round $round of <<print setup.dash.foods.length>></span></div>
-
-<div class="meters-wrap">
-<div class="meter-row"><div class="meter-label">Correct</div><div class="meter-bar"><div class="meter-bar-fill correct" @style="'width: ' + Math.min(100, ($score / 6) * 100) + '%'"></div></div></div>
-<div class="meter-row"><div class="meter-label">Wrong</div><div class="meter-bar"><div class="meter-bar-fill wrong" @style="'width: ' + Math.min(100, ($wrong / 6) * 100) + '%'"></div></div></div>
-</div>
-
-<div class="content">
-
-<div class="quiz-card">
-<span class="quiz-emoji"><<print $currentFood.emoji>></span>
-<h2 class="quiz-name"><<print $currentFood.name>></h2>
-<p class="quiz-desc"><<print $currentFood.desc>></p>
-</div>
-
-<div class="question-prompt">What does it do to blood pressure?</div>
-
-<div class="choice-row">
-
-<<link '<span>LOWERS BP</span>'>>
-<<set $lastFood to $currentFood.id>>
-<<if $currentFood.correct is "lowers">>
-<<set $lastCorrect to true>>
-<<set $score to $score + 1>>
-<<else>>
-<<set $lastCorrect to false>>
-<<set $wrong to $wrong + 1>>
-<</if>>
-<<goto "Food Result">>
-<</link>>
-
-<<link '<span>RAISES BP</span>'>>
-<<set $lastFood to $currentFood.id>>
-<<if $currentFood.correct is "raises">>
-<<set $lastCorrect to true>>
-<<set $score to $score + 1>>
-<<else>>
-<<set $lastCorrect to false>>
-<<set $wrong to $wrong + 1>>
-<</if>>
-<<goto "Food Result">>
-<</link>>
-
-</div>
-</div>
-</div>
-
-<<script>>
-setTimeout(function () {
-  var btns = document.querySelectorAll('.choice-row a.macro-link, .choice-row a.link-internal');
-  if (btns.length >= 1) btns[0].classList.add('choice-btn', 'lowers');
-  if (btns.length >= 2) btns[1].classList.add('choice-btn', 'raises');
-}, 0);
-<</script>>
-
-
-::Food Result [Important/Needed nobr]
-/*
-RESULT OF EACH FOOD CARD.
-Tells the player whether they were right and explains why.
-Moves to next round or meal builder after round 6.
-*/
-
-<div class="phone">
-<div class="header"><span>DASH Game</span><span class="round-label">Round $round of <<print setup.dash.foods.length>></span></div>
-
-<div class="meters-wrap">
-<div class="meter-row"><div class="meter-label">Correct</div><div class="meter-bar"><div class="meter-bar-fill correct" @style="'width: ' + Math.min(100, ($score / 6) * 100) + '%'"></div></div></div>
-<div class="meter-row"><div class="meter-label">Wrong</div><div class="meter-bar"><div class="meter-bar-fill wrong" @style="'width: ' + Math.min(100, ($wrong / 6) * 100) + '%'"></div></div></div>
-</div>
-
-<div class="content">
-
-<div class="result-card">
-<span class="result-emoji"><<print $currentFood.emoji>></span>
-
-<<if $lastCorrect is true>><div class="result-verdict correct">Correct</div><<else>><div class="result-verdict wrong">Not quite</div><</if>>
-
-<p class="result-explain"><<print $currentFood.explain>></p>
-</div>
-
-<!-- Termination is decided by the pool, not by $round: Round Start's
-     pickFood() returns null once every food has been seen and routes to
-     Meal Builder Intro. So Food Result always just advances the round
-     counter and hands back to Round Start for the next draw.
-     Per-round "BACK TO CARDIOCAREQUEST" stays removed — the burger
-     menu (≡) already exposes "Go to dashboard" on every screen. -->
-<<set $round to $round + 1>>
-<a class="btn-primary" data-passage="Round Start">NEXT FOOD</a>
-
-</div>
-</div>
-
-
-::Meal Builder Intro [Important/Needed nobr]
-/*
-TRANSITION: Cards done. Introduce meal building.
-*/
-
-<div class="phone">
-<div class="header"><span>DASH Game</span><span class="round-label">Part 2</span></div>
-<div class="content">
-
-<span class="hero-emoji">🍽️</span>
-
-<h2 class="intro-title">Build a Meal</h2>
-
-<p class="narrative center">You scored $score out of <<print setup.dash.foods.length>> on the cards.</p>
-
-<p class="narrative">Now pick ingredients to build a meal. Tap each one to add it. The score bar fills as you choose.</p>
-
-<p class="narrative">No wrong answers here. The point is to see what each choice does.</p>
-
-<div class="spacer"></div>
-
-<a class="btn-primary" data-passage="Meal Builder">START BUILDING</a>
-
-</div>
-</div>
-
-
-::Meal Builder [Important/Needed nobr]
-/*
-MEAL BUILDER: Player picks ingredients.
-Each <<linkreplace>> can be triggered once.
-Score bar reflects $mealScore.
-*/
-
-<div class="phone">
-<div class="header"><span>DASH Game</span><span class="round-label">Build a meal</span></div>
-
-<div class="score-bar-wrap">
-<span class="score-label">Meal score</span>
-<div class="score-bar"><div class="score-bar-fill" @style="'width: ' + Math.max(0, Math.min(100, $mealScore * 1.25)) + '%'"></div></div>
-</div>
-
-<div class="content">
-
-<!-- Each ingredient is a plain `<span class="ing-wrap">` with the
-     food's emoji / display name / score delta as data-attributes.
-     The `:passagedisplay` handler in UserScript wires up TOGGLE
-     behaviour on click — earlier this used SugarCube `<<linkreplace>>`
-     which is one-way (commits on first tap, no undo) so a player
-     who fat-fingered an item couldn't remove it. -->
-<div class="section-label">Proteins</div>
-<div class="ingredients-grid">
-<span class="ing-wrap" data-ing-name="Brown rice" data-ing-emoji="🍚" data-ing-score="10"><span class="ing-emoji">🍚</span><span class="ing-name">Brown rice</span></span><span class="ing-wrap" data-ing-name="Beans" data-ing-emoji="🍲" data-ing-score="15"><span class="ing-emoji">🍲</span><span class="ing-name">Beans</span></span><span class="ing-wrap" data-ing-name="Bacon" data-ing-emoji="🥓" data-ing-score="-15"><span class="ing-emoji">🥓</span><span class="ing-name">Bacon</span></span><span class="ing-wrap" data-ing-name="Yogurt" data-ing-emoji="🥛" data-ing-score="10"><span class="ing-emoji">🥛</span><span class="ing-name">Yogurt</span></span>
-</div>
-
-<div class="section-label">Vegetables and Fruit</div>
-<div class="ingredients-grid">
-<span class="ing-wrap" data-ing-name="Spinach" data-ing-emoji="🥬" data-ing-score="15"><span class="ing-emoji">🥬</span><span class="ing-name">Spinach</span></span><span class="ing-wrap" data-ing-name="Tomato" data-ing-emoji="🍅" data-ing-score="10"><span class="ing-emoji">🍅</span><span class="ing-name">Tomato</span></span><span class="ing-wrap" data-ing-name="Banana" data-ing-emoji="🍌" data-ing-score="10"><span class="ing-emoji">🍌</span><span class="ing-name">Banana</span></span><span class="ing-wrap" data-ing-name="Potato chips" data-ing-emoji="🍟" data-ing-score="-10"><span class="ing-emoji">🍟</span><span class="ing-name">Potato chips</span></span>
-</div>
-
-<div class="section-label">Extras</div>
-<div class="ingredients-grid">
-<span class="ing-wrap" data-ing-name="Dark chocolate" data-ing-emoji="🍫" data-ing-score="5"><span class="ing-emoji">🍫</span><span class="ing-name">Dark chocolate</span></span><span class="ing-wrap" data-ing-name="Instant noodles" data-ing-emoji="🍜" data-ing-score="-20"><span class="ing-emoji">🍜</span><span class="ing-name">Instant noodles</span></span><span class="ing-wrap" data-ing-name="Water" data-ing-emoji="💧" data-ing-score="5"><span class="ing-emoji">💧</span><span class="ing-name">Water</span></span><span class="ing-wrap" data-ing-name="Hot dog" data-ing-emoji="🌭" data-ing-score="-15"><span class="ing-emoji">🌭</span><span class="ing-name">Hot dog</span></span>
-</div>
-
-<a class="btn-primary" data-passage="Meal Result">SEE MY MEAL RESULT</a>
-
-</div>
-</div>
-
-
-::Meal Result [Important/Needed nobr]
-/*
-MEAL RESULT: Shows what meal does to BP.
-Personalized message based on $mealScore.
-Lists what player picked.
-
-The <<run>> below fires the canonical SUBMIT_RESPONSE event so
-research data sees a DASH Diet play landing in
-`surveys/dash_diet_game/responses/{auto}` and a
-`survey_response_submitted` event with surveyId='dash_diet_game'.
-The Community Stats engagement-bar query keys on the surveyId,
-so without this firing the Diet category bar would stay at 0
-no matter how many participants finish the game. Guarded by a
-session flag so PLAY AGAIN doesn't double-credit.
-*/
-
-<<if not $submittedThisSession>>
-<<set $submittedThisSession to true>>
-<<run
-  try {
-    if (window.CCQ && typeof window.CCQ.submitResponse === "function") {
-      var verdict = "weak";
-      if (State.variables.mealScore >= 30) { verdict = "strong"; }
-      else if (State.variables.mealScore >= 10) { verdict = "moderate"; }
-      else if (State.variables.mealScore >= 0) { verdict = "mixed"; }
-      window.CCQ.submitResponse({
-        playerName: State.variables.playerName,
-        quizScore: State.variables.score,
-        quizWrong: State.variables.wrong,
-        mealScore: State.variables.mealScore,
-        meal: State.variables.meal,
-        verdict: verdict
-      }, { pointsEarned: 50, countAsCompletion: true });
-    }
-  } catch (e) { /* swallow */ }
->>
-<!-- UPDATE12: chain the control Daily Check-In off the END of this game.
-     Inside the same submit-once guard so it launches exactly once per
-     play-through (PLAY AGAIN resets $submittedThisSession in Story innit). -->
-<<run try { if (window.CCQ && window.CCQ.launchGame) window.CCQ.launchGame("control_daily_checkin"); } catch (e) {} >>
-<</if>>
-
-<div class="phone">
-<div class="header"><span>DASH Game</span><span class="round-label">Your meal</span></div>
-
-<div class="score-bar-wrap">
-<span class="score-label">Meal score</span>
-<div class="score-bar"><div class="score-bar-fill" @style="'width: ' + Math.max(0, Math.min(100, $mealScore * 1.25)) + '%'"></div></div>
-</div>
-
-<div class="content">
-
-<div class="meal-list-card">
-<<if $meal.length gt 0>><div class="meal-emojis"><<for _item range $meal>><<print _item.split(" ")[0]>> <</for>></div><</if>>
-
-<<if $mealScore gte 30>>
-<div class="meal-verdict strong">Strong DASH meal</div>
-<p class="meal-explain">Your ingredient choices are high in potassium, fiber, and minerals that actively support lower blood pressure. A meal like this, eaten regularly, produces measurable results over weeks.</p>
-<<elseif $mealScore gte 10>>
-<div class="meal-verdict moderate">Moderate DASH meal</div>
-<p class="meal-explain">Some strong choices in there. Swapping one high-sodium ingredient for a potassium-rich one would shift this meal a lot in the right direction.</p>
-<<elseif $mealScore gte 0>>
-<div class="meal-verdict mixed">Mixed meal</div>
-<p class="meal-explain">The DASH-friendly choices are being offset by the high-sodium ones. Small swaps make a real difference here.</p>
-<<else>>
-<div class="meal-verdict weak">Working against you</div>
-<p class="meal-explain">This meal is working against your blood pressure. The sodium load is high and the potassium is low. Try replacing one ingredient and see what changes.</p>
-<</if>>
-</div>
-
-<div class="spacer"></div>
-
-<a class="btn-primary" data-passage="Story innit">PLAY AGAIN</a>
-<!-- Direct goHome via the ccq-home-trigger class — the bridge
-     intercepts the click and fires CCQ.goHome() without trampolining
-     through the (now unused) Central Hub passage. -->
-<a class="btn-secondary ccq-home-trigger" href="javascript:void(0)">BACK TO CARDIOCAREQUEST</a>
-
-</div>
-</div>
-
-
-::Central Hub [Important/Needed nobr]
-/*
-EXIT HATCH. Hit when the player taps "BACK TO CARDIOCAREQUEST" on
-either the Final Result or Meal Result screens. Fires CCQ.goHome() so
-the Flutter host pops the WebView route back to the dashboard.
-Previously had a "PLAY DASH GAME AGAIN" button that just looped back
-to Story innit, leaving participants no way to exit.
-*/
-<<run
-  try {
-    if (window.CCQ && typeof window.CCQ.goHome === "function") {
-      window.CCQ.goHome();
-    }
-  } catch (e) { /* swallow */ }
->>
-
-<div class="phone">
-<div class="header"><span>DASH Game</span></div>
-<div class="content">
-
-<span class="hero-emoji">🏠</span>
-
-<h2 class="intro-title">Returning</h2>
-
-<p class="narrative center">Going back to CardioCareQuest.</p>
-
-<div class="spacer"></div>
-
-</div>
-</div>

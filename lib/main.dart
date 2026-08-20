@@ -115,9 +115,31 @@ class _CardioCareQuestState extends State<CardioCareQuest>
           valueListenable: SessionSettingsService.instance.settings,
           builder: (context, s, _) {
             final mq = MediaQuery.of(context);
-            return MediaQuery(
-              data: mq.copyWith(textScaler: TextScaler.linear(s.textScale)),
+            // Keep the app phone-shaped on wide screens (tablets, web, desktop,
+            // large windows) so every screen stays centered and readable. Phones
+            // are narrower than the cap, so they are unaffected. The MediaQuery
+            // size is clamped too, so screens that size themselves off the
+            // window width lay out correctly inside the centered box.
+            const maxWidth = 600.0;
+            final width = mq.size.width;
+            final content = MediaQuery(
+              data: mq.copyWith(
+                textScaler: TextScaler.linear(s.textScale),
+                size: Size(
+                  width > maxWidth ? maxWidth : width,
+                  mq.size.height,
+                ),
+              ),
               child: child ?? const SizedBox.shrink(),
+            );
+            if (width <= maxWidth) return content;
+            return ColoredBox(
+              color: const Color(0xFF0E1116),
+              child: Center(
+                child: ClipRect(
+                  child: SizedBox(width: maxWidth, child: content),
+                ),
+              ),
             );
           },
         );

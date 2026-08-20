@@ -6,8 +6,8 @@ import 'package:cardio_care_quest/core/hooks/hooks.dart';
 
 import 'package:cardio_care_quest/core/theme/app_colors.dart';
 
-// BP Trivia - a multiple-choice quiz about blood pressure. Score is saved and
-// points are awarded at the end. Built in Flutter, not HTML.
+// BP Trivia - a multiple-choice quiz about blood pressure. The score is saved
+// at the end. Built in Flutter, not HTML.
 class BPTriviaScreen extends StatefulWidget {
   const BPTriviaScreen({super.key});
 
@@ -101,25 +101,17 @@ class _BPTriviaScreenState extends State<BPTriviaScreen> {
     });
   }
 
-  // Saves score and points to the cloud, then shows the results popup.
+  // Saves the score to the cloud, then shows the results popup.
   Future<void> _saveScoreAndShowResults() async {
     final uid = Provider.of<UserDataProvider>(context, listen: false).uid;
     if (uid.isNotEmpty) {
       try {
-        // 10 pts per correct answer. An old bug reversed this, so double-check
-        // the direction if you ever change the formula.
-        final pointsEarned = _score * 10;
         await DailyLogHooks.logTrivia(
           uid: uid,
           score: _score,
           totalQuestions: _questions.length,
-          pointsEarned: pointsEarned,
           answers: List<Map<String, dynamic>>.from(_answerLog),
         );
-        if (mounted) {
-          // Update the on-screen total immediately.
-          PointsHooks.applyIncrements(context, {'points': pointsEarned});
-        }
       } catch (e) {
         debugPrint('Error saving trivia score: $e');
       }

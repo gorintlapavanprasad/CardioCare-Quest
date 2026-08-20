@@ -9,8 +9,8 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 
 // BP Log screen - where the user types today's blood pressure and mood.
-// It saves the reading, gives points, and shows a little 7-day chart so
-// they can see how their numbers are moving.
+// It saves the reading and shows a little 7-day chart so they can see how
+// their numbers are moving.
 
 // The screen widget itself. State lives in the class below.
 class BPLogScreen extends StatefulWidget {
@@ -38,8 +38,8 @@ class _BPLogScreenState extends State<BPLogScreen> {
     super.dispose();
   }
 
-  // Save today's reading. Reads the two boxes, stores it, then gives points
-  // and closes the screen. Ignores empty boxes.
+  // Save today's reading. Reads the two boxes, stores it, then closes the
+  // screen. Ignores empty boxes.
   Future<void> _saveBPReading() async {
     final userDataProvider = Provider.of<UserDataProvider>(context, listen: false);
     final uid = userDataProvider.uid;
@@ -63,7 +63,6 @@ class _BPLogScreenState extends State<BPLogScreen> {
       if (mounted) {
         // Update the dashboard right away without waiting for Firestore to respond.
         PointsHooks.applyIncrements(context, const {
-          'points': 50,
           'totalSessions': 1,
           'measurementsTaken': 1,
         });
@@ -73,7 +72,7 @@ class _BPLogScreenState extends State<BPLogScreen> {
           'lastLogDate': today,
           'lastBPLogDate': today,
         });
-        Navigator.of(context).pop(50);
+        Navigator.of(context).pop(true);
       }
     } catch (e) {
       debugPrint('SAVE ERROR: $e');

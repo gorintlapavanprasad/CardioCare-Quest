@@ -81,7 +81,7 @@ class _HomeTabState extends State<HomeTab> {
     }
   }
 
-  // Loads the user's profile, points, and favourites. Skips if already loaded.
+  // Loads the user's profile and favourites. Skips if already loaded.
   Future<void> _ensureUserDataLoaded() async {
     try {
       final provider = Provider.of<UserDataProvider>(context, listen: false);
@@ -690,6 +690,15 @@ class _HomeTabState extends State<HomeTab> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          const Text(
+            "CardioCare Quest",
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: AppColors.primary,
+            ),
+          ),
+          const SizedBox(height: 4),
           Text(
             "Hello, $name!",
             style: const TextStyle(

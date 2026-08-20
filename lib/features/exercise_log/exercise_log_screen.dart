@@ -5,8 +5,7 @@ import 'package:cardio_care_quest/core/providers/user_data_manager.dart';
 import 'package:cardio_care_quest/core/hooks/hooks.dart';
 
 // Movement Log screen - the user picks an activity (walking, cycling, etc.),
-// types how many minutes they did, and saves it. Saving gives points and
-// closes the screen.
+// types how many minutes they did, and saves it. Saving closes the screen.
 
 // The screen widget. Its live state is in the class below.
 class ExerciseLogScreen extends StatefulWidget {
@@ -54,7 +53,7 @@ class _ExerciseLogScreenState extends State<ExerciseLogScreen> {
   }
 
   // Save the workout. Needs an activity picked and minutes typed, then
-  // stores it, gives points, and closes the screen.
+  // stores it and closes the screen.
   Future<void> _saveExercise() async {
     final uid = Provider.of<UserDataProvider>(context, listen: false).uid;
     if (uid.isEmpty) return;
@@ -76,12 +75,11 @@ class _ExerciseLogScreenState extends State<ExerciseLogScreen> {
       if (mounted) {
         // Update dashboard right away without waiting for Firestore.
         PointsHooks.applyIncrements(context, {
-          'points': 50,
           'exercisesLogged': 1,
           'totalExerciseMinutes': minutes,
         });
         PointsHooks.applySets(context, {'lastLogDate': today});
-        Navigator.of(context).pop(50);
+        Navigator.of(context).pop(true);
       }
     } catch (e) {
       debugPrint('SAVE ERROR: $e');

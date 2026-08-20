@@ -5,13 +5,16 @@ import 'package:flutter/material.dart';
 
 import '../game_stories.dart';
 
-// walk = GPS-tracked walk (like Dog Quest); quiz = answer some questions.
-enum CustomGameType { walk, quiz }
+// walk = GPS-tracked walk (like Dog Quest); quiz = answer some questions;
+// story = a multi-step branching Twine story generated from the scenes below.
+enum CustomGameType { story, walk, quiz }
 
 // Helpers: display name, tagline, and icon for each game type.
 extension CustomGameTypeX on CustomGameType {
   String get label {
     switch (this) {
+      case CustomGameType.story:
+        return 'Story game';
       case CustomGameType.walk:
         return 'Walking quest';
       case CustomGameType.quiz:
@@ -21,8 +24,10 @@ extension CustomGameTypeX on CustomGameType {
 
   String get tagline {
     switch (this) {
+      case CustomGameType.story:
+        return 'A few steps that can branch based on your answers, like the catalog games.';
       case CustomGameType.walk:
-        return 'Pick a distance, take a walk, earn points based on GPS.';
+        return 'Pick a distance and take a walk, tracked by GPS.';
       case CustomGameType.quiz:
         return 'Ask yourself one question, pick from 2-4 answers.';
     }
@@ -30,11 +35,73 @@ extension CustomGameTypeX on CustomGameType {
 
   IconData get icon {
     switch (this) {
+      case CustomGameType.story:
+        return Icons.auto_stories_outlined;
       case CustomGameType.walk:
         return Icons.directions_walk;
       case CustomGameType.quiz:
         return Icons.quiz_outlined;
     }
+  }
+}
+
+// One answer choice in a story scene. `nextScene` is the index of the scene to
+// jump to next, or -1 to finish the story (go to the submit/thank-you step).
+class StoryOption {
+  final String label;
+  final int nextScene;
+
+  const StoryOption({required this.label, this.nextScene = -1});
+
+  Map<String, dynamic> toMap() => {
+        'label': label,
+        'nextScene': nextScene,
+      };
+
+  static StoryOption fromMap(Map<dynamic, dynamic> m) => StoryOption(
+        label: (m['label'] as String?) ?? '',
+        nextScene: (m['nextScene'] as num?)?.toInt() ?? -1,
+      );
+}
+
+// One step in a story game. `kind` selects how the step plays: 'choice'
+// (default) shows the answer buttons; 'bp' shows a blood-pressure entry.
+// `logKind` picks which health hook a "Yes" answer fires ('none', 'exercise',
+// 'meal', 'medication'); `logLabel` is the human-readable activity saved with it.
+class StoryScene {
+  final String prompt;
+  final List<StoryOption> options;
+  final String kind;
+  final String logKind;
+  final String logLabel;
+
+  const StoryScene({
+    required this.prompt,
+    this.options = const <StoryOption>[],
+    this.kind = 'choice',
+    this.logKind = 'none',
+    this.logLabel = '',
+  });
+
+  Map<String, dynamic> toMap() => {
+        'prompt': prompt,
+        'options': options.map((o) => o.toMap()).toList(),
+        'kind': kind,
+        'logKind': logKind,
+        'logLabel': logLabel,
+      };
+
+  static StoryScene fromMap(Map<dynamic, dynamic> m) {
+    final raw = m['options'];
+    return StoryScene(
+      prompt: (m['prompt'] as String?) ?? '',
+      options: (raw is List)
+          ? raw.whereType<Map>().map(StoryOption.fromMap).toList()
+          : const <StoryOption>[],
+      kind: (m['kind'] as String?) ?? 'choice',
+      logKind: (m['logKind'] as String?) ?? 'none',
+      logLabel: (m['logLabel'] as String?) ?? '',
+    );
   }
 }
 
@@ -72,12 +139,14 @@ class CustomGame {
   final String title;
   final String description;
   final GameCategory category;
-  final int pointsReward;
   final CustomGameType gameType;
 
   // Quiz questions. Empty for walk games. Old saves used `prompt`/`options`
   // instead; `effectiveQuestions` handles both.
   final List<QuizQuestion> questions;
+
+  // Story scenes. Empty for walk/quiz games. Used to generate the Twine story.
+  final List<StoryScene> scenes;
 
   // Legacy single-question fields kept for backward compatibility.
   final String prompt;
@@ -95,9 +164,9 @@ class CustomGame {
     required this.title,
     required this.description,
     required this.category,
-    required this.pointsReward,
     this.gameType = CustomGameType.quiz,
     this.questions = const <QuizQuestion>[],
+    this.scenes = const <StoryScene>[],
     this.prompt = '',
     this.options = const <String>[],
     this.targetDistance = 0,
@@ -124,9 +193,9 @@ class CustomGame {
         'title': title,
         'description': description,
         'category': category.name,
-        'pointsReward': pointsReward,
         'gameType': gameType.name,
         'questions': questions.map((q) => q.toMap()).toList(),
+        'scenes': scenes.map((s) => s.toMap()).toList(),
         // Also write old-style fields so older app versions can still open it.
         'prompt': questions.isNotEmpty ? questions.first.prompt : prompt,
         'options': questions.isNotEmpty
@@ -155,14 +224,21 @@ class CustomGame {
             .map(QuizQuestion.fromMap)
             .toList()
         : const <QuizQuestion>[];
+    final rawScenes = data['scenes'];
+    final scenes = (rawScenes is List)
+        ? rawScenes
+            .whereType<Map>()
+            .map(StoryScene.fromMap)
+            .toList()
+        : const <StoryScene>[];
     return CustomGame(
       id: doc.id,
       title: (data['title'] as String?) ?? 'Untitled goal',
       description: (data['description'] as String?) ?? '',
       category: _categoryFromName(data['category'] as String?),
-      pointsReward: (data['pointsReward'] as num?)?.toInt() ?? 25,
       gameType: _gameTypeFromName(data['gameType'] as String?),
       questions: questions,
+      scenes: scenes,
       prompt: (data['prompt'] as String?) ?? '',
       options: options,
       targetDistance: (data['targetDistance'] as num?)?.toInt() ?? 0,

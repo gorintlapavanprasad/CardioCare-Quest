@@ -4,7 +4,7 @@ import 'package:cardio_care_quest/core/theme/app_colors.dart';
 import 'package:cardio_care_quest/core/constants/firestore_paths.dart';
 
 // Family Circle - shows all users' steps toward a shared goal, each member's
-// latest BP, and the group's total points.
+// latest BP, and the group's total steps.
 class FamilyCircleScreen extends StatelessWidget {
   const FamilyCircleScreen({super.key});
 
@@ -20,13 +20,11 @@ class FamilyCircleScreen extends StatelessWidget {
           if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
-          // Add up points and steps from every family member.
+          // Add up steps from every family member.
           final users = snapshot.data!.docs;
-          int totalPoints = 0;
           int totalSteps = 0;
           for (var doc in users) {
             final data = doc.data() as Map<String, dynamic>;
-            totalPoints += (data['points'] as num?)?.toInt() ?? 0;
             totalSteps += (data['totalSteps'] as num?)?.toInt() ?? 0;
           }
 
@@ -48,7 +46,7 @@ class FamilyCircleScreen extends StatelessWidget {
                 return _buildFamilyMemberCard(name, 'Family Member', '$sys/$dia mmHg', Icons.person);
               }),
               const SizedBox(height: 32),
-              _buildEncouragementBoard(totalPoints),
+              _buildEncouragementBoard(totalSteps),
             ],
           );
         }
@@ -143,8 +141,8 @@ class FamilyCircleScreen extends StatelessWidget {
     );
   }
 
-  // Bottom card: family's total points this week.
-  Widget _buildEncouragementBoard(int totalPoints) {
+  // Bottom card: family's total steps this week.
+  Widget _buildEncouragementBoard(int totalSteps) {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
@@ -159,7 +157,7 @@ class FamilyCircleScreen extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'Your family has earned $totalPoints points together this week.',
+            'Your family has walked $totalSteps steps together this week.',
             textAlign: TextAlign.center,
             style: const TextStyle(color: AppColors.subtitle),
           ),

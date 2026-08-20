@@ -774,12 +774,12 @@ after just 30 seconds and the celebration shouldn&#39;t claim two minutes.
 &lt;div class=&quot;input-row&quot;&gt;
   &lt;div class=&quot;input-card&quot;&gt;
     &lt;div class=&quot;label&quot;&gt;Top number&lt;/div&gt;
-    &lt;input type=&quot;text&quot; inputmode=&quot;numeric&quot; pattern=&quot;[0-9]*&quot; id=&quot;qm-sys&quot; value=&quot;&lt;&lt;if $todaySys gt 0&gt;&gt;$todaySys&lt;&lt;/if&gt;&gt;&quot;&gt;
+    &lt;input type=&quot;text&quot; inputmode=&quot;numeric&quot; pattern=&quot;[0-9]*&quot; id=&quot;qm-sys&quot; @value=&quot;$todaySys &gt; 0 ? $todaySys : &#39;&#39;&quot;&gt;
     &lt;div class=&quot;unit&quot;&gt;mmHg (systolic)&lt;/div&gt;
   &lt;/div&gt;
   &lt;div class=&quot;input-card&quot;&gt;
     &lt;div class=&quot;label&quot;&gt;Bottom number&lt;/div&gt;
-    &lt;input type=&quot;text&quot; inputmode=&quot;numeric&quot; pattern=&quot;[0-9]*&quot; id=&quot;qm-dia&quot; value=&quot;&lt;&lt;if $todayDia gt 0&gt;&gt;$todayDia&lt;&lt;/if&gt;&gt;&quot;&gt;
+    &lt;input type=&quot;text&quot; inputmode=&quot;numeric&quot; pattern=&quot;[0-9]*&quot; id=&quot;qm-dia&quot; @value=&quot;$todayDia &gt; 0 ? $todayDia : &#39;&#39;&quot;&gt;
     &lt;div class=&quot;unit&quot;&gt;mmHg (diastolic)&lt;/div&gt;
   &lt;/div&gt;
 &lt;/div&gt;
@@ -895,11 +895,9 @@ try {
 &lt;div class=&quot;content&quot;&gt;
 &lt;div class=&quot;spacer&quot;&gt;&lt;/div&gt;
 &lt;div class=&quot;celebration&quot;&gt;
-&lt;div class=&quot;celebration-mark&quot;&gt;+50&lt;/div&gt;
 &lt;div class=&quot;celebration-title&quot;&gt;Great job&lt;/div&gt;
 &lt;p class=&quot;celebration-sub&quot;&gt;You rested &lt;&lt;print $restLabel&gt;&gt; and logged your blood pressure. That counts.&lt;/p&gt;
 &lt;div class=&quot;celebration-reading&quot;&gt;&lt;&lt;print $todaySys&gt;&gt; / &lt;&lt;print $todayDia&gt;&gt; mmHg&lt;/div&gt;
-&lt;div class=&quot;celebration-total&quot;&gt;Total points &lt;&lt;print $totalPoints&gt;&gt;&lt;/div&gt;
 &lt;/div&gt;
 &lt;div class=&quot;spacer&quot;&gt;&lt;/div&gt;
 &lt;!-- DONE uses the .ccq-home-trigger class so the bridge fires

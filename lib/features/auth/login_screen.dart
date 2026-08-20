@@ -249,7 +249,6 @@ class _LoginScreenState extends State<LoginScreen> {
             'distanceTraveled': 0,
             'dataPoints': [],
             'radGyration': 0,
-            'points': 0,
             'totalSessions': 0,
             'totalDistance': 0,
             'createdAt': OfflineFieldValue.nowTimestamp(),

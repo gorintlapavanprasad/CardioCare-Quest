@@ -10,7 +10,7 @@ import 'package:cardio_care_quest/core/constants/firestore_paths.dart';
 import 'package:cardio_care_quest/core/services/offline_queue.dart';
 
 // user_data_manager - holds the logged-in user's profile in memory.
-// Loads from Firestore, keeps it in memory, exposes points/name/etc to the app.
+// Loads from Firestore, keeps it in memory, exposes name/totals/etc to the app.
 
 // ---- DATA MODELS ----
 
@@ -18,7 +18,6 @@ import 'package:cardio_care_quest/core/services/offline_queue.dart';
 class SessionData {
   final DateTime date;
   final String game;
-  final int? pointsCollected;
   final int? distanceTraveled;
   final double? averageUploadSpeed;
   final double? averageDownloadSpeed;
@@ -28,7 +27,6 @@ class SessionData {
   SessionData({
     required this.date,
     required this.game,
-    this.pointsCollected,
     this.distanceTraveled,
     this.sessionDataPoints,
     this.averageDownloadSpeed,
@@ -104,7 +102,7 @@ class DataPoint {
 // ---- USER DATA PROVIDER ----
 
 // Keeps the current user's data in memory. Notifies the UI on changes.
-// Screens read points/name/etc. from here instead of querying the cloud.
+// Screens read name/totals/etc. from here instead of querying the cloud.
 class UserDataProvider extends ChangeNotifier {
   Map<String, dynamic>? _userData; // the user's full record, or null if not loaded.
   bool _isLoading = false; // true while a fetch is running.
@@ -123,7 +121,6 @@ class UserDataProvider extends ChangeNotifier {
   }
 
   // Convenience getters with safe defaults. Some accept old field names too.
-  int get points => _userData?['points'] ?? 0;
   String get firstName => _userData?['basicInfo']?['firstName'] ?? 'Explorer';
   String get uid => _userData?['uid'] ?? '';
   String get phone => _userData?['phone'] ?? '1111111111';
@@ -135,7 +132,7 @@ class UserDataProvider extends ChangeNotifier {
       _userData?['radGyration'] ?? _userData?['totalRadiusGyration'] ?? 0;
   List<dynamic> get dataPoints => _userData?['dataPoints'] ?? [];
 
-  // Bump number fields (e.g. +50 points) in memory right away so the dashboard
+  // Bump number fields (e.g. +1 session) in memory right away so the dashboard
   // updates instantly. The cloud write is already queued; this just makes it
   // visible now. Real values reconcile on the next fetchUserData.
   void applyLocalIncrements(Map<String, num> increments) {
@@ -249,7 +246,6 @@ class UserDataProvider extends ChangeNotifier {
           'uid': participantId ?? 'unknown',
           'participantId': participantId,
           'basicInfo': {'firstName': 'Explorer'},
-          'points': 0,
           'totalDistance': 0,
           'totalSessions': 0,
         };
@@ -260,7 +256,6 @@ class UserDataProvider extends ChangeNotifier {
       _userData = {
         'uid': user?.uid ?? participantId ?? 'unknown',
         'basicInfo': {'firstName': 'Explorer'},
-        'points': 0,
         'totalDistance': 0,
         'totalSessions': 0,
       };
@@ -285,7 +280,6 @@ class UserDataProvider extends ChangeNotifier {
         'totalSessions': 0,
         'totalSteps': 0,
         'totalDistance': 0,
-        'points': 0,
         'basicInfo': {'firstName': 'Explorer'},
       },
       merge: true,

@@ -85,9 +85,8 @@ class _BpPromptDialogState extends State<BpPromptDialog> {
       );
 
       if (!mounted) return; // popup already closed? stop here.
-      // Update points and the latest reading in-memory so the dashboard refreshes now.
+      // Update counters and the latest reading in-memory so the dashboard refreshes now.
       PointsHooks.applyIncrements(context, const {
-        'points': 50,
         'totalSessions': 1,
         'measurementsTaken': 1,
       });

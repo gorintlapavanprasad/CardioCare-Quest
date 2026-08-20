@@ -892,7 +892,7 @@ body {
 ::Welcome [nobr]
 
 <div class="phone">
-<div class="header"><span>Vascular Village</span><span class="header-points">$totalPoints pts</span></div>
+<div class="header"><span>Vascular Village</span></div>
 <div class="content">
 
 <div class="mascot-wrap">
@@ -935,7 +935,7 @@ body {
 ::No Reading [nobr]
 
 <div class="phone">
-<div class="header"><span>Vascular Village</span><span class="header-points">$totalPoints pts</span></div>
+<div class="header"><span>Vascular Village</span></div>
 <div class="content">
 
 <div class="mascot-wrap">
@@ -1070,7 +1070,7 @@ if ((!State.variables.lastSys || State.variables.lastSys === 0) &&
 
 
 <div class="phone">
-<div class="header"><span>Vascular Village</span><span class="header-points">$totalPoints pts</span></div>
+<div class="header"><span>Vascular Village</span></div>
 
 <div class="bp-card">
 <div class="bp-label">Today's Progress</div>
@@ -1195,7 +1195,7 @@ if ((!State.variables.lastSys || State.variables.lastSys === 0) &&
 <div class="quest-list daily-bonus-list">
 
 <<if not $voyageDone>>
-<<link '<span class="quest-icon">🛤️</span><div class="quest-text-wrap"><div class="quest-name">Daily Blood Vessel Voyage</div><div class="quest-blurb">A short tour, +50 bonus points.</div></div>'>>
+<<link '<span class="quest-icon">🛤️</span><div class="quest-text-wrap"><div class="quest-name">Daily Blood Vessel Voyage</div><div class="quest-blurb">A short tour.</div></div>'>>
 <<goto "Voyage">>
 <</link>>
 <<else>>
@@ -1238,7 +1238,7 @@ setTimeout(function () {
 ::Quest Reallocate [nobr]
 
 <div class="phone">
-<div class="header"><span>Reallocate Resources</span><span class="header-points">$totalPoints pts</span></div>
+<div class="header"><span>Reallocate Resources</span></div>
 <div class="content">
 
 <p class="scene center">Three nutrients have arrived. Each body system needs a different one. Match them up.</p>
@@ -1323,13 +1323,12 @@ setTimeout(function () {
 >>
 
 <div class="phone">
-<div class="header"><span>Reallocate Resources</span><span class="header-points">$totalPoints pts</span></div>
+<div class="header"><span>Reallocate Resources</span></div>
 <div class="content">
 
 <div class="result-card">
 <div class="result-emoji">🧬</div>
 <div class="result-headline">Resources delivered</div>
-<div class="result-points">+100 points</div>
 <p class="result-explain">Potassium relaxes vessel walls and helps your kidneys flush sodium. Magnesium keeps heart muscle steady. Fiber lowers cholesterol so your kidneys do not work as hard. Three real nutrients. Three real jobs.</p>
 </div>
 
@@ -1344,7 +1343,7 @@ setTimeout(function () {
 ::Quest Pump [nobr]
 
 <div class="phone">
-<div class="header"><span>Pump the Heart</span><span class="header-points">$totalPoints pts</span></div>
+<div class="header"><span>Pump the Heart</span></div>
 <div class="content">
 
 <p class="scene center">Tap the heart eight times in a steady rhythm. About one tap per second.</p>
@@ -1422,13 +1421,12 @@ setTimeout(function () {
 >>
 
 <div class="phone">
-<div class="header"><span>Pump the Heart</span><span class="header-points">$totalPoints pts</span></div>
+<div class="header"><span>Pump the Heart</span></div>
 <div class="content">
 
 <div class="result-card">
 <div class="result-emoji">💓</div>
 <div class="result-headline"><<if $heartQuality is "steady">>Steady as a drum<<elseif $heartQuality is "decent">>Solid pumping<<else>>Heart is beating<</if>></div>
-<div class="result-points">+<<print _earned>> points</div>
 <p class="result-explain">A steady heart rhythm at rest means your vessels are responding well to demand. A resting heart rate of sixty to seventy beats a minute is a good sign of cardiovascular health. Random spikes and crashes wear the heart out faster.</p>
 </div>
 
@@ -1443,7 +1441,7 @@ setTimeout(function () {
 ::Quest Clear [nobr]
 
 <div class="phone">
-<div class="header"><span>Clear a Path</span><span class="header-points">$totalPoints pts</span></div>
+<div class="header"><span>Clear a Path</span></div>
 <div class="content">
 
 <p class="scene center">Plaque has built up on the artery wall. Tap each spot to clear it. Each tap is like eating a fiber-rich food.</p>
@@ -1516,13 +1514,12 @@ setTimeout(function () {
 >>
 
 <div class="phone">
-<div class="header"><span>Clear a Path</span><span class="header-points">$totalPoints pts</span></div>
+<div class="header"><span>Clear a Path</span></div>
 <div class="content">
 
 <div class="result-card">
 <div class="result-emoji">🧹</div>
 <div class="result-headline">Path is clear</div>
-<div class="result-points">+100 points</div>
 <p class="result-explain">In a real artery, plaque is built from cholesterol and other gunk that sticks to vessel walls over years. Soluble fiber from oats, beans, and apples helps your body sweep cholesterol out before it sticks. Every fiber-rich meal is one of these taps in real life.</p>
 </div>
 
@@ -1537,7 +1534,7 @@ setTimeout(function () {
 ::Quest Stretch [nobr]
 
 <div class="phone">
-<div class="header"><span>Stretch the Arteries</span><span class="header-points">$totalPoints pts</span></div>
+<div class="header"><span>Stretch the Arteries</span></div>
 
 <div class="stretch-stage">
 <div class="stretch-prompt-wrap">
@@ -1572,13 +1569,12 @@ setTimeout(function () {
 >>
 
 <div class="phone">
-<div class="header"><span>Stretch the Arteries</span><span class="header-points">$totalPoints pts</span></div>
+<div class="header"><span>Stretch the Arteries</span></div>
 <div class="content">
 
 <div class="result-card">
 <div class="result-emoji">🌊</div>
 <div class="result-headline">Vessels stretched</div>
-<div class="result-points">+100 points</div>
 <p class="result-explain">Slow deep breathing triggers the body's relaxation response. Heart rate drops. Blood vessels widen. Pressure can fall noticeably within minutes. Two minutes a day is enough to make a real difference over weeks.</p>
 </div>
 
@@ -1610,7 +1606,7 @@ try {
 <</script>>
 
 <div class="phone">
-<div class="header"><span>Daily Voyage</span><span class="header-points">$totalPoints pts</span></div>
+<div class="header"><span>Daily Voyage</span></div>
 <div class="content">
 
 <h2 class="intro-title">Daily Voyage</h2>
@@ -1640,7 +1636,6 @@ try {
 
 </div>
 
-<div style="text-align: center;"><span class="result-points">+50 bonus points</span></div>
 
 <div class="spacer"></div>
 
@@ -1670,7 +1665,7 @@ Welcome) with a no-op spinner UI.
 >>
 
 <div class="phone">
-<div class="header"><span>Vascular Village</span><span class="header-points">$totalPoints pts</span></div>
+<div class="header"><span>Vascular Village</span></div>
 <div class="content">
 
 <span class="hero-emoji">🏘️</span>

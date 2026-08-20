@@ -1,16 +1,419 @@
-::StoryTitle
+:: StoryTitle
 Salt Sludge
 
-::StoryData
+:: StoryData
 {
   "ifid": "A1B2C3D4-E5F6-4890-A8CD-EF1234567890",
   "format": "SugarCube",
-  "format-version": "2.37.3",
+  "format-version": "2.30.0",
   "start": "Story innit",
   "zoom": 1
 }
 
-::UserStylesheet [stylesheet]
+:: Story innit [Important/Needed] {"position": "100,100", "size": "100,100"}
+/*
+SYSTEM CODE: runs once at the very start.
+
+Variables:
+- $playerName  : pulled from sign-in
+- $sludge      : sludge level 0 to 100, starts at 0
+- $score       : nutrient points earned
+- $day         : current day 1 to 5
+- $foodChoice  : what the player just ate
+
+You do not need to edit this.
+*/
+
+<<set $playerName to "Explorer">>
+<<set $sludge to 0>>
+<<set $score to 0>>
+<<set $day to 1>>
+<<set $foodChoice to "">>
+/* UPDATE9: shuffle the scenario pool and take 5 days for this
+   play-through. Reset here so PLAY AGAIN reshuffles into a new order
+   with (potentially) different food pairs. */
+<<set $dayOrder to setup.salt.pickDays(5)>>
+/* Diet choice (everything / vegetarian / vegan), set on the Diet Choice
+   screen after Welcome. setup.salt.resolveDay() reads it to swap meat and
+   dairy foods for plant stand-ins so no one is shown food they do not eat. */
+<<set $playerDiet to "everything">>
+/* Re-played-this-session guard for the Final Result submitResponse
+   call. Reset on every Story innit run so a participant who finishes
+   then taps PLAY AGAIN gets a fresh shot at submitting (one submit
+   per session, per play-through). */
+<<set $submittedThisSession to false>>
+
+<<goto "Welcome">>
+
+:: Welcome [Important/Needed nobr] {"position": "225,100", "size": "100,100"}
+/*
+INCITING MOMENT: Personal greeting. The hook. One button.
+Card 1 of 2 before gameplay starts.
+*/
+
+<div class="phone">
+<div class="header"><span>Salt Sludge</span></div>
+<div class="content">
+
+<span class="hero-emoji">🧂</span>
+
+<h1 class="intro-title">Salt Sludge</h1>
+
+<p class="narrative center">Hey $playerName.</p>
+
+<p class="narrative">Watch your blood vessels react in real time to what you eat. Five days. Five food choices. About two minutes.</p>
+
+<div class="spacer"></div>
+
+<a class="btn-primary" data-passage="How It Works">HOW IT WORKS</a>
+
+</div>
+</div>
+
+:: How It Works [Important/Needed nobr] {"position": "350,100", "size": "100,100"}
+/*
+RULES + SCIENCE in one screen.
+Combines what salt does, what potassium does, and how to play.
+Card 2 of 2 before gameplay starts.
+*/
+
+<div class="phone">
+<div class="header"><span>Salt Sludge</span></div>
+<div class="content">
+
+<div class="duo-emoji">
+<span class="duo-emoji-bad">🧂</span>
+<span class="duo-emoji-good">🍌</span>
+</div>
+
+<h2 class="intro-title">Salt vs Potassium</h2>
+
+<p class="narrative"><strong>Salt</strong> builds orange sludge inside your blood vessels. Blood pressure climbs.</p>
+
+<p class="narrative"><strong>Potassium</strong> from foods like bananas, spinach, beans, and sweet potatoes clears the salt out. Sludge clears.</p>
+
+<p class="narrative">Each day you pick one food. Your sludge carries into tomorrow.</p>
+
+<div class="spacer"></div>
+
+<a class="btn-primary" data-passage="Diet Choice">NEXT</a>
+
+</div>
+</div>
+
+:: Diet Choice [Important/Needed nobr] {"position": "350,225", "size": "100,100"}
+/*
+DIET CHOICE: Ask once what the player eats. Sets $playerDiet, which
+setup.salt.resolveDay() reads to swap meat/dairy foods for plant
+stand-ins during the daily food choices.
+*/
+
+<div class="phone">
+<div class="header"><span>Salt Sludge</span></div>
+<div class="content">
+
+<span class="hero-emoji">🍽️</span>
+
+<h2 class="intro-title">What do you eat?</h2>
+
+<p class="narrative center">Pick one. We will only show you foods you actually eat.</p>
+
+<div class="spacer"></div>
+
+<<link '🍗  I eat everything'>><<set $playerDiet to "everything">><<goto "Day Start">><</link>>
+
+<<link '🥗  Vegetarian (no meat)'>><<set $playerDiet to "vegetarian">><<goto "Day Start">><</link>>
+
+<<link '🌱  Vegan (no meat or dairy)'>><<set $playerDiet to "vegan">><<goto "Day Start">><</link>>
+
+</div>
+</div>
+
+<<script>>
+setTimeout(function () {
+  var links = document.querySelectorAll('.content a.macro-link, .content a.link-internal');
+  for (var i = 0; i < links.length; i++) {
+    links[i].classList.add('btn-primary');
+    links[i].style.marginBottom = '12px';
+  }
+}, 0);
+<</script>>
+
+:: Day Start [Important/Needed nobr] {"position": "475,100", "size": "100,100"}
+/*
+START OF EACH DAY.
+Shows current day, current sludge level (visual + number),
+and a daily health tip. Sends player to the food choice for that day.
+*/
+
+<div class="phone">
+<div class="header"><span>Salt Sludge</span><span class="day-label">Day $day of 5</span></div>
+
+<div class="meters-wrap">
+<div class="meter-row"><div class="meter-label">Sludge</div><div class="meter-bar"><div class="meter-bar-fill sludge" @style="'width: ' + $sludge + '%'"></div></div></div>
+<div class="meter-row"><div class="meter-label">Nutrients</div><div class="meter-bar"><div class="meter-bar-fill nutrient" @style="'width: ' + Math.min(100, $score * 2) + '%'"></div></div></div>
+</div>
+
+<div class="content">
+
+<p class="day-status"><<if $sludge lt 30>>Your blood vessels are looking clean right now.<<elseif $sludge lt 60>>Some sludge is building up. Today is a chance to clear it.<<else>>That sludge is getting thick. Choose carefully today.<</if>></p>
+
+<div class="tip-card">
+<div class="tip-label">Did you know</div>
+<<if $day is 1>>Most adults eat twice as much salt as they should without realizing it.<<elseif $day is 2>>Potassium helps your body clear salt out. Most people do not eat enough of it.<<elseif $day is 3>>Canned foods are one of the biggest hidden sources of salt. One serving can have more than half a day's worth.<<elseif $day is 4>>Walking also helps lower blood pressure. Potassium is not the only tool you have.<<else>>Five days of better choices can make a real difference in your blood pressure.<</if>>
+</div>
+
+<div class="spacer"></div>
+
+<!-- UPDATE9: every day now routes to the single generic `Food Day`
+     passage, which renders $dayOrder[$day - 1].
+     UPDATE10: vary the pace. Instead of the reveal button appearing
+     instantly (constant cadence), gate it behind a randomized 0.4–2.0s
+     <<timed>> delay so choices don't arrive on a metronome. The button
+     still always appears, so the screen stays fully accessible. -->
+<<set _delay to Math.round((0.4 + Math.random() * 1.6) * 1000) + "ms">>
+<span id="reveal-slot"></span>
+<<timed _delay>><<replace "#reveal-slot">><a class="btn-primary" data-passage="Food Day">SHOW ME TODAY'S FOOD</a><</replace>><</timed>>
+
+</div>
+</div>
+
+:: Food Day [Important/Needed nobr] {"position": "600,100", "size": "100,100"}
+/*
+GENERIC DAY FOOD CHOICE (UPDATE9).
+Renders $dayOrder[$day - 1] — the shuffled scenario for today. The good
+option clears sludge + earns nutrient points; the bad option adds
+sludge. $foodChoice records only "good" / "bad"; Food Result reads the
+same scenario object to show the right emoji + explanation. Replaces the
+five hardcoded Food Day 1..5 passages.
+*/
+
+<<set _s to setup.salt.resolveDay($dayOrder[$day - 1])>>
+/* Build the two link labels up front. SugarCube's macro-argument
+   parser would split a bare `'...' + _s.x + '...'` expression into
+   several arguments, so we assemble each HTML label string into a temp
+   var and pass that single var to <<link>> (which still wikifies it,
+   rendering the span/div just like the old literal labels did). */
+<<set _goodLabel to '<span class="food-emoji">' + _s.goodFood.emoji + '</span><div class="food-name">' + _s.goodFood.name + '</div>'>>
+<<set _badLabel to '<span class="food-emoji">' + _s.badFood.emoji + '</span><div class="food-name">' + _s.badFood.name + '</div>'>>
+<div class="phone">
+<div class="header"><span>Salt Sludge</span><span class="day-label">Day $day of 5</span></div>
+
+<div class="meters-wrap">
+<div class="meter-row"><div class="meter-label">Sludge</div><div class="meter-bar"><div class="meter-bar-fill sludge" @style="'width: ' + $sludge + '%'"></div></div></div>
+<div class="meter-row"><div class="meter-label">Nutrients</div><div class="meter-bar"><div class="meter-bar-fill nutrient" @style="'width: ' + Math.min(100, $score * 2) + '%'"></div></div></div>
+</div>
+
+<div class="content">
+<p class="scene"><<print _s.scene>></p>
+
+<div class="spacer"></div>
+
+<div class="food-row">
+
+<<link _goodLabel>>
+<<set $sludge to Math.max(0, $sludge - $dayOrder[$day - 1].sludgeDown)>>
+<<set $score to $score + $dayOrder[$day - 1].scoreUp>>
+<<set $foodChoice to "good">>
+<<goto "Food Result">>
+<</link>>
+
+<div class="or-divider">or</div>
+
+<<link _badLabel>>
+<<set $sludge to Math.min(100, $sludge + $dayOrder[$day - 1].sludgeUp)>>
+<<set $foodChoice to "bad">>
+<<goto "Food Result">>
+<</link>>
+
+</div>
+
+<div class="spacer"></div>
+
+</div>
+</div>
+
+<<script>>
+/* Wrap each <<link>>'s generated <a> in food-card class so it gets the white card styling.
+   This runs after the passage renders. */
+setTimeout(function () {
+  document.querySelectorAll('.food-row a.macro-link, .food-row a.link-internal').forEach(function (a) {
+    a.classList.add('food-card');
+  });
+}, 0);
+<</script>>
+
+:: Food Result [Important/Needed nobr] {"position": "725,100", "size": "100,100"}
+/*
+RESULT OF EACH FOOD CHOICE.
+Tells the player what that food did to their artery and why.
+Then moves to next day or final result after Day 5.
+*/
+
+<div class="phone">
+<div class="header"><span>Salt Sludge</span><span class="day-label">Day $day of 5</span></div>
+
+<div class="meters-wrap">
+<div class="meter-row"><div class="meter-label">Sludge</div><div class="meter-bar"><div class="meter-bar-fill sludge" @style="'width: ' + $sludge + '%'"></div></div></div>
+<div class="meter-row"><div class="meter-label">Nutrients</div><div class="meter-bar"><div class="meter-bar-fill nutrient" @style="'width: ' + Math.min(100, $score * 2) + '%'"></div></div></div>
+</div>
+
+<div class="content">
+
+<<set _s to setup.salt.resolveDay($dayOrder[$day - 1])>>
+<<if $foodChoice is "good">>
+
+<div class="result-card">
+<span class="result-emoji"><<print _s.goodFood.emoji>></span>
+<div class="result-verdict good">Good choice</div>
+<p class="result-explain"><<print _s.goodExplain>></p>
+<div class="result-meter-after">Sludge cleared</div>
+</div>
+
+<<else>>
+
+<div class="result-card">
+<span class="result-emoji"><<print _s.badFood.emoji>></span>
+<div class="result-verdict bad">Your blood vessels felt that</div>
+<p class="result-explain"><<print _s.badExplain>></p>
+<div class="result-meter-after">Sludge increased. Tomorrow is a chance to clear it.</div>
+</div>
+
+<</if>>
+
+<<if $day lt 5>>
+<<set $day to $day + 1>>
+<a class="btn-primary" data-passage="Day Start">ON TO DAY <<print $day>></a>
+<!-- Per-day "BACK TO CARDIOCAREQUEST" removed — same call we made on
+     DASH. The burger menu (≡) in the header already exposes "Go to
+     dashboard" on every screen, so a second exit button after every
+     day was redundant + visually noisy. The Final Result screen at
+     the end of Day 5 still has the BACK button (it belongs there as
+     the "you finished, here's the way out" affordance). -->
+<<else>>
+<a class="btn-primary" data-passage="Final Result">SEE YOUR FINAL ARTERY</a>
+<</if>>
+
+</div>
+</div>
+
+:: Final Result [Important/Needed nobr] {"position": "850,100", "size": "100,100"}
+/*
+DENOUEMENT: End of game.
+Personalized message based on final sludge level.
+Score shown. Option to play again.
+
+The <<run>> below fires the canonical SUBMIT_RESPONSE event so
+research data sees a Salt Sludge play landing in
+`surveys/salt_sludge/responses/{auto}` and a
+`survey_response_submitted` event with surveyId='salt_sludge'.
+The Community Stats engagement-bar query keys on the surveyId,
+so without this firing the Diet category bar would stay at 0
+no matter how many participants finish the game. Guarded by a
+session flag so PLAY AGAIN doesn't double-credit.
+*/
+
+<<if not $submittedThisSession>>
+<<set $submittedThisSession to true>>
+<<run
+  try {
+    if (window.CCQ && typeof window.CCQ.submitResponse === "function") {
+      var verdict = "heavy";
+      if (State.variables.sludge < 30) { verdict = "clean"; }
+      else if (State.variables.sludge < 60) { verdict = "middle"; }
+      window.CCQ.submitResponse({
+        playerName: State.variables.playerName,
+        sludge: State.variables.sludge,
+        score: State.variables.score,
+        verdict: verdict,
+        daysCompleted: 5
+      }, { pointsEarned: 50, countAsCompletion: true });
+    }
+  } catch (e) { /* swallow */ }
+>>
+<</if>>
+
+<div class="phone">
+<div class="header"><span>Salt Sludge</span><span class="day-label">5 days done</span></div>
+
+<div class="meters-wrap">
+<div class="meter-row"><div class="meter-label">Sludge</div><div class="meter-bar"><div class="meter-bar-fill sludge" @style="'width: ' + $sludge + '%'"></div></div></div>
+<div class="meter-row"><div class="meter-label">Nutrients</div><div class="meter-bar"><div class="meter-bar-fill nutrient" @style="'width: ' + Math.min(100, $score * 2) + '%'"></div></div></div>
+</div>
+
+<div class="content">
+
+<div class="final-card">
+
+<<if $sludge lt 30>>
+<div class="final-headline clean">Clean artery</div>
+<div class="final-stats">Sludge $sludge of 100.</div>
+<div class="final-body">
+<p>Your potassium choices paid off. Blood is moving freely. Your blood pressure is lower right now than it was at the start of Day 1.</p>
+<p>Five days of consistent good choices. Not dramatic. Not perfect. Just noticeably better.</p>
+</div>
+<<elseif $sludge lt 60>>
+<div class="final-headline middle">Some sludge</div>
+<div class="final-stats">Sludge $sludge of 100.</div>
+<div class="final-body">
+<p>A mix of good and tough choices. Your blood vessels are managing but working harder than they need to.</p>
+<p>The good news is you already know which foods cleared it. Those are the ones to reach for more often.</p>
+</div>
+<<else>>
+<div class="final-headline heavy">Heavy sludge</div>
+<div class="final-stats">Sludge $sludge of 100.</div>
+<div class="final-body">
+<p>A tough five days. Your blood vessels have been working overtime.</p>
+<p>The salt added up faster than the potassium could clear it. That is the most common pattern. And now you can see exactly why it matters.</p>
+</div>
+<</if>>
+
+</div>
+
+<p class="scene">Every banana, every handful of spinach, every bowl of beans is clearing sludge in real blood vessels right now. Including yours.</p>
+
+<div class="spacer"></div>
+
+<!-- Single exit button. Direct goHome via .ccq-home-trigger — bridge
+     intercepts the click and fires CCQ.goHome() to pop the WebView route
+     back to the dashboard. -->
+<a class="btn-primary ccq-home-trigger" href="javascript:void(0)">BACK TO CARDIOCARE QUEST</a>
+
+</div>
+</div>
+
+:: Central Hub [Important/Needed nobr] {"position": "975,100", "size": "100,100"}
+/*
+EXIT HATCH. The visible "BACK TO CARDIOCAREQUEST" buttons now use
+`.ccq-home-trigger` and fire CCQ.goHome() directly, so this passage
+should rarely be reached anymore. Kept for safety: if any future
+flow lands here, the <<run>> below still pops the WebView back to
+the dashboard. Earlier this passage just showed "Returning..." text
+and a "PLAY SALT SLUDGE AGAIN" loop button — players who tapped
+exit got stuck on a loading-looking screen with no way out, which
+is exactly the bug the user reported.
+*/
+<<run
+  try {
+    if (window.CCQ && typeof window.CCQ.goHome === "function") {
+      window.CCQ.goHome();
+    }
+  } catch (e) { /* swallow */ }
+>>
+
+<div class="phone">
+<div class="header"><span>Salt Sludge</span></div>
+<div class="content">
+
+<h2 class="intro-title">Returning</h2>
+<p class="narrative center">Going back to CardioCareQuest.</p>
+
+<div class="spacer"></div>
+
+</div>
+</div>
+
+:: UserStylesheet [stylesheet]
 /* ============================================================
    SALT SLUDGE — visual stylesheet
    Phone-frame UI, large food cards.
@@ -440,9 +843,8 @@ body {
   color: #ffffff;
 }
 
-
-::UserScript [script]
-
+:: UserScript [script]
+/* twine-user-script #1: "UserScript" */
 /* CardioCare Quest — auto passage telemetry.
    Fires `passage_entered` for every passage entry via the FlutterBridge.
    Snapshots SugarCube state.variables so researchers see the player's
@@ -459,10 +861,7 @@ $(document).on(":passagestart", function (ev) {
     }
   } catch (e) { /* swallow */ }
 });
-
-
-
-::SaltHelpers [script]
+/* twine-user-script #2: "SaltHelpers" */
 /*
 Salt Sludge — day-scenario POOL + shuffle helper (UPDATE9).
 Convention: game logic lives here in a [script] passage's setup.*
@@ -492,8 +891,8 @@ setup.salt.pool = [
     goodFood: { emoji: "🍌", name: "A banana" },
     badFood: { emoji: "🥫", name: "A bowl of canned soup" },
     scene: "You are home. It is late afternoon. You are hungry and need something quick.",
-    goodExplain: "That banana just delivered a flood of potassium to your kidneys. They got to work immediately, flushing out excess sodium. Your artery wall relaxed.",
-    badExplain: "That canned soup had nearly 900 milligrams of sodium in a single serving. Almost half your daily limit in one bowl. Your artery walls tightened. Sludge started forming.",
+    goodExplain: "That banana sent a burst of potassium to your body. It went to work right away, clearing out extra salt. Your blood vessel relaxed.",
+    badExplain: "That canned soup had almost half a whole day's salt in one bowl. Your blood vessels tightened. Sludge started forming.",
     sludgeDown: 15,
     sludgeUp: 25,
     scoreUp: 10
@@ -502,8 +901,8 @@ setup.salt.pool = [
     goodFood: { emoji: "🥬", name: "A plate of spinach" },
     badFood: { emoji: "🍜", name: "A packet of instant noodles" },
     scene: "Lunchtime. You have ten minutes and two options on the counter.",
-    goodExplain: "Spinach is one of the most potassium-dense foods around. Your artery walls eased up. Blood is moving more freely right now.",
-    badExplain: "Instant noodles pack around 1500 milligrams of sodium per packet. Your artery is working harder now than it was five minutes ago.",
+    goodExplain: "Spinach is one of the highest-potassium foods around. Your blood vessels eased up. Blood is moving more freely right now.",
+    badExplain: "Instant noodles have about two thirds of a whole day's salt in one packet. Your blood vessels are working harder now than they were five minutes ago.",
     sludgeDown: 20,
     sludgeUp: 30,
     scoreUp: 10
@@ -512,8 +911,8 @@ setup.salt.pool = [
     goodFood: { emoji: "🍲", name: "A bowl of beans" },
     badFood: { emoji: "🍟", name: "A bag of potato chips" },
     scene: "Afternoon snack time. You open the cupboard. Two things catch your eye.",
-    goodExplain: "Beans are loaded with potassium and fiber. The sludge thinned out noticeably. Your vessel just got a proper clean.",
-    badExplain: "Potato chips are one of the sneakiest sodium sources around. A single serving can contain 200 milligrams or more. Your artery walls just got a little thicker.",
+    goodExplain: "Beans are loaded with potassium and fiber. The sludge thinned out a lot. Your blood vessel just got a proper clean.",
+    badExplain: "Potato chips sneak in a lot of salt without you noticing. Even one small serving adds up. Your blood vessels just got a little more clogged.",
     sludgeDown: 20,
     sludgeUp: 25,
     scoreUp: 10
@@ -521,19 +920,25 @@ setup.salt.pool = [
   {
     goodFood: { emoji: "🍠", name: "A sweet potato" },
     badFood: { emoji: "🥓", name: "Bacon" },
+    badFoodVeg: { emoji: "🫒", name: "A handful of salted olives" },
     scene: "Dinner. You are tired. You want something good. Two options in front of you.",
-    goodExplain: "Sweet potato is the quiet champion of blood pressure foods. High potassium. Low sodium. Your artery is grateful.",
-    badExplain: "Bacon is cured in salt. That sodium hit your bloodstream fast. The sludge built up quickly.",
+    goodExplain: "Sweet potato is one of the best blood pressure foods. Lots of potassium. Very little salt. Your blood vessels are grateful.",
+    badExplain: "Bacon is soaked in salt. That salt went straight into your blood. The sludge built up quickly.",
+    badExplainVeg: "Salted olives are tasty but packed with salt. That salt went straight into your blood. The sludge built up quickly.",
     sludgeDown: 20,
     sludgeUp: 30,
     scoreUp: 10
   },
   {
     goodFood: { emoji: "🥛", name: "Yogurt" },
+    goodFoodVegan: { emoji: "🥑", name: "Half an avocado" },
     badFood: { emoji: "🌭", name: "A hot dog" },
+    badFoodVeg: { emoji: "🥨", name: "A handful of salted pretzels" },
     scene: "Evening. The fridge is open. Two things you could reach for.",
     goodExplain: "Yogurt brings calcium and potassium together. Both help keep blood pressure down. Good call.",
-    badExplain: "A single hot dog contains nearly 600 milligrams of sodium. Your artery noticed immediately.",
+    goodExplainVegan: "Avocado is rich in potassium and healthy fats. Both help keep blood pressure down. Good call.",
+    badExplain: "One hot dog has a lot of salt - your heart felt the strain right away.",
+    badExplainVeg: "Salted pretzels are mostly salt and white flour - your heart felt the strain right away.",
     sludgeDown: 20,
     sludgeUp: 25,
     scoreUp: 10
@@ -542,8 +947,8 @@ setup.salt.pool = [
     goodFood: { emoji: "🥑", name: "Half an avocado" },
     badFood: { emoji: "🥨", name: "A handful of salted pretzels" },
     scene: "Mid-morning. You want something to nibble on. Two choices sit on the shelf.",
-    goodExplain: "Avocado is rich in potassium and healthy fats. Your arteries relaxed and the sludge thinned a little.",
-    badExplain: "Salted pretzels are mostly refined carbs and salt. The sodium crept in and the sludge thickened.",
+    goodExplain: "Avocado is rich in potassium and healthy fats. Your blood vessels relaxed and the sludge thinned a little.",
+    badExplain: "Salted pretzels are mostly salt and white flour. The salt crept in and the sludge thickened.",
     sludgeDown: 15,
     sludgeUp: 25,
     scoreUp: 10
@@ -551,11 +956,61 @@ setup.salt.pool = [
   {
     goodFood: { emoji: "🥣", name: "A bowl of oatmeal" },
     badFood: { emoji: "🍔", name: "A fast-food burger" },
+    badFoodVeg: { emoji: "🍟", name: "A large box of fast-food fries" },
     scene: "You need a real meal. Two very different options are in front of you.",
-    goodExplain: "Oatmeal is high in fiber and low in sodium. It helps steady blood pressure over time. A calm choice for your artery.",
-    badExplain: "A fast-food burger can carry over a thousand milligrams of sodium plus saturated fat. Your artery tightened almost at once.",
+    goodExplain: "Oatmeal is high in fiber and low in salt. It helps steady blood pressure over time. A calm choice for your blood vessels.",
+    badExplain: "A fast-food burger can carry more salt than you should eat in a whole day, plus unhealthy fat. Your blood vessels tightened almost at once.",
+    badExplainVeg: "A large box of fries can carry more salt than you should eat in a whole day, plus unhealthy fat. Your blood vessels tightened almost at once.",
     sludgeDown: 15,
     sludgeUp: 35,
+    scoreUp: 10
+  },
+  {
+    goodFood: { emoji: "🍊", name: "An orange" },
+    badFood: { emoji: "🧀", name: "A few slices of cheese" },
+    scene: "Mid-morning. You want a little something. Two choices are on the counter.",
+    goodExplain: "An orange is full of potassium and vitamin C. Your blood vessels eased up and the sludge thinned a little.",
+    badExplain: "Cheese is saltier than most people expect, and it is easy to eat a lot. The salt crept in and the sludge thickened.",
+    sludgeDown: 15,
+    sludgeUp: 25,
+    scoreUp: 10
+  },
+  {
+    goodFood: { emoji: "🐟", name: "A piece of grilled salmon" },
+    goodFoodVegan: { emoji: "🫘", name: "A bowl of lentils" },
+    badFood: { emoji: "🍖", name: "A few slices of deli ham" },
+    badFoodVeg: { emoji: "🥫", name: "A bowl of canned soup" },
+    scene: "Dinnertime. You want something filling. Two options sit in front of you.",
+    goodExplain: "Salmon has healthy fats that keep blood vessels soft. Fresh fish is low in salt. Your blood vessels relaxed.",
+    goodExplainVegan: "Lentils are packed with potassium and fiber and have almost no salt. Your blood vessels relaxed and the sludge thinned.",
+    badExplain: "Deli ham is preserved with a lot of salt. A few slices sent that salt into your blood and the sludge built up.",
+    badExplainVeg: "Canned soup often has half a day's salt in one bowl. That salt went into your blood and the sludge built up.",
+    sludgeDown: 20,
+    sludgeUp: 30,
+    scoreUp: 10
+  },
+  {
+    goodFood: { emoji: "🍅", name: "A fresh tomato salad" },
+    badFood: { emoji: "🍕", name: "A slice of frozen pizza" },
+    badFoodVeg: { emoji: "🥨", name: "A handful of salted pretzels" },
+    scene: "Lunchtime. You are hungry and two things are within reach.",
+    goodExplain: "Fresh tomatoes are low in salt and high in potassium. Your blood vessels eased and the sludge thinned out.",
+    badExplain: "Between the cheese, the meat, and the crust, one slice of frozen pizza packs a lot of salt. The sludge thickened fast.",
+    badExplainVeg: "Salted pretzels are mostly salt and white flour. The salt crept in and the sludge thickened.",
+    sludgeDown: 20,
+    sludgeUp: 30,
+    scoreUp: 10
+  },
+  {
+    goodFood: { emoji: "🫜", name: "A few roasted beets" },
+    badFood: { emoji: "🥓", name: "Two rashers of bacon" },
+    badFoodVeg: { emoji: "🥒", name: "A couple of large pickles" },
+    scene: "Evening. You reach for a side dish. Two very different choices.",
+    goodExplain: "Beets have natural nitrates that help your blood vessels open up. The sludge thinned and blood moved more freely.",
+    badExplain: "Bacon is soaked in salt. That salt went straight into your blood and the sludge built up quickly.",
+    badExplainVeg: "Pickles soak in salty brine for days. That salt went straight into your blood and the sludge built up quickly.",
+    sludgeDown: 20,
+    sludgeUp: 30,
     scoreUp: 10
   }
 ];
@@ -573,378 +1028,34 @@ setup.salt.pickDays = function (n) {
   return copy.slice(0, n);
 };
 
-
-::Story innit [Important/Needed]
-/*
-SYSTEM CODE: runs once at the very start.
-
-Variables:
-- $playerName  : pulled from sign-in
-- $sludge      : sludge level 0 to 100, starts at 0
-- $score       : nutrient points earned
-- $day         : current day 1 to 5
-- $foodChoice  : what the player just ate
-
-You do not need to edit this.
-*/
-
-<<set $playerName to "Explorer">>
-<<set $sludge to 0>>
-<<set $score to 0>>
-<<set $day to 1>>
-<<set $foodChoice to "">>
-/* UPDATE9: shuffle the scenario pool and take 5 days for this
-   play-through. Reset here so PLAY AGAIN reshuffles into a new order
-   with (potentially) different food pairs. */
-<<set $dayOrder to setup.salt.pickDays(5)>>
-/* Re-played-this-session guard for the Final Result submitResponse
-   call. Reset on every Story innit run so a participant who finishes
-   then taps PLAY AGAIN gets a fresh shot at submitting (one submit
-   per session, per play-through). */
-<<set $submittedThisSession to false>>
-
-<<goto "Welcome">>
-
-
-::Welcome [Important/Needed nobr]
-/*
-INCITING MOMENT: Personal greeting. The hook. One button.
-Card 1 of 2 before gameplay starts.
-*/
-
-<div class="phone">
-<div class="header"><span>Salt Sludge</span></div>
-<div class="content">
-
-<span class="hero-emoji">🧂</span>
-
-<h1 class="intro-title">Salt Sludge</h1>
-
-<p class="narrative center">Hey $playerName.</p>
-
-<p class="narrative">Watch your arteries react in real time to what you eat. Five days. Five food choices. About two minutes.</p>
-
-<div class="spacer"></div>
-
-<a class="btn-primary" data-passage="How It Works">HOW IT WORKS</a>
-
-</div>
-</div>
-
-
-::How It Works [Important/Needed nobr]
-/*
-RULES + SCIENCE in one screen.
-Combines what salt does, what potassium does, and how to play.
-Card 2 of 2 before gameplay starts.
-*/
-
-<div class="phone">
-<div class="header"><span>Salt Sludge</span></div>
-<div class="content">
-
-<div class="duo-emoji">
-<span class="duo-emoji-bad">🧂</span>
-<span class="duo-emoji-good">🍌</span>
-</div>
-
-<h2 class="intro-title">Salt vs Potassium</h2>
-
-<p class="narrative"><strong>Salt</strong> builds orange sludge on your artery walls. Blood pressure climbs.</p>
-
-<p class="narrative"><strong>Potassium</strong> from foods like bananas, spinach, beans, and sweet potatoes flushes salt out. Sludge clears.</p>
-
-<p class="narrative">Each day you pick one food. Your sludge carries into tomorrow.</p>
-
-<div class="spacer"></div>
-
-<a class="btn-primary" data-passage="Day Start">START DAY 1</a>
-
-</div>
-</div>
-
-
-::Day Start [Important/Needed nobr]
-/*
-START OF EACH DAY.
-Shows current day, current sludge level (visual + number),
-and a daily health tip. Sends player to the food choice for that day.
-*/
-
-<div class="phone">
-<div class="header"><span>Salt Sludge</span><span class="day-label">Day $day of 5</span></div>
-
-<div class="meters-wrap">
-<div class="meter-row"><div class="meter-label">Sludge</div><div class="meter-bar"><div class="meter-bar-fill sludge" @style="'width: ' + $sludge + '%'"></div></div></div>
-<div class="meter-row"><div class="meter-label">Nutrients</div><div class="meter-bar"><div class="meter-bar-fill nutrient" @style="'width: ' + Math.min(100, $score * 2) + '%'"></div></div></div>
-</div>
-
-<div class="content">
-
-<p class="day-status"><<if $sludge lt 30>>Your artery is looking clean right now.<<elseif $sludge lt 60>>Some sludge is building up. Today is a chance to clear it.<<else>>That sludge is getting thick. Choose carefully today.<</if>></p>
-
-<div class="tip-card">
-<div class="tip-label">Did you know</div>
-<<if $day is 1>>Most adults eat double the recommended daily sodium without realizing it.<<elseif $day is 2>>Potassium helps your kidneys flush sodium out. Most people do not get enough of it.<<elseif $day is 3>>Canned foods are one of the biggest hidden sources of sodium. One serving can contain more than half your daily limit.<<elseif $day is 4>>Walking also helps lower blood pressure. Potassium is not the only tool you have.<<else>>Five days of better choices can make a measurable difference in your resting blood pressure.<</if>>
-</div>
-
-<div class="spacer"></div>
-
-<!-- UPDATE9: every day now routes to the single generic `Food Day`
-     passage, which renders $dayOrder[$day - 1].
-     UPDATE10: vary the pace. Instead of the reveal button appearing
-     instantly (constant cadence), gate it behind a randomized 0.4–2.0s
-     <<timed>> delay so choices don't arrive on a metronome. The button
-     still always appears, so the screen stays fully accessible. -->
-<<set _pace to 0.4 + Math.random() * 1.6>>
-<span id="reveal-slot"></span>
-<<timed _pace + "s">><<replace "#reveal-slot">><a class="btn-primary" data-passage="Food Day">SHOW ME TODAY'S FOOD</a><</replace>><</timed>>
-
-</div>
-</div>
-
-
-::Food Day [Important/Needed nobr]
-/*
-GENERIC DAY FOOD CHOICE (UPDATE9).
-Renders $dayOrder[$day - 1] — the shuffled scenario for today. The good
-option clears sludge + earns nutrient points; the bad option adds
-sludge. $foodChoice records only "good" / "bad"; Food Result reads the
-same scenario object to show the right emoji + explanation. Replaces the
-five hardcoded Food Day 1..5 passages.
-*/
-
-<<set _s to $dayOrder[$day - 1]>>
-/* Build the two link labels up front. SugarCube's macro-argument
-   parser would split a bare `'...' + _s.x + '...'` expression into
-   several arguments, so we assemble each HTML label string into a temp
-   var and pass that single var to <<link>> (which still wikifies it,
-   rendering the span/div just like the old literal labels did). */
-<<set _goodLabel to '<span class="food-emoji">' + _s.goodFood.emoji + '</span><div class="food-name">' + _s.goodFood.name + '</div>'>>
-<<set _badLabel to '<span class="food-emoji">' + _s.badFood.emoji + '</span><div class="food-name">' + _s.badFood.name + '</div>'>>
-<div class="phone">
-<div class="header"><span>Salt Sludge</span><span class="day-label">Day $day of 5</span></div>
-
-<div class="meters-wrap">
-<div class="meter-row"><div class="meter-label">Sludge</div><div class="meter-bar"><div class="meter-bar-fill sludge" @style="'width: ' + $sludge + '%'"></div></div></div>
-<div class="meter-row"><div class="meter-label">Nutrients</div><div class="meter-bar"><div class="meter-bar-fill nutrient" @style="'width: ' + Math.min(100, $score * 2) + '%'"></div></div></div>
-</div>
-
-<div class="content">
-<p class="scene"><<print _s.scene>></p>
-
-<div class="spacer"></div>
-
-<div class="food-row">
-
-<<link _goodLabel>>
-<<set $sludge to Math.max(0, $sludge - $dayOrder[$day - 1].sludgeDown)>>
-<<set $score to $score + $dayOrder[$day - 1].scoreUp>>
-<<set $foodChoice to "good">>
-<<goto "Food Result">>
-<</link>>
-
-<div class="or-divider">or</div>
-
-<<link _badLabel>>
-<<set $sludge to Math.min(100, $sludge + $dayOrder[$day - 1].sludgeUp)>>
-<<set $foodChoice to "bad">>
-<<goto "Food Result">>
-<</link>>
-
-</div>
-
-<div class="spacer"></div>
-
-</div>
-</div>
-
-<<script>>
-/* Wrap each <<link>>'s generated <a> in food-card class so it gets the white card styling.
-   This runs after the passage renders. */
-setTimeout(function () {
-  document.querySelectorAll('.food-row a.macro-link, .food-row a.link-internal').forEach(function (a) {
-    a.classList.add('food-card');
-  });
-}, 0);
-<</script>>
-
-
-::Food Result [Important/Needed nobr]
-/*
-RESULT OF EACH FOOD CHOICE.
-Tells the player what that food did to their artery and why.
-Then moves to next day or final result after Day 5.
-*/
-
-<div class="phone">
-<div class="header"><span>Salt Sludge</span><span class="day-label">Day $day of 5</span></div>
-
-<div class="meters-wrap">
-<div class="meter-row"><div class="meter-label">Sludge</div><div class="meter-bar"><div class="meter-bar-fill sludge" @style="'width: ' + $sludge + '%'"></div></div></div>
-<div class="meter-row"><div class="meter-label">Nutrients</div><div class="meter-bar"><div class="meter-bar-fill nutrient" @style="'width: ' + Math.min(100, $score * 2) + '%'"></div></div></div>
-</div>
-
-<div class="content">
-
-<<set _s to $dayOrder[$day - 1]>>
-<<if $foodChoice is "good">>
-
-<div class="result-card">
-<span class="result-emoji"><<print _s.goodFood.emoji>></span>
-<div class="result-verdict good">Good choice</div>
-<p class="result-explain"><<print _s.goodExplain>></p>
-<div class="result-meter-after">Sludge cleared</div>
-</div>
-
-<<else>>
-
-<div class="result-card">
-<span class="result-emoji"><<print _s.badFood.emoji>></span>
-<div class="result-verdict bad">Your artery felt that</div>
-<p class="result-explain"><<print _s.badExplain>></p>
-<div class="result-meter-after">Sludge increased. Tomorrow is a chance to clear it.</div>
-</div>
-
-<</if>>
-
-<<if $day lt 5>>
-<<set $day to $day + 1>>
-<a class="btn-primary" data-passage="Day Start">ON TO DAY <<print $day>></a>
-<!-- Per-day "BACK TO CARDIOCAREQUEST" removed — same call we made on
-     DASH. The burger menu (≡) in the header already exposes "Go to
-     dashboard" on every screen, so a second exit button after every
-     day was redundant + visually noisy. The Final Result screen at
-     the end of Day 5 still has the BACK button (it belongs there as
-     the "you finished, here's the way out" affordance). -->
-<<else>>
-<a class="btn-primary" data-passage="Final Result">SEE YOUR FINAL ARTERY</a>
-<</if>>
-
-</div>
-</div>
-
-
-::Final Result [Important/Needed nobr]
-/*
-DENOUEMENT: End of game.
-Personalized message based on final sludge level.
-Score shown. Option to play again.
-
-The <<run>> below fires the canonical SUBMIT_RESPONSE event so
-research data sees a Salt Sludge play landing in
-`surveys/salt_sludge/responses/{auto}` and a
-`survey_response_submitted` event with surveyId='salt_sludge'.
-The Community Stats engagement-bar query keys on the surveyId,
-so without this firing the Diet category bar would stay at 0
-no matter how many participants finish the game. Guarded by a
-session flag so PLAY AGAIN doesn't double-credit.
-*/
-
-<<if not $submittedThisSession>>
-<<set $submittedThisSession to true>>
-<<run
-  try {
-    if (window.CCQ && typeof window.CCQ.submitResponse === "function") {
-      var verdict = "heavy";
-      if (State.variables.sludge < 30) { verdict = "clean"; }
-      else if (State.variables.sludge < 60) { verdict = "middle"; }
-      window.CCQ.submitResponse({
-        playerName: State.variables.playerName,
-        sludge: State.variables.sludge,
-        score: State.variables.score,
-        verdict: verdict,
-        daysCompleted: 5
-      }, { pointsEarned: 50, countAsCompletion: true });
-    }
-  } catch (e) { /* swallow */ }
->>
-<!-- UPDATE12: chain the control Daily Check-In off the END of this game.
-     Inside the same submit-once guard so it launches exactly once per
-     play-through (PLAY AGAIN resets $submittedThisSession in Story innit). -->
-<<run try { if (window.CCQ && window.CCQ.launchGame) window.CCQ.launchGame("control_daily_checkin"); } catch (e) {} >>
-<</if>>
-
-<div class="phone">
-<div class="header"><span>Salt Sludge</span><span class="day-label">5 days done</span></div>
-
-<div class="meters-wrap">
-<div class="meter-row"><div class="meter-label">Sludge</div><div class="meter-bar"><div class="meter-bar-fill sludge" @style="'width: ' + $sludge + '%'"></div></div></div>
-<div class="meter-row"><div class="meter-label">Nutrients</div><div class="meter-bar"><div class="meter-bar-fill nutrient" @style="'width: ' + Math.min(100, $score * 2) + '%'"></div></div></div>
-</div>
-
-<div class="content">
-
-<div class="final-card">
-
-<<if $sludge lt 30>>
-<div class="final-headline clean">Clean artery</div>
-<div class="final-stats">Sludge $sludge of 100. Nutrient points $score.</div>
-<div class="final-body">
-<p>Your potassium choices paid off. Blood is moving freely. Your blood pressure is lower right now than it was at the start of Day 1.</p>
-<p>Five days of consistent good choices. Not dramatic. Not perfect. Just noticeably better.</p>
-</div>
-<<elseif $sludge lt 60>>
-<div class="final-headline middle">Some sludge</div>
-<div class="final-stats">Sludge $sludge of 100. Nutrient points $score.</div>
-<div class="final-body">
-<p>A mix of good and tough choices. Your artery is managing but working harder than it needs to.</p>
-<p>The good news is you already know which foods cleared it. Those are the ones to reach for more often.</p>
-</div>
-<<else>>
-<div class="final-headline heavy">Heavy sludge</div>
-<div class="final-stats">Sludge $sludge of 100. Nutrient points $score.</div>
-<div class="final-body">
-<p>A tough five days. Your artery has been working overtime.</p>
-<p>The sodium added up faster than the potassium could clear it. That is the most common pattern. And now you can see exactly why it matters.</p>
-</div>
-<</if>>
-
-</div>
-
-<p class="scene">Every banana, every handful of spinach, every bowl of beans is clearing sludge in real arteries right now. Including yours.</p>
-
-<div class="spacer"></div>
-
-<a class="btn-primary" data-passage="Story innit">PLAY AGAIN</a>
-<!-- Direct goHome via .ccq-home-trigger — bridge intercepts the click
-     and fires CCQ.goHome() without trampolining through the Central
-     Hub passage (which previously just showed "Returning..." text and
-     a loop button, never actually exiting). Same convention as
-     Bingo Bash and DASH. -->
-<a class="btn-secondary ccq-home-trigger" href="javascript:void(0)">BACK TO CARDIOCAREQUEST</a>
-
-</div>
-</div>
-
-
-::Central Hub [Important/Needed nobr]
-/*
-EXIT HATCH. The visible "BACK TO CARDIOCAREQUEST" buttons now use
-`.ccq-home-trigger` and fire CCQ.goHome() directly, so this passage
-should rarely be reached anymore. Kept for safety: if any future
-flow lands here, the <<run>> below still pops the WebView back to
-the dashboard. Earlier this passage just showed "Returning..." text
-and a "PLAY SALT SLUDGE AGAIN" loop button — players who tapped
-exit got stuck on a loading-looking screen with no way out, which
-is exactly the bug the user reported.
-*/
-<<run
-  try {
-    if (window.CCQ && typeof window.CCQ.goHome === "function") {
-      window.CCQ.goHome();
-    }
-  } catch (e) { /* swallow */ }
->>
-
-<div class="phone">
-<div class="header"><span>Salt Sludge</span></div>
-<div class="content">
-
-<h2 class="intro-title">Returning</h2>
-<p class="narrative center">Going back to CardioCareQuest.</p>
-
-<div class="spacer"></div>
-
-</div>
-</div>
+/* Diet-aware view of one day's scenario. Vegetarian and vegan players
+   never get shown meat (hot dog, bacon) or, for vegan, dairy (yogurt):
+   the scenario carries plant stand-ins (badFoodVeg / goodFoodVegan and
+   their matching explanations) that this swaps in based on $playerDiet.
+   Returns an object with the resolved good/bad food + explanations so the
+   passages stay simple. Any scenario without a stand-in is unchanged. */
+setup.salt.resolveDay = function (s) {
+  var diet = State.variables.playerDiet || "everything";
+  var out = {
+    goodFood: s.goodFood,
+    badFood: s.badFood,
+    goodExplain: s.goodExplain,
+    badExplain: s.badExplain,
+    scene: s.scene,
+    sludgeDown: s.sludgeDown,
+    sludgeUp: s.sludgeUp,
+    scoreUp: s.scoreUp
+  };
+  var veg = (diet === "vegetarian" || diet === "vegan");
+  // Meat bad-food -> plant salty stand-in for veg AND vegan.
+  if (veg && s.badFoodVeg) {
+    out.badFood = s.badFoodVeg;
+    out.badExplain = s.badExplainVeg || s.badExplain;
+  }
+  // Dairy good-food -> vegan plant stand-in for vegan only.
+  if (diet === "vegan" && s.goodFoodVegan) {
+    out.goodFood = s.goodFoodVegan;
+    out.goodExplain = s.goodExplainVegan || s.goodExplain;
+  }
+  return out;
+};

@@ -762,6 +762,43 @@ $(document).on(":passagedisplay", function (ev) {
     }
   }
 
+  // Random subset: show only a handful of eligible foods per grid so the
+  // menu looks different every play-through. $mealPick is the chosen set,
+  // stored so it stays stable while the player is inside this build (e.g.
+  // toggling items or navigating away and back). It is reset to null in
+  // Story innit and on PLAY AGAIN, so a fresh game re-rolls the choices.
+  var SHOW_PER_GRID = 4;
+  if (!State.variables.mealPick) {
+    var picked = [];
+    var grids = document.querySelectorAll(".ingredients-grid");
+    for (var g = 0; g < grids.length; g++) {
+      var pool = [];
+      var kids = grids[g].querySelectorAll(".ing-wrap");
+      for (var k = 0; k < kids.length; k++) {
+        if (kids[k].style.display === "none") continue; // diet-hidden
+        pool.push(kids[k].dataset.ingEmoji + " " + kids[k].dataset.ingName);
+      }
+      // Fisher-Yates shuffle, then take the first SHOW_PER_GRID.
+      for (var s = pool.length - 1; s > 0; s--) {
+        var rr = Math.floor(Math.random() * (s + 1));
+        var tmp = pool[s]; pool[s] = pool[rr]; pool[rr] = tmp;
+      }
+      for (var p = 0; p < Math.min(SHOW_PER_GRID, pool.length); p++) {
+        picked.push(pool[p]);
+      }
+    }
+    State.variables.mealPick = picked;
+  }
+  var mealPick = State.variables.mealPick || [];
+  var poolWraps = document.querySelectorAll(".ing-wrap");
+  for (var pw = 0; pw < poolWraps.length; pw++) {
+    if (poolWraps[pw].style.display === "none") continue; // already diet-hidden
+    var plbl = poolWraps[pw].dataset.ingEmoji + " " + poolWraps[pw].dataset.ingName;
+    if (mealPick.indexOf(plbl) === -1) {
+      poolWraps[pw].style.setProperty("display", "none", "important");
+    }
+  }
+
   var wraps = document.querySelectorAll(".ing-wrap");
   for (var i = 0; i < wraps.length; i++) {
     var wrap = wraps[i];
@@ -1049,13 +1086,23 @@ setup.dash.fitsDiet = function (f) {
   return true;
 };
 
+/* Foods shown per day. The quiz stops after this many cards even when
+   more foods still fit the player's diet, so each day is a short set and
+   there are fresh foods left to see tomorrow. */
+setup.dash.dailyLimit = 10;
+
 /* How many quiz foods this player will actually see, given their diet.
-   Used for the "Round X of N" labels so the count matches what they get. */
+   Used for the "Round X of N" labels so the count matches what they get.
+   Capped at the daily limit so the label never promises more than a day
+   actually serves. */
 setup.dash.eligibleCount = function () {
-  return setup.dash.foods.filter(setup.dash.fitsDiet).length;
+  var fits = setup.dash.foods.filter(setup.dash.fitsDiet).length;
+  return Math.min(fits, setup.dash.dailyLimit);
 };
 
 /* Draw the next food:
+   - stop once the player has seen the daily limit of foods, so a day is
+     a short set and there are new foods left for tomorrow
    - candidates = foods not yet in seenFoods (UPDATE6, no repeats) AND
      that fit the player's diet choice (veg / vegan hide animal foods)
    - none left  -> return null so Round Start ends the quiz (UPDATE7)
@@ -1063,6 +1110,9 @@ setup.dash.eligibleCount = function () {
      record the pick in seenFoods, stash it in $currentFood, return it. */
 setup.dash.pickFood = function () {
   var seen = State.variables.seenFoods || [];
+  if (seen.length >= setup.dash.dailyLimit) {
+    return null;
+  }
   var candidates = setup.dash.foods.filter(function (f) {
     return seen.indexOf(f.id) === -1 && setup.dash.fitsDiet(f);
   });
@@ -1119,8 +1169,11 @@ You do not need to edit this.
    starts from a full, unshuffled-order pool. */
 &lt;&lt;set $seenFoods to []&gt;&gt;
 &lt;&lt;set $currentFood to null&gt;&gt;
+/* Meal-builder random subset: null here so each fresh game (and PLAY
+   AGAIN) re-rolls which foods appear in the build-your-own-meal grids. */
+&lt;&lt;set $mealPick to null&gt;&gt;
 /* Diet choice (everything / vegetarian / vegan). Set on the Diet Choice
-   screen right after Welcome. Foods tagged diet:"meat"/"dairy" are hidden
+   screen right after Welcome. Foods tagged diet:&quot;meat&quot;/&quot;dairy&quot; are hidden
    for the matching diet so no one is shown food they do not eat. */
 &lt;&lt;set $playerDiet to &quot;everything&quot;&gt;&gt;
 /* One-shot guard so Meal Result&#39;s submitResponse fires exactly once
@@ -1128,7 +1181,52 @@ You do not need to edit this.
    shot. See ::Meal Result for the submit body. */
 &lt;&lt;set $submittedThisSession to false&gt;&gt;
 
-&lt;&lt;goto &quot;Welcome&quot;&gt;&gt;</tw-passagedata><tw-passagedata pid="2" name="Welcome" tags="Important/Needed nobr" position="225,100" size="100,100">/*
+/* DAILY GATE: DASH is a once-per-day quest. localStorage holds the last
+   calendar date the participant finished it; if that matches today,
+   route to the Already Today screen instead of the quiz. Tomorrow the
+   date differs, the gate falls off, and a fresh round is available. */
+&lt;&lt;set $dashDone to false&gt;&gt;
+&lt;&lt;script&gt;&gt;
+State.variables.todayDate = (new Date()).toISOString().slice(0, 10);
+try {
+  var ua = (typeof navigator !== &quot;undefined&quot; &amp;&amp; navigator.userAgent) || &quot;&quot;;
+  var m = ua.match(/CCQApp\/([^\s]+)/);
+  State.variables.currentPid = m ? m[1] : &quot;&quot;;
+  var sav = window.localStorage.getItem(&quot;dash_save&quot;);
+  if (sav) {
+    var s = JSON.parse(sav);
+    var samePid = (s.pid || &quot;&quot;) === State.variables.currentPid;
+    if (samePid &amp;&amp; s.dashDate &amp;&amp; s.dashDate === State.variables.todayDate) {
+      State.variables.dashDone = true;
+    }
+  }
+} catch (e) { /* keep $dashDone false */ }
+&lt;&lt;/script&gt;&gt;
+&lt;&lt;if $dashDone&gt;&gt;&lt;&lt;goto &quot;Already Today&quot;&gt;&gt;&lt;&lt;else&gt;&gt;&lt;&lt;goto &quot;Welcome&quot;&gt;&gt;&lt;&lt;/if&gt;&gt;</tw-passagedata><tw-passagedata pid="2" name="Already Today" tags="Important/Needed nobr" position="100,225" size="100,100">/*
+DAILY GATE SCREEN: shown when the participant already finished DASH
+today. Friendly come-back-tomorrow message with a single Home button.
+The gate is set in Story innit from the localStorage `dash_save` date
+stamp written at the end of Meal Result.
+*/
+
+&lt;div class=&quot;phone&quot;&gt;
+&lt;div class=&quot;header&quot;&gt;&lt;span&gt;DASH Game&lt;/span&gt;&lt;/div&gt;
+&lt;div class=&quot;content&quot;&gt;
+
+&lt;span class=&quot;hero-emoji&quot;&gt;✅&lt;/span&gt;
+
+&lt;h1 class=&quot;intro-title&quot;&gt;All done for today&lt;/h1&gt;
+
+&lt;p class=&quot;narrative center&quot;&gt;You finished today&#39;s DASH diet quest. Nice work.&lt;/p&gt;
+
+&lt;p class=&quot;narrative center&quot;&gt;Come back tomorrow for 10 new foods.&lt;/p&gt;
+
+&lt;div class=&quot;spacer&quot;&gt;&lt;/div&gt;
+
+&lt;a class=&quot;btn-primary ccq-home-trigger&quot; href=&quot;javascript:void(0)&quot;&gt;BACK TO CARDIOCARE QUEST&lt;/a&gt;
+
+&lt;/div&gt;
+&lt;/div&gt;</tw-passagedata><tw-passagedata pid="3" name="Welcome" tags="Important/Needed nobr" position="225,100" size="100,100">/*
 INCITING MOMENT: Greeting + hook. One button.
 Card 1 of 2 before gameplay starts.
 */
@@ -1152,7 +1250,7 @@ Card 1 of 2 before gameplay starts.
 &lt;a class=&quot;btn-primary&quot; data-passage=&quot;Diet Choice&quot;&gt;NEXT&lt;/a&gt;
 
 &lt;/div&gt;
-&lt;/div&gt;</tw-passagedata><tw-passagedata pid="11" name="Diet Choice" tags="Important/Needed nobr" position="225,225" size="100,100">/*
+&lt;/div&gt;</tw-passagedata><tw-passagedata pid="4" name="Diet Choice" tags="Important/Needed nobr" position="225,225" size="100,100">/*
 DIET CHOICE: Ask once what the player eats. Sets $playerDiet, which
 setup.dash.fitsDiet() reads to hide meat/dairy foods for vegetarian /
 vegan players in both the quiz and the meal builder.
@@ -1187,7 +1285,7 @@ setTimeout(function () {
     links[i].style.marginBottom = &#39;12px&#39;;
   }
 }, 0);
-&lt;&lt;/script&gt;&gt;</tw-passagedata><tw-passagedata pid="3" name="How To Play" tags="Important/Needed nobr" position="350,100" size="100,100">/*
+&lt;&lt;/script&gt;&gt;</tw-passagedata><tw-passagedata pid="5" name="How To Play" tags="Important/Needed nobr" position="350,100" size="100,100">/*
 RULES in one screen.
 Card 2 of 2 before gameplay starts.
 */
@@ -1211,7 +1309,7 @@ Card 2 of 2 before gameplay starts.
 &lt;a class=&quot;btn-primary&quot; data-passage=&quot;Round Start&quot;&gt;START ROUND 1&lt;/a&gt;
 
 &lt;/div&gt;
-&lt;/div&gt;</tw-passagedata><tw-passagedata pid="4" name="Round Start" tags="Important/Needed nobr" position="475,100" size="100,100">/*
+&lt;/div&gt;</tw-passagedata><tw-passagedata pid="6" name="Round Start" tags="Important/Needed nobr" position="475,100" size="100,100">/*
 ROUND ROUTER (UPDATE6/7/8).
 No longer a UI screen. Draws the next food from the weighted,
 non-repeating pool via setup.dash.pickFood(). When the pool is
@@ -1220,7 +1318,7 @@ exhausted pickFood() returns null and we advance to the meal builder
 Otherwise we render the single generic Food Card for $currentFood.
 */
 &lt;&lt;set _f to setup.dash.pickFood()&gt;&gt;
-&lt;&lt;if _f is null&gt;&gt;&lt;&lt;goto &quot;Meal Builder Intro&quot;&gt;&gt;&lt;&lt;else&gt;&gt;&lt;&lt;goto &quot;Food Card&quot;&gt;&gt;&lt;&lt;/if&gt;&gt;</tw-passagedata><tw-passagedata pid="5" name="Food Card" tags="Important/Needed nobr" position="600,100" size="100,100">/*
+&lt;&lt;if _f is null&gt;&gt;&lt;&lt;goto &quot;Meal Builder Intro&quot;&gt;&gt;&lt;&lt;else&gt;&gt;&lt;&lt;goto &quot;Food Card&quot;&gt;&gt;&lt;&lt;/if&gt;&gt;</tw-passagedata><tw-passagedata pid="7" name="Food Card" tags="Important/Needed nobr" position="600,100" size="100,100">/*
 GENERIC FOOD CARD (UPDATE6/7/8).
 Renders whatever setup.dash.pickFood() stashed in $currentFood. The two
 choices score against $currentFood.correct: a matching answer bumps
@@ -1282,7 +1380,7 @@ setTimeout(function () {
   if (btns.length &gt;= 1) btns[0].classList.add(&#39;choice-btn&#39;, &#39;lowers&#39;);
   if (btns.length &gt;= 2) btns[1].classList.add(&#39;choice-btn&#39;, &#39;raises&#39;);
 }, 0);
-&lt;&lt;/script&gt;&gt;</tw-passagedata><tw-passagedata pid="6" name="Food Result" tags="Important/Needed nobr" position="725,100" size="100,100">/*
+&lt;&lt;/script&gt;&gt;</tw-passagedata><tw-passagedata pid="8" name="Food Result" tags="Important/Needed nobr" position="725,100" size="100,100">/*
 RESULT OF EACH FOOD CARD.
 Tells the player whether they were right and explains why.
 Moves to next round or meal builder after round 6.
@@ -1316,7 +1414,7 @@ Moves to next round or meal builder after round 6.
 &lt;a class=&quot;btn-primary&quot; data-passage=&quot;Round Start&quot;&gt;NEXT FOOD&lt;/a&gt;
 
 &lt;/div&gt;
-&lt;/div&gt;</tw-passagedata><tw-passagedata pid="7" name="Meal Builder Intro" tags="Important/Needed nobr" position="850,100" size="100,100">/*
+&lt;/div&gt;</tw-passagedata><tw-passagedata pid="9" name="Meal Builder Intro" tags="Important/Needed nobr" position="850,100" size="100,100">/*
 TRANSITION: Cards done. Introduce meal building.
 */
 
@@ -1339,7 +1437,7 @@ TRANSITION: Cards done. Introduce meal building.
 &lt;a class=&quot;btn-primary&quot; data-passage=&quot;Meal Builder&quot;&gt;START BUILDING&lt;/a&gt;
 
 &lt;/div&gt;
-&lt;/div&gt;</tw-passagedata><tw-passagedata pid="8" name="Meal Builder" tags="Important/Needed nobr" position="975,100" size="100,100">/*
+&lt;/div&gt;</tw-passagedata><tw-passagedata pid="10" name="Meal Builder" tags="Important/Needed nobr" position="975,100" size="100,100">/*
 MEAL BUILDER: Player picks ingredients.
 Each &lt;&lt;linkreplace&gt;&gt; can be triggered once.
 Score bar reflects $mealScore.
@@ -1363,23 +1461,23 @@ Score bar reflects $mealScore.
      who fat-fingered an item couldn&#39;t remove it. --&gt;
 &lt;div class=&quot;section-label&quot;&gt;Proteins&lt;/div&gt;
 &lt;div class=&quot;ingredients-grid&quot;&gt;
-&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Brown rice&quot; data-ing-emoji=&quot;🍚&quot; data-ing-score=&quot;10&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;🍚&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Brown rice&lt;/span&gt;&lt;/span&gt;&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Beans&quot; data-ing-emoji=&quot;🍲&quot; data-ing-score=&quot;15&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;🍲&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Beans&lt;/span&gt;&lt;/span&gt;&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Bacon&quot; data-ing-emoji=&quot;🥓&quot; data-ing-score=&quot;-15&quot; data-ing-diet=&quot;meat&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;🥓&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Bacon&lt;/span&gt;&lt;/span&gt;&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Yogurt&quot; data-ing-emoji=&quot;🥛&quot; data-ing-score=&quot;10&quot; data-ing-diet=&quot;dairy&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;🥛&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Yogurt&lt;/span&gt;&lt;/span&gt;&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Lentils&quot; data-ing-emoji=&quot;🫘&quot; data-ing-score=&quot;15&quot; data-ing-diet=&quot;plant&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;🫘&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Lentils&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Brown rice&quot; data-ing-emoji=&quot;🍚&quot; data-ing-score=&quot;10&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;🍚&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Brown rice&lt;/span&gt;&lt;/span&gt;&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Beans&quot; data-ing-emoji=&quot;🍲&quot; data-ing-score=&quot;15&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;🍲&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Beans&lt;/span&gt;&lt;/span&gt;&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Bacon&quot; data-ing-emoji=&quot;🥓&quot; data-ing-score=&quot;-15&quot; data-ing-diet=&quot;meat&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;🥓&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Bacon&lt;/span&gt;&lt;/span&gt;&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Yogurt&quot; data-ing-emoji=&quot;🥛&quot; data-ing-score=&quot;10&quot; data-ing-diet=&quot;dairy&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;🥛&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Yogurt&lt;/span&gt;&lt;/span&gt;&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Lentils&quot; data-ing-emoji=&quot;🫘&quot; data-ing-score=&quot;15&quot; data-ing-diet=&quot;plant&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;🫘&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Lentils&lt;/span&gt;&lt;/span&gt;&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Chickpeas&quot; data-ing-emoji=&quot;🫛&quot; data-ing-score=&quot;15&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;🫛&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Chickpeas&lt;/span&gt;&lt;/span&gt;&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Oats&quot; data-ing-emoji=&quot;🥣&quot; data-ing-score=&quot;10&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;🥣&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Oats&lt;/span&gt;&lt;/span&gt;&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Grilled chicken&quot; data-ing-emoji=&quot;🍗&quot; data-ing-score=&quot;5&quot; data-ing-diet=&quot;meat&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;🍗&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Grilled chicken&lt;/span&gt;&lt;/span&gt;&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Salmon&quot; data-ing-emoji=&quot;🐟&quot; data-ing-score=&quot;10&quot; data-ing-diet=&quot;meat&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;🐟&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Salmon&lt;/span&gt;&lt;/span&gt;
 &lt;/div&gt;
 
 &lt;div class=&quot;section-label&quot;&gt;Vegetables and Fruit&lt;/div&gt;
 &lt;div class=&quot;ingredients-grid&quot;&gt;
-&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Spinach&quot; data-ing-emoji=&quot;🥬&quot; data-ing-score=&quot;15&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;🥬&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Spinach&lt;/span&gt;&lt;/span&gt;&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Tomato&quot; data-ing-emoji=&quot;🍅&quot; data-ing-score=&quot;10&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;🍅&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Tomato&lt;/span&gt;&lt;/span&gt;&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Banana&quot; data-ing-emoji=&quot;🍌&quot; data-ing-score=&quot;10&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;🍌&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Banana&lt;/span&gt;&lt;/span&gt;&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Potato chips&quot; data-ing-emoji=&quot;🍟&quot; data-ing-score=&quot;-10&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;🍟&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Potato chips&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Spinach&quot; data-ing-emoji=&quot;🥬&quot; data-ing-score=&quot;15&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;🥬&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Spinach&lt;/span&gt;&lt;/span&gt;&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Tomato&quot; data-ing-emoji=&quot;🍅&quot; data-ing-score=&quot;10&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;🍅&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Tomato&lt;/span&gt;&lt;/span&gt;&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Banana&quot; data-ing-emoji=&quot;🍌&quot; data-ing-score=&quot;10&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;🍌&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Banana&lt;/span&gt;&lt;/span&gt;&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Potato chips&quot; data-ing-emoji=&quot;🍟&quot; data-ing-score=&quot;-10&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;🍟&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Potato chips&lt;/span&gt;&lt;/span&gt;&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Broccoli&quot; data-ing-emoji=&quot;🥦&quot; data-ing-score=&quot;15&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;🥦&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Broccoli&lt;/span&gt;&lt;/span&gt;&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Avocado&quot; data-ing-emoji=&quot;🥑&quot; data-ing-score=&quot;10&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;🥑&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Avocado&lt;/span&gt;&lt;/span&gt;&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Orange&quot; data-ing-emoji=&quot;🍊&quot; data-ing-score=&quot;10&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;🍊&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Orange&lt;/span&gt;&lt;/span&gt;&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Pickles&quot; data-ing-emoji=&quot;🥒&quot; data-ing-score=&quot;-10&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;🥒&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Pickles&lt;/span&gt;&lt;/span&gt;
 &lt;/div&gt;
 
 &lt;div class=&quot;section-label&quot;&gt;Extras&lt;/div&gt;
 &lt;div class=&quot;ingredients-grid&quot;&gt;
-&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Dark chocolate&quot; data-ing-emoji=&quot;🍫&quot; data-ing-score=&quot;5&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;🍫&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Dark chocolate&lt;/span&gt;&lt;/span&gt;&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Instant noodles&quot; data-ing-emoji=&quot;🍜&quot; data-ing-score=&quot;-20&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;🍜&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Instant noodles&lt;/span&gt;&lt;/span&gt;&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Water&quot; data-ing-emoji=&quot;💧&quot; data-ing-score=&quot;5&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;💧&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Water&lt;/span&gt;&lt;/span&gt;&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Hot dog&quot; data-ing-emoji=&quot;🌭&quot; data-ing-score=&quot;-15&quot; data-ing-diet=&quot;meat&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;🌭&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Hot dog&lt;/span&gt;&lt;/span&gt;&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Salted crackers&quot; data-ing-emoji=&quot;🍘&quot; data-ing-score=&quot;-10&quot; data-ing-diet=&quot;plant&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;🍘&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Salted crackers&lt;/span&gt;&lt;/span&gt;
+&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Dark chocolate&quot; data-ing-emoji=&quot;🍫&quot; data-ing-score=&quot;5&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;🍫&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Dark chocolate&lt;/span&gt;&lt;/span&gt;&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Instant noodles&quot; data-ing-emoji=&quot;🍜&quot; data-ing-score=&quot;-20&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;🍜&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Instant noodles&lt;/span&gt;&lt;/span&gt;&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Water&quot; data-ing-emoji=&quot;💧&quot; data-ing-score=&quot;5&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;💧&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Water&lt;/span&gt;&lt;/span&gt;&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Hot dog&quot; data-ing-emoji=&quot;🌭&quot; data-ing-score=&quot;-15&quot; data-ing-diet=&quot;meat&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;🌭&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Hot dog&lt;/span&gt;&lt;/span&gt;&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Salted crackers&quot; data-ing-emoji=&quot;🍘&quot; data-ing-score=&quot;-10&quot; data-ing-diet=&quot;plant&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;🍘&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Salted crackers&lt;/span&gt;&lt;/span&gt;&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Nuts&quot; data-ing-emoji=&quot;🥜&quot; data-ing-score=&quot;10&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;🥜&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Nuts&lt;/span&gt;&lt;/span&gt;&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Pretzels&quot; data-ing-emoji=&quot;🥨&quot; data-ing-score=&quot;-15&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;🥨&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Pretzels&lt;/span&gt;&lt;/span&gt;&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Soda&quot; data-ing-emoji=&quot;🥤&quot; data-ing-score=&quot;-10&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;🥤&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Soda&lt;/span&gt;&lt;/span&gt;&lt;span class=&quot;ing-wrap&quot; data-ing-name=&quot;Salt&quot; data-ing-emoji=&quot;🧂&quot; data-ing-score=&quot;-20&quot;&gt;&lt;span class=&quot;ing-emoji&quot;&gt;🧂&lt;/span&gt;&lt;span class=&quot;ing-name&quot;&gt;Salt&lt;/span&gt;&lt;/span&gt;
 &lt;/div&gt;
 
 &lt;a class=&quot;btn-primary&quot; data-passage=&quot;Meal Result&quot;&gt;SEE MY MEAL RESULT&lt;/a&gt;
 
 &lt;/div&gt;
-&lt;/div&gt;</tw-passagedata><tw-passagedata pid="9" name="Meal Result" tags="Important/Needed nobr" position="1100,100" size="100,100">/*
+&lt;/div&gt;</tw-passagedata><tw-passagedata pid="11" name="Meal Result" tags="Important/Needed nobr" position="1100,100" size="100,100">/*
 MEAL RESULT: Shows what meal does to BP.
 Personalized message based on $mealScore.
 Lists what player picked.
@@ -1414,10 +1512,9 @@ session flag so PLAY AGAIN doesn&#39;t double-credit.
     }
   } catch (e) { /* swallow */ }
 &gt;&gt;
-&lt;!-- UPDATE12: chain the control Daily Check-In off the END of this game.
-     Inside the same submit-once guard so it launches exactly once per
-     play-through (PLAY AGAIN resets $submittedThisSession in Story innit). --&gt;
-&lt;&lt;run try { if (window.CCQ &amp;&amp; window.CCQ.launchGame) window.CCQ.launchGame(&quot;control_daily_checkin&quot;); } catch (e) {} &gt;&gt;
+&lt;!-- DAILY GATE: stamp today so Story innit locks the game until tomorrow. --&gt;
+&lt;&lt;run try { window.localStorage.setItem(&quot;dash_save&quot;, JSON.stringify({ dashDate: State.variables.todayDate, pid: State.variables.currentPid })); } catch (e) {} &gt;&gt;
+&lt;&lt;set $dashDone to true&gt;&gt;
 &lt;&lt;/if&gt;&gt;
 
 &lt;div class=&quot;phone&quot;&gt;
@@ -1456,7 +1553,7 @@ session flag so PLAY AGAIN doesn&#39;t double-credit.
 &lt;a class=&quot;btn-primary ccq-home-trigger&quot; href=&quot;javascript:void(0)&quot;&gt;BACK TO CARDIOCARE QUEST&lt;/a&gt;
 
 &lt;/div&gt;
-&lt;/div&gt;</tw-passagedata><tw-passagedata pid="10" name="Central Hub" tags="Important/Needed nobr" position="1225,100" size="100,100">/*
+&lt;/div&gt;</tw-passagedata><tw-passagedata pid="12" name="Central Hub" tags="Important/Needed nobr" position="1225,100" size="100,100">/*
 EXIT HATCH. Hit when the player taps &quot;BACK TO CARDIOCAREQUEST&quot; on
 either the Final Result or Meal Result screens. Fires CCQ.goHome() so
 the Flutter host pops the WebView route back to the dashboard.

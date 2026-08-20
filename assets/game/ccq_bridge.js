@@ -70,6 +70,7 @@
           'vv_save',
           'pill_path_save',
           'cardiocarequest_survey',
+          'dash_save',
         ];
         for (var i = 0; i < staleKeys.length; i++) {
           try {
@@ -184,10 +185,10 @@
 
   /**
    * Tell the host the quest is finished. The host runs the end-game flow:
-   * awards points, writes the session completion + CheckData, clears the
-   * resume slot, fires the `*_quest_completed` telemetry event, and then
-   * calls `onQuestFinished(pointsGained)` back into your page so you can
-   * show the completion scene.
+   * writes the session completion + CheckData, clears the resume slot, fires
+   * the `*_quest_completed` telemetry event, and then calls
+   * `onQuestFinished(n)` back into your page so you can show the completion
+   * scene. The number passed is display-only for the built-in game.
    */
   function finishQuest() {
     post({type: 'FINISH_QUEST_DATA'});
@@ -223,20 +224,16 @@
    *
    * @param {Object} answers       Plain object of {questionId: answer}.
    * @param {Object} [opts]        Optional extras.
-   * @param {number} [opts.pointsEarned]  Override host's default points.
    * @param {string} [opts.surveyId]      Override host's surveyId (rare).
-   * @param {boolean} [opts.countAsCompletion=true]  Set false to credit
-   *   `points` without bumping the user-level `surveysCompleted`
-   *   counter. Used by games whose individual submits are partial
-   *   progress (e.g. Vascular Village's per-quest credits) — the host
-   *   then bumps `surveysCompleted` once on session exit instead.
+   * @param {boolean} [opts.countAsCompletion=true]  Set false to skip
+   *   bumping the user-level `surveysCompleted` counter. Used by games
+   *   whose individual submits are partial progress (e.g. Vascular
+   *   Village's per-quest submits) — the host then bumps
+   *   `surveysCompleted` once on session exit instead.
    */
   function submitResponse(answers, opts) {
     if (typeof answers !== 'object' || answers === null) return;
     var payload = {type: 'SUBMIT_RESPONSE', answers: answers};
-    if (opts && typeof opts.pointsEarned === 'number') {
-      payload.pointsEarned = opts.pointsEarned;
-    }
     if (opts && typeof opts.surveyId === 'string' && opts.surveyId) {
       payload.surveyId = opts.surveyId;
     }
@@ -255,7 +252,6 @@
    *
    * @param {string} questId          Quest identifier within the game.
    * @param {Object} [opts]
-   * @param {number} [opts.pointsEarned=0]  Points credited to the user.
    * @param {string} [opts.gameId]          Override host's gameId (rare).
    * @param {Object} [opts.data]            Free-form context (e.g. quality, choices).
    * @param {boolean} [opts.countAsCompletion=true]  Set false to skip
@@ -266,9 +262,6 @@
   function logQuestCompletion(questId, opts) {
     if (typeof questId !== 'string' || !questId) return;
     var payload = {type: 'LOG_QUEST_COMPLETION', questId: questId};
-    if (opts && typeof opts.pointsEarned === 'number') {
-      payload.pointsEarned = opts.pointsEarned;
-    }
     if (opts && typeof opts.gameId === 'string' && opts.gameId) {
       payload.gameId = opts.gameId;
     }
@@ -299,6 +292,71 @@
     if (!isFinite(sys) || !isFinite(dia) || sys <= 0 || dia <= 0) return;
     var m = (typeof mood === 'number' && isFinite(mood)) ? mood : 2;
     post({type: 'LOG_BP', systolic: sys, diastolic: dia, mood: m});
+  }
+
+  /**
+   * Log an exercise entry (activity name + minutes). The host routes this to
+   * DailyLogHooks.logExercise which writes the entry and bumps the daily/lifetime
+   * exercise counters. Use when a game step confirms the player did some
+   * physical activity.
+   *
+   * @param {string} activity  short activity name (e.g. "Take a walk")
+   * @param {number} [minutes=10]  how long, in minutes
+   */
+  function logExercise(activity, minutes) {
+    if (typeof activity !== 'string' || !activity) return;
+    var mins = Number(minutes);
+    post({
+      type: 'LOG_EXERCISE',
+      activity: activity,
+      minutes: isFinite(mins) && mins > 0 ? mins : 10,
+    });
+  }
+
+  /**
+   * Log a meal / healthy-eating entry. The host routes this to
+   * DailyLogHooks.logMeal which writes the entry and bumps the meal counters.
+   * Rating is 1..5 (higher is healthier); defaults to 4.
+   *
+   * @param {string} notes    short note (e.g. "Ate fruit or vegetables")
+   * @param {number} [rating=4]  1..5 healthiness rating
+   */
+  function logMeal(notes, rating) {
+    var r = Number(rating);
+    post({
+      type: 'LOG_MEAL',
+      notes: typeof notes === 'string' ? notes : '',
+      rating: isFinite(r) && r >= 1 && r <= 5 ? Math.round(r) : 4,
+    });
+  }
+
+  /**
+   * Log a medication check-in. The host routes this to
+   * DailyLogHooks.logMedication which records whether the dose was taken and
+   * updates the streak.
+   *
+   * @param {boolean} taken  true if the player took their medicine
+   */
+  function logMedication(taken) {
+    post({type: 'LOG_MEDICATION', taken: !!taken});
+  }
+
+  /**
+   * Log a trivia / quiz-style result for the whole play. The host routes this
+   * to DailyLogHooks.logTrivia which writes a `trivia_completed` event with the
+   * score.
+   *
+   * @param {number} score          how many the player got right / did
+   * @param {number} total          how many steps there were
+   */
+  function logTrivia(score, total) {
+    var s = Number(score);
+    var t = Number(total);
+    post({
+      type: 'LOG_TRIVIA',
+      score: isFinite(s) ? s : 0,
+      total: isFinite(t) ? t : 0,
+    });
   }
 
   /**
@@ -358,6 +416,10 @@
     submitResponse: submitResponse,
     logQuestCompletion: logQuestCompletion,
     logBP: logBP,
+    logExercise: logExercise,
+    logMeal: logMeal,
+    logMedication: logMedication,
+    logTrivia: logTrivia,
     launchGame: launchGame,
     getTodayBP: getTodayBP,
   };
@@ -406,7 +468,76 @@
     // the parent header's size so small headers (Dog Quest's 0.7rem
     // "EXERCISE" label) still get a tappable icon.
     style.textContent =
+      // ── Header bar layout ─────────────────────────────────────────
+      // Every game's top row uses `.header`. We turn it into a fixed
+      // 3-slot bar: a Home button pinned left, the game name centered,
+      // and the ≡ menu pinned right. The top padding uses
+      // `env(safe-area-inset-top)` (made non-zero by the runtime
+      // `viewport-fit=cover` fix) so the row sits BELOW the phone's
+      // clock/battery instead of colliding with it. Home and menu are
+      // absolutely positioned so the centered title never overlaps
+      // them; the 52px side padding reserves their space.
+      // The header is FIXED to the top of the viewport so it never
+      // scrolls away — long passages scroll their content underneath it.
+      // (`position: sticky` won't work here: the `.phone` wrapper is
+      // `overflow: hidden`, which makes it the scroll container and
+      // cancels sticky. `position: fixed` escapes that and pins to the
+      // viewport instead.) Because a fixed header leaves the flow, we
+      // reserve its height with top padding on `.phone` (see below) so
+      // the first line of content isn't hidden beneath it.
+      '.header {' +
+      '  position: fixed !important;' +
+      '  top: 0 !important;' +
+      '  left: 0 !important;' +
+      '  right: 0 !important;' +
+      '  width: 100% !important;' +
+      '  z-index: 40 !important;' +
+      '  box-sizing: border-box !important;' +
+      '  display: flex !important;' +
+      '  flex-wrap: nowrap !important;' +
+      '  align-items: center !important;' +
+      '  justify-content: center !important;' +
+      '  gap: 6px !important;' +
+      '  padding-top: calc(env(safe-area-inset-top, 0px) + 8px) !important;' +
+      '  padding-bottom: 8px !important;' +
+      '  padding-left: 52px !important;' +
+      '  padding-right: 52px !important;' +
+      '  min-height: calc(env(safe-area-inset-top, 0px) + 46px) !important;' +
+      '  text-align: center !important;' +
+      // A backdrop blur keeps the pinned bar legible when content scrolls
+      // beneath it (most game headers are semi-transparent over a gradient).
+      '  -webkit-backdrop-filter: blur(10px) !important;' +
+      '  backdrop-filter: blur(10px) !important;' +
+      '}' +
+      // Reserve the fixed header's height at the top of every game so the
+      // first content row starts below the bar instead of under it.
+      '.phone {' +
+      '  padding-top: calc(env(safe-area-inset-top, 0px) + 50px) !important;' +
+      '}' +
+      // Home button — pinned to the left edge, vertically aligned with
+      // the centered title row (same top offset as the header's
+      // content padding). Same white-on-shadow treatment as the menu
+      // glyph so it reads on both dark and light headers.
+      '.ccq-home-btn {' +
+      '  position: absolute !important;' +
+      '  left: 10px !important;' +
+      '  top: calc(env(safe-area-inset-top, 0px) + 4px) !important;' +
+      '  cursor: pointer !important;' +
+      '  user-select: none; -webkit-user-select: none;' +
+      '  display: inline-flex !important;' +
+      '  align-items: center; justify-content: center;' +
+      '  color: rgba(255, 255, 255, 0.95) !important;' +
+      '  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);' +
+      '  font-size: 22px !important;' +
+      '  line-height: 1 !important;' +
+      '  padding: 6px 8px !important;' +
+      '  min-width: 32px; min-height: 32px;' +
+      '  z-index: 30 !important;' +
+      '}' +
       '.menu-icon {' +
+      '  position: absolute !important;' +
+      '  right: 10px !important;' +
+      '  top: calc(env(safe-area-inset-top, 0px) + 4px) !important;' +
       '  cursor: pointer !important;' +
       '  user-select: none; -webkit-user-select: none;' +
       '  display: inline-flex !important;' +
@@ -416,14 +547,18 @@
       '  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);' +
       '  font-size: 24px !important;' +
       '  line-height: 1 !important;' +
-      // No `margin-left: auto` — most game headers already use
-      // `justify-content: space-between` to spread their children
-      // (title / progress / icon). Auto margin here collapses the
-      // first two children together (e.g. End Survey screen smushed
-      // "End Survey" against "Step 9 of 12" with no gap).
-      '  padding: 4px 6px !important;' +
-      '  min-width: 28px;' +
-      '  min-height: 28px;' +
+      '  padding: 6px 8px !important;' +
+      '  min-width: 32px;' +
+      '  min-height: 32px;' +
+      '  z-index: 30 !important;' +
+      '}' +
+      // On the active-walk scene Dog Quest paints a light-blue header,
+      // where white glyphs vanish. That game already darkens its own
+      // title/menu on `.scene-3`; extend the same treatment to the
+      // injected Home button so it stays legible.
+      '.phone.scene-3 .ccq-home-btn {' +
+      '  color: rgba(31, 58, 102, 0.9) !important;' +
+      '  text-shadow: none !important;' +
       '}' +
       // Backdrop: full-screen dim layer beneath the drawer. Click
       // anywhere on it (outside the panel) to dismiss.
@@ -759,6 +894,67 @@
     }
   }
 
+  // Prepend a Home button to every `.header` that doesn't already have
+  // one, mirroring the menu-icon injection above. The button sits in the
+  // top-left of the header bar (positioned by the `.ccq-home-btn` CSS in
+  // injectMenuStyles) and calls goHome() to return to the Flutter
+  // dashboard. Kept in the shared bridge so all games get an always-
+  // present Home control without per-game markup, matching the menu.
+  function ensureHomeButtonInHeaders(root) {
+    if (!root || !root.querySelectorAll) return;
+    var headers = root.querySelectorAll('.header');
+    for (var i = 0; i < headers.length; i++) {
+      var header = headers[i];
+      if (header.querySelector('.ccq-home-btn')) continue;
+      var btn = document.createElement('span');
+      btn.className = 'ccq-home-btn';
+      btn.textContent = '⌂';
+      btn.setAttribute('role', 'button');
+      btn.setAttribute('aria-label', 'Home');
+      btn.title = 'Home';
+      attachHomeButtonHandler(btn);
+      header.insertBefore(btn, header.firstChild);
+    }
+  }
+
+  // Direct click + touch handler for the header Home button. Same belt-
+  // and-suspenders pattern as the burger's attachDirectClickHandler, but
+  // fires goHome() instead of opening the menu. Idempotent via a data
+  // flag so re-scans don't stack handlers.
+  function attachHomeButtonHandler(el) {
+    if (!el || el.dataset.ccqHomeBtnAttached === 'yes') return;
+    el.dataset.ccqHomeBtnAttached = 'yes';
+    var fire = function (e) {
+      try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
+      try { goHome(); } catch (err) { console.error('[CCQ] home button:', err); }
+    };
+    el.addEventListener('click', fire);
+    el.addEventListener('touchend', fire, {passive: false});
+  }
+
+  // iOS only reports a non-zero `env(safe-area-inset-top)` when the
+  // viewport opts into `viewport-fit=cover`. The compiled games ship a
+  // plain `width=device-width, initial-scale=1` viewport, so the header's
+  // safe-area top padding evaluated to 0 and the title collided with the
+  // phone's clock/battery. Patch the meta tag at runtime so the inset
+  // becomes real and the header bar drops below the status bar.
+  function ensureViewportCover() {
+    try {
+      var vp = document.querySelector('meta[name="viewport"]');
+      if (!vp) {
+        vp = document.createElement('meta');
+        vp.setAttribute('name', 'viewport');
+        (document.head || document.documentElement).appendChild(vp);
+      }
+      var content = vp.getAttribute('content') || 'width=device-width, initial-scale=1';
+      if (!/viewport-fit\s*=\s*cover/.test(content)) {
+        vp.setAttribute('content', content.replace(/\s+$/, '') + ', viewport-fit=cover');
+      }
+    } catch (e) {
+      console.error('[CCQ] viewport-fit fix failed:', e);
+    }
+  }
+
   // Direct click + touch handler attached straight to the element.
   // Belt-and-suspenders alongside the document-level delegation: some
   // Android WebView builds fire `click` only on the originating element
@@ -817,8 +1013,10 @@
     // something else triggers injectMenuStyles. Calling it here is
     // idempotent thanks to the `getElementById('ccq-menu-styles')`
     // short-circuit.
+    ensureViewportCover();
     injectMenuStyles();
     ensureMenuIconInHeaders(document);
+    ensureHomeButtonInHeaders(document);
     attachHomeTriggerHandlers(document);
     if (typeof MutationObserver !== 'function') return;
     var observer = new MutationObserver(function (mutations) {
@@ -830,8 +1028,10 @@
           // Element itself might be a header, OR contain headers.
           if (node.matches && node.matches('.header')) {
             ensureMenuIconInHeaders(node.parentNode || document);
+            ensureHomeButtonInHeaders(node.parentNode || document);
           }
           ensureMenuIconInHeaders(node);
+          ensureHomeButtonInHeaders(node);
           // New passage may contain a "Back to CardioCare Quest" button.
           attachHomeTriggerHandlers(node);
         }

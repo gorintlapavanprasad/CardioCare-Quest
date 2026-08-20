@@ -122,7 +122,6 @@ abstract class MovementHooks {
     required String gameId,
     required double distanceWalked,
     required double targetDistance,
-    required int pointsEarned,
     required String buddyName,
     required List<GeoPoint> pathCoordinates,
     String? completionEventName,
@@ -143,7 +142,6 @@ abstract class MovementHooks {
 
     return _queue.enqueueBatch([
       PendingOp.update('${FirestorePaths.userData}/$uid', {
-        'points': OfflineFieldValue.increment(pointsEarned),
         'totalDistance': OfflineFieldValue.increment(distanceWalked.toInt()),
         'totalSessions': OfflineFieldValue.increment(1),
         'distanceTraveled':
@@ -165,7 +163,6 @@ abstract class MovementHooks {
           'dogName': buddyName,
           'buddyName': buddyName,
           'endedAt': OfflineFieldValue.nowTimestamp(),
-          'pointsEarned': pointsEarned,
         },
         merge: true,
       ),
@@ -212,7 +209,6 @@ abstract class MovementHooks {
           'gameId': gameId,
           'questId': completionEventName ?? '${gameId}_completed',
           'sessionId': sessionId,
-          'pointsEarned': pointsEarned,
           'distanceWalked': distanceWalked,
           'targetDistance': targetDistance,
           'countAsCompletion': true,

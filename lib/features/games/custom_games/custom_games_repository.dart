@@ -47,10 +47,10 @@ class CustomGamesRepository {
       title: draft.title,
       description: draft.description,
       category: draft.category,
-      pointsReward: draft.pointsReward,
       // A past bug dropped these on save (all games came out as empty quizzes).
       gameType: draft.gameType,
       questions: draft.questions,
+      scenes: draft.scenes,
       prompt: draft.prompt,
       options: draft.options,
       targetDistance: draft.targetDistance,
